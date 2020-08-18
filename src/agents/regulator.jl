@@ -2,14 +2,14 @@
 
 # declare rate designs
 abstract type RateDesign end
-mutable struct FlatRate <: RateDesign end
-mutable struct TOU <: RateDesign end
+struct FlatRate <: RateDesign end
+struct TOU <: RateDesign end
 
 # declare net metering policies
 abstract type NetMeteringPolicy end
-mutable struct ExcessRetailRate <: NetMeteringPolicy end
-mutable struct ExcessMarginalCost <: NetMeteringPolicy end
-mutable struct ExcessZero <: NetMeteringPolicy end
+struct ExcessRetailRate <: NetMeteringPolicy end
+struct ExcessMarginalCost <: NetMeteringPolicy end
+struct ExcessZero <: NetMeteringPolicy end
 
 mutable struct Regulator <: Agent
     # Parameters
@@ -30,14 +30,31 @@ function Regulator(input_filename::String, model_data::HEMData)
     )
 end
 
+# although Customer is subtype of Agent, 
+# Vector{Customer} is not subtype of Vector{Agent}
+# But if a vector of customers c1, c2, c3 is defined 
+# using the syntax Agent[c1, c2, c3], calling 
+# this function will work. Can also:
+# Vector{Agent}([c1, c2, c3])
+
 function solve_agent_problem(
     regulator::Regulator,    
+    marketstructure::VerticallyIntegratedUtility, # if Type{VerticallyIntegratedUtility}, then must pass in the actual type
+                                                  # like this, pass in an instance of the type
     model_data::HEMData, 
-    utility::Agent,
-    customers::Agent,
+    other_agents::Vector{<:Agent},                # only use Array{Type,N} for N >= 3
     ratemaking::Type{T} where {T <: RateDesign},
-    netmeterpolicy::Type{Q} where {Q <: NetMeteringPolicy},
-    ::Type{VerticallyIntegratedUtility})
+    netmeterpolicy::Type{Q} where {Q <: NetMeteringPolicy})
+
+    # use filter
+    utility = filter(other_agents, x -> x isa Utility)
+    customers = filter(other_agents, x -> x isa Customers)
+
+    @assert length(utility) == 1
+    @assert length(customers) == 1
+
+    utility = first(utility)
+    customers = first(customers)
     
     # pure volumetric rate
     energy_cost = sum(
@@ -109,14 +126,16 @@ end
 
 
 
+
 function solve_agent_problem(
     regulator::Regulator,    
+    marketstructure::WholesaleMarket,
     model_data::HEMData, 
     ipp::Agent,
     customers::Agent,
     ratemaking::Type{T} where {T <: RateDesign},
     netmeterpolicy::Type{Q} where {Q <: NetMeteringPolicy},
-    ::Type{WholesaleMarket})
+    )
     
     # pure volumetric rate
     der_excess_cost = sum(model_data.omega[t]*regulator.p_ex[h,t] * max(0, sum(customers.rho_DG[h,m,t]*customers.Opti_DG[h,m] for m in customers.index_m)-customers.d[h,t]) *

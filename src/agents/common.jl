@@ -26,11 +26,18 @@ function HEMData(input_filename::String)
     )
 end
 
-abstract type Agent end
+# make this be the data field of every agent type
+# still need abstract type (no data) for Agent, then derive from it
+mutable struct AgentData
+    sets::Vector{MySetType}
+    params::Vector{MyParameterType}
+    vars::Vector{MyVariableType}
+end
 
+# Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end
-mutable struct VerticallyIntegratedUtility <: MarketStructure end
-mutable struct WholesaleMarket <: MarketStructure end
+struct VerticallyIntegratedUtility <: MarketStructure end
+struct WholesaleMarket <: MarketStructure end
 
 
 function save_welfare(Supply::Any, Demand::Any, exportfilepath::AbstractString, fileprefix::AbstractString)
@@ -46,6 +53,8 @@ end
 function solve_equilibrium_problem(marketstructure::VerticallyIntegratedUtility, retailrate, dernetmetering,
         model_data, regulator, utility, customers, ipp, exportfilepath)
 
+    # ETH@20200818 - Dheepak thinks if we remove all of these global keywords 
+    # the code will still work
     global iter = 1
     global max_iter = 10
     global diff = 100.0
@@ -57,7 +66,7 @@ function solve_equilibrium_problem(marketstructure::VerticallyIntegratedUtility,
     
         diff = 0.0
         diff += solve_agent_problem(utility, model_data, regulator, customers)
-        diff += solve_agent_problem(regulator, model_data, utility, customers, retailrate, dernetmetering, marketstructure)
+        diff += solve_agent_problem(regulator, marketstructure, model_data, utility, customers, retailrate, dernetmetering)
         diff += solve_agent_problem(customers, model_data, regulator)
     
         iter += 1

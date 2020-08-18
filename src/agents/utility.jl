@@ -43,6 +43,12 @@ function Utility(input_filename::String, model_data::HEMData)
     )
 end
 
+function get_utility(agent_list::Array{Agent})
+    for agent in agent_list
+        
+    end
+end
+
 function solve_agent_problem(
     utility::Utility, 
     model_data::HEMData, 
