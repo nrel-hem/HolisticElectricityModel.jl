@@ -45,6 +45,7 @@ using DocStringExtensions
 #################################################################################
 # Includes
 
+include("types.jl")
 include("utils.jl")
 
 include("agents/common.jl")

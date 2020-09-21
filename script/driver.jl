@@ -12,10 +12,13 @@ if !isdir(exportfilepath)
     mkdir(exportfilepath)
 end
 
-# User can change retail rate making, DER net metering policy, and market structure
-retailrate = TOU()     # FlatRate(), TOU()
-dernetmetering = ExcessRetailRate()     # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
-marketstructure = WholesaleMarket()     # VerticallyIntegratedUtility(), WholesaleMarket()
+hem_opts = HEMOptions(
+    WholesaleMarket()   # MarketStructure
+) 
+regulator_opts = RegulatorOptions(
+    TOU(),              # RateDesign
+    ExcessRetailRate()  # NetMeteringPolicy
+)
 
 # Logging options
 #set_log_level(Logging.Debug) # if commented, will revert to Info
@@ -30,3 +33,9 @@ ipp = IPP(input_filename, model_data)
 
 solve_equilibrium_problem(marketstructure, retailrate, dernetmetering,
     model_data, regulator, utility, customers, ipp, exportfilepath)
+
+solve_equilibrium_problem(hem_opts, model_data, [
+    AgentAndOptions(regulator, regulator_opts),
+    AgentAndOptions(utility, NullAgentOptions()),
+    AgentAndOptions(customers, NullAgentOptions()),
+    AgentAndOptions(ipp, NullAgentOptions())], exportfilepath)

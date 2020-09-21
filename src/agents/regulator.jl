@@ -11,6 +11,13 @@ struct ExcessRetailRate <: NetMeteringPolicy end
 struct ExcessMarginalCost <: NetMeteringPolicy end
 struct ExcessZero <: NetMeteringPolicy end
 
+
+struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AgentOptions
+    rate_design::T
+    net_metering_policy::U
+end
+
+
 mutable struct Regulator <: Agent
     # Parameters
     r::AbstractFloat # planning reserve (fraction)
