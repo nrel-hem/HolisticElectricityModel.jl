@@ -103,9 +103,13 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
 end
 
 function solve_agent_problem(
-    customers::Customers,
-    model_data::HEMData, 
-    regulator::Agent)
+        customers::Customers, 
+        customers_opts::AgentOptions,
+        model_data::HEMData, 
+        hem_opts::HEMOptions,
+        other_agents::Vector{Agent})
+
+    regulator = get_agent(other_agents, Regulator)
 
     x_DG_before = copy(customers.x_DG_new)
 
@@ -129,7 +133,7 @@ function solve_agent_problem(
                 customers.CapEx_DG[h,m] * customers.Opti_DG[h,m] / NetProfit[h,m]
             # Calculate maximum market share and maximum DG potential (based on WTP curve)
             customers.MarketShare[h,m] = 
-                1.0 - cdf(Gamma(adopt_model.Shape[h,m], 1/adopt_model.Rate[h,m]), customers.Payback[h,m])
+                1.0 - Distributions.cdf(Distributions.Gamma(adopt_model.Shape[h,m], 1/adopt_model.Rate[h,m]), customers.Payback[h,m])
             customers.MaxDG[h,m] = 
                 customers.MarketShare[h,m]*customers.gamma[h]*customers.Opti_DG[h,m]
             # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
@@ -158,9 +162,16 @@ function solve_agent_problem(
     ])
 end
 
-function save_results(customers::Customers, exportfilepath::AbstractString, fileprefix::AbstractString)
+function save_results(
+        customers::Customers, 
+        customers_opts::AgentOptions,
+        hem_opts::HEMOptions,
+        exportfilepath::AbstractString, 
+        fileprefix::AbstractString)
+
     # Primal Variables
-    save_param(customers.x_DG_new, [:CustomerType, :DERTech], :Capacity_MW, joinpath(exportfilepath, "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_x_DG.csv"))
+    save_param(customers.x_DG_new, [:CustomerType, :DERTech], :Capacity_MW, 
+               joinpath(exportfilepath, "$(fileprefix)_x_DG.csv"))
 end
 
 function welfare_calculation(
@@ -206,7 +217,7 @@ function welfare_calculation(
         if NetProfit[h,m] >= 0.0
             # Calculate total Net Consumer Surplus of PV installation
             Integral = Dict((h,m) =>
-                quadgk(x -> customers.gamma[h]*customers.Opti_DG[h,m] * (1-cdf(Gamma(adopt_model.Shape[h,m], 1/adopt_model.Rate[h,m]*NetProfit[h,m]/customers.Opti_DG[h,m]),x)), 
+                quadgk(x -> customers.gamma[h]*customers.Opti_DG[h,m] * (1-Distributions.cdf(Distributions.Gamma(adopt_model.Shape[h,m], 1/adopt_model.Rate[h,m]*NetProfit[h,m]/customers.Opti_DG[h,m]),x)), 
                 customers.CapEx_DG[h,m], 100*customers.CapEx_DG[h,m], rtol=1e-8))
             # Calculate annualized Net Consumer Surplus of PV installation
             if customers.MaxDG[h,m] == 0.0
