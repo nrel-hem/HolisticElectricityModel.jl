@@ -2,6 +2,7 @@ using DataFrames
 using Logging
 using XLSX
 
+
 # Question: Best practice for documenting data types? Why doesn't my type 
 # mark-up in the code show up when I look at ?read_set or ?read_param
 # Answer: Documentation below is correct--types are not listed explicitly in the docstrings. 
@@ -13,10 +14,6 @@ using XLSX
 # Answer: When necessary for dispatch, and often for clarity. 
 #         Always use AbstractString, not String.
 #         Iterables can be tricky--go with duck typing when you can in that case
-
-const SetType1D = Array{Symbol,1}
-const ParamType1D = Dict{Symbol, AbstractFloat}
-const ParamTypeND = Dict{Tuple, AbstractFloat}
 
 """
     read_set(filename, sheetname)
@@ -46,8 +43,8 @@ of the row_indices in turn, plus a column_index value.
 """
 function read_param(filename::AbstractString, 
                     sheetname::AbstractString, 
-                    column_index::Array{Symbol,1}, 
-                    row_indices::Array{Array{Symbol,1},1}=Array{Array{Symbol,1},1}())
+                    column_index::SetType1D, 
+                    row_indices::Vector{SetType1D}=Vector{SetType1D}())
     # load the sheet as a DataFrame
     table = DataFrame(XLSX.readtable(filename, sheetname)...)
 
@@ -158,6 +155,7 @@ function initialize_param(indices...; value=0.0)
     end
     return Dict(t => value for t in Iterators.product(indices...))
 end
+
 
 # Code from https://stackoverflow.com/a/60907180 that provides a stop() function
 # that can be helpful for testing.

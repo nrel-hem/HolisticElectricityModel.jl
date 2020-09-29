@@ -44,10 +44,23 @@ function IPP(input_filename::String, model_data::HEMData)
 end
 
 function solve_agent_problem(
-    ipp::IPP, 
-    model_data::HEMData, 
-    regulator::Agent,    
-    customers::Agent)
+        ipp::IPP,
+        ipp_opts::AgentOptions,
+        model_data::HEMData,
+        hem_opts::HEMOptions{VerticallyIntegratedUtility},
+        other_agents::Vector{Agent})
+    return 0.0
+end
+
+function solve_agent_problem(
+        ipp::IPP, 
+        ipp_opts::AgentOptions,
+        model_data::HEMData, 
+        hem_opts::HEMOptions{WholesaleMarket},
+        other_agents::Vector{Agent})
+    
+    regulator = get_agent(other_agents, Regulator)
+    customers = get_agent(other_agents, Customers)
 
     WMDER_IPP = Model(Solver.Optimizer)
 
@@ -154,12 +167,22 @@ function solve_agent_problem(
     ])
 end
 
-function save_results(ipp::IPP, exportfilepath::AbstractString, fileprefix::AbstractString)
+
+function save_results(
+        ipp::IPP, 
+        ipp_opts::AgentOptions,
+        hem_opts::HEMOptions{WholesaleMarket},
+        exportfilepath::AbstractString, 
+        fileprefix::AbstractString)
     # Primal Variables
-    save_param(ipp.y_E, [:GenTech, :Time], :Generation_MWh, joinpath(exportfilepath, "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_y_E.csv"))
-    save_param(ipp.y_C, [:GenTech, :Time], :Generation_MWh, joinpath(exportfilepath, "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_y_C.csv"))
-    save_param(ipp.x_R, [:GenTech], :Capacity_MW, joinpath(exportfilepath, "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_x_R.csv"))
-    save_param(ipp.x_C, [:GenTech], :Capacity_MW, joinpath(exportfilepath, "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_x_C.csv"))
+    save_param(ipp.y_E, [:GenTech, :Time], :Generation_MWh, 
+               joinpath(exportfilepath, "$(fileprefix)_y_E.csv"))
+    save_param(ipp.y_C, [:GenTech, :Time], :Generation_MWh, 
+               joinpath(exportfilepath, "$(fileprefix)_y_C.csv"))
+    save_param(ipp.x_R, [:GenTech], :Capacity_MW, 
+               joinpath(exportfilepath, "$(fileprefix)_x_R.csv"))
+    save_param(ipp.x_C, [:GenTech], :Capacity_MW, 
+               joinpath(exportfilepath, "$(fileprefix)_x_C.csv"))
 end
 
 function welfare_calculation(

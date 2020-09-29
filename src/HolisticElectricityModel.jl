@@ -5,12 +5,19 @@ module HolisticElectricityModel
 
 # Meta
 export HEMData
+export HEMOptions
+export Agent
+export AgentOptions, NullAgentOptions
+export AgentAndOptions
 
 # Agents
 export Regulator
 export Utility
 export Customers
 export IPP
+
+# Agent Options
+export RegulatorOptions
 
 # Policies
 export FlatRate, TOU                                    # tariff structures
@@ -45,6 +52,7 @@ using DocStringExtensions
 #################################################################################
 # Includes
 
+include("types.jl")
 include("utils.jl")
 
 include("agents/common.jl")
