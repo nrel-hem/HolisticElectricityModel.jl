@@ -62,7 +62,7 @@ function solve_agent_problem(
     regulator = get_agent(other_agents, Regulator)
     customers = get_agent(other_agents, Customers)
 
-    WMDER_IPP = Model(Solver.Optimizer)
+    WMDER_IPP = get_new_jump_model(hem_opts.solver)
 
     # Define positive variables
     @variable(WMDER_IPP, x_C[ipp.index_k] >= 0)

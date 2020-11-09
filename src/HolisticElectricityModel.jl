@@ -4,6 +4,9 @@ module HolisticElectricityModel
 # Exports
 
 # Meta
+export HEMSolver
+export XpressSolver
+export GurobiSolver
 export HEMData
 export HEMOptions
 export Agent
@@ -37,7 +40,6 @@ import Logging
 import XLSX
 import Distributions
 import CSV
-import Xpress
 import QuadGK
 
 #################################################################################

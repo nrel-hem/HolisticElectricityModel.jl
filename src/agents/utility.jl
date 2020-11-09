@@ -71,7 +71,7 @@ function solve_agent_problem(
     regulator = get_agent(other_agents, Regulator)
     customers = get_agent(other_agents, Customers)
 
-    VIUDER_Utility = Model(Solver.Optimizer)
+    VIUDER_Utility = get_new_jump_model(hem_opts.solver)
 
     # Define positive variables
     @variable(VIUDER_Utility, x_C[utility.index_k] >= 0)
