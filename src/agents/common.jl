@@ -1,7 +1,24 @@
 # This module defines inputs that are held in common across all agents
-using Xpress
 
-Solver = Xpress
+abstract type HEMSolver end
+
+struct XpressSolver <: HEMSolver
+    solver
+end
+
+function get_new_jump_model(hem_solver::XpressSolver)
+    return Model(hem_solver.solver.Optimizer)
+end
+
+struct GurobiSolver <: HEMSolver
+    solver
+    env
+end
+
+function get_new_jump_model(hem_solver::GurobiSolver)
+    return Model(() -> hem_solver.solver.Optimizer(hem_solver.env))
+end
+
 
 struct HEMData
     # Configuration
@@ -34,7 +51,8 @@ struct WholesaleMarket <: MarketStructure end
 
 
 struct HEMOptions{T <: MarketStructure}
-    market_structure::T
+    solver::HEMSolver
+    market_structure::T    
 end
 
 

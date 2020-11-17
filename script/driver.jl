@@ -2,6 +2,15 @@ using HolisticElectricityModel
 
 # This is the driver script
 
+# Define the solver ------------------------------------------------------------
+using Xpress
+solver = XpressSolver(Xpress)
+
+# using Gurobi
+# const GRB_ENV = Gurobi.Env()
+# solver = GurobiSolver(Gurobi, GRB_ENV)
+# ------------------------------------------------------------------------------
+
 # Define the model run ---------------------------------------------------------
 
 # File locations
@@ -13,7 +22,8 @@ if !isdir(exportfilepath)
 end
 
 hem_opts = HEMOptions(
-    WholesaleMarket()   # MarketStructure
+    solver,                       # HEMSolver    
+    VerticallyIntegratedUtility() # MarketStructure    
 ) 
 
 regulator_opts = RegulatorOptions(
