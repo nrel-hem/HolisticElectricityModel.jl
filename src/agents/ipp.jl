@@ -2,7 +2,7 @@
 
 mutable struct IPP <: Agent
     # Sets
-    index_k::Array{Symbol,1} # bulk generation technologies
+    index_k::Set1D # bulk generation technologies
 
     # Parameters
     x_E::ParamType1D # existing capacity (MW)
@@ -23,7 +23,8 @@ mutable struct IPP <: Agent
 end
 
 function IPP(input_filename::String, model_data::HEMData)
-    index_k = read_set(input_filename, "index_k")
+    index_k = read_set(input_filename, "index_k", "index_k",
+                       prose_name = "bulk generation technologies k")
 
     return IPP(
         index_k,

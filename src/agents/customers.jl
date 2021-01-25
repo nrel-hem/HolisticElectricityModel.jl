@@ -29,7 +29,7 @@ end
 
 mutable struct Customers <: Agent
     # Sets
-    index_m::SetType1D # behind-the-meter technologies
+    index_m::Set1D # behind-the-meter technologies
 
     # Parameters
     gamma::ParamType1D # number of customers of type h
@@ -58,7 +58,8 @@ mutable struct Customers <: Agent
 end
 
 function Customers(input_filename::AbstractString, model_data::HEMData)
-    index_m = read_set(input_filename, "index_m")
+    index_m = read_set(input_filename, "index_m", "index_m",
+                       prose_name = "behind-the-meter technologies m")
 
     gamma = read_param(input_filename, "Gamma", model_data.index_h)
     x_DG_E = read_param(input_filename, "ExistingDER", index_m, [model_data.index_h])

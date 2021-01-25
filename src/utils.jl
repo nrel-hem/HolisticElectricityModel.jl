@@ -20,8 +20,12 @@ using XLSX
 
 Reads the column names of Excel filename, sheetname in as symbols.
 """
-function read_set(filename::AbstractString, sheetname::AbstractString)
-    result = Symbol.(names(DataFrame(XLSX.readtable(filename, sheetname)...)))
+function read_set(filename::AbstractString, sheetname::AbstractString, 
+                  name::AbstractString; prose_name = "", description = "")::Set1D
+    result = Set1D(name, 
+                   Symbol.(names(DataFrame(XLSX.readtable(filename, sheetname)...))),
+                   prose_name = prose_name, 
+                   description = description)
     @info "Loaded $sheetname = $result" result
     return result
 end
@@ -43,8 +47,8 @@ of the row_indices in turn, plus a column_index value.
 """
 function read_param(filename::AbstractString, 
                     sheetname::AbstractString, 
-                    column_index::SetType1D, 
-                    row_indices::Vector{SetType1D}=Vector{SetType1D}())
+                    column_index::Set1D, 
+                    row_indices::Vector{Set1D}=Vector{Set1D}())
     # load the sheet as a DataFrame
     table = DataFrame(XLSX.readtable(filename, sheetname)...)
 

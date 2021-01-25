@@ -1,6 +1,5 @@
 using Lazy: @forward
 
-const SetType1D = Vector{Symbol}
 const ParamType1D = Dict{Symbol, AbstractFloat}
 const ParamTypeND = Dict{Tuple, AbstractFloat}
 
@@ -38,7 +37,8 @@ function Set1D(name::AbstractString, elements::Vector{Symbol}; prose_name = "", 
     return Set1D(name, prose_name, description, elements)
 end
 
-@forward Set1D.elements Base.iterate
+@forward Set1D.elements Base.IteratorSize, Base.IteratorEltype, Base.size, 
+    Base.axes, Base.ndims, Base.length, Base.iterate
 
 # ------------------------------------------------------------------------------
 # Collections

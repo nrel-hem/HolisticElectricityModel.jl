@@ -14,15 +14,16 @@ end
 
 function HEMData(input_filename::String)
     # 17 timeslices (from ReEDS)
-    index_t = Set1D("index_t", read_set(input_filename, "index_t"), 
-                    prose_name = "time index t", 
-                     description = "ReEDS 17 timeslices representation")
+    index_t = read_set(input_filename, "index_t", "index_t",
+                       prose_name = "time index t", 
+                       description = "ReEDS 17 timeslices representation")
     
     return HEMData(
         1.0E-3,
         index_t, 
-        Set1D("index_h", read_set(input_filename, "index_h")),
-        read_param(input_filename, "Omega", index_t.elements) # number of hours per timeslice
+        read_set(input_filename, "index_h", "index_h", 
+                 prose_name = "customer types h"),
+        read_param(input_filename, "Omega", index_t) # number of hours per timeslice
     )
 end
 
