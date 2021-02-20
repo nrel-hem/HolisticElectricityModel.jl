@@ -2,6 +2,12 @@ using HolisticElectricityModel
 
 # This is the driver script
 
+# Logging options --------------------------------------------------------------
+using Logging
+# ETH@20210219 - Below line no longer works; I don't understand why
+# set_log_level(Logging.Debug) # if commented, will revert to Info
+# ------------------------------------------------------------------------------
+
 # Define the solver ------------------------------------------------------------
 using Xpress
 solver = XpressSolver(Xpress)
@@ -30,9 +36,6 @@ regulator_opts = RegulatorOptions(
     TOU(),              # RateDesign
     ExcessRetailRate()  # NetMeteringPolicy
 )
-
-# Logging options
-#set_log_level(Logging.Debug) # if commented, will revert to Info
 
 # Load sets and parameters, define functions -----------------------------------
 @info "Loading data"

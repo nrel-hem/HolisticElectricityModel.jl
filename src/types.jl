@@ -1,8 +1,5 @@
 using Lazy: @forward
 
-const ParamType1D = Dict{Symbol, AbstractFloat}
-const ParamTypeND = Dict{Tuple, AbstractFloat}
-
 # ------------------------------------------------------------------------------
 # Base Data Types
 # ------------------------------------------------------------------------------
@@ -42,18 +39,23 @@ end
 
 abstract type HEMParameter <: HEMSymbol end
 
-struct ParamScalar <: HEMParameter
+struct ParamScalar{T<:Number} <: HEMParameter
     name::AbstractString
     prose_name::AbstractString
     description::AbstractString
-    value::AbstractFloat
+    value::T
 end
 
-function ParamScalar(name::AbstractString, value::AbstractFloat; prose_name = "", description = "")
+function ParamScalar(name::AbstractString, value::Number; prose_name = "", 
+                     description = "")
     return ParamScalar(name, prose_name, description, value)
 end
 
-@forward ParamScalar.value Base.isless, Base.isgreater
+@forward ParamScalar.value Base.isless, Base.isgreater, Base.:+, Base.:*, 
+    Base.:-, Base.:/
+
+Base.:+(x::Number, y::ParamScalar) = x + y.value
+Base.:*(x::Number, y::ParamScalar) = x * y.value
 
 struct ParamVector <: HEMParameter
     name::AbstractString
@@ -63,7 +65,7 @@ struct ParamVector <: HEMParameter
     values::Dict{Symbol, AbstractFloat}
 
     function ParamVector(name::AbstractString, prose_name::AbstractString, 
-        description::AbstractString, dim::Set1D, values::Dict{Symbol, AbstractFloat})
+        description::AbstractString, dim::Set1D, values::Dict{Symbol})
         
         # Check that values are defined over dim
         set_symbols = Set([sym for sym in dim])
@@ -83,23 +85,23 @@ struct ParamVector <: HEMParameter
     end
 end
 
-function ParamVector(name::AbstractString, dim::Set1D, values::Dict{Symbol, AbstractFloat}; 
+function ParamVector(name::AbstractString, dim::Set1D, values::Dict{Symbol}; 
                      prose_name = "", description = "")
     return ParamVector(name, prose_name, description, dim, values)
 end
 
 @forward ParamVector.values Base.getindex
 
-struct ParamArray <: HEMParameter
+struct ParamArray{N} <: HEMParameter
     name::AbstractString
     prose_name::AbstractString
     description::AbstractString
-    dims::Vector{Set1D}
-    values::Dict{Tuple{Symbol}, AbstractFloat}
+    dims::NTuple{N,Set1D}
+    values::Dict{NTuple{N,Symbol},AbstractFloat}
 
     function ParamArray(name::AbstractString, prose_name::AbstractString, 
-        description::AbstractString, dims::Vector{Set1D}, 
-        values::Dict{Tuple{Symbol}, AbstractFloat})
+        description::AbstractString, dims::NTuple{N,Set1D}, 
+        values::Dict{NTuple{N,Symbol}}) where {N}
 
         for (index, dim) in enumerate(dims)
             # Check that values are defined over dim
@@ -119,16 +121,32 @@ struct ParamArray <: HEMParameter
             end
         end
 
-        new(name, prose_name, description, dims, values)
+        # Check for expected number of combinations
+        n_expected = reduce(*, map(length, dims))
+        n_actual = length(values)
+        @assert n_actual <= n_expected "There are at most $n_expected combinations of $dims, but $n_actual parameter values were passed"
+        if n_actual < n_expected
+            @warn "ParamArray definition of $name has not defined values for all"*
+                "$n_expected possible combinations of $dims"
+        end
+
+        new{N}(name, prose_name, description, dims, values)
     end
 end
 
-function ParamArray(name::AbstractString, dims::Vector{Set1D}, values::Dict{Tuple{Symbol}, AbstractFloat};
-                    prose_name = "", description = "")
+function ParamArray(name::AbstractString, dims::NTuple{N,Set1D}, 
+        values::Dict{NTuple{N,Symbol}}; prose_name = "", 
+        description = "") where {N}
     return ParamArray(name, prose_name, description, dims, values)
 end
 
-@forward ParamArray.values Base.getindex
+@forward ParamArray.values Base.getindex, Base.keys, Base.setindex!
+
+# ETH@20210218 - For now forwarding values to copy. This came up because of 
+# x_DG_before = copy(customers.x_DG_new). The copy doesn't really have the same
+# name as x_DG_new, and it's just a temporary variable, so for now I am leaving 
+# it as a bare Dict of values.
+@forward ParamArray.values Base.copy
 
 # ------------------------------------------------------------------------------
 # Collections

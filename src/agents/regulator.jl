@@ -20,20 +20,22 @@ end
 
 mutable struct Regulator <: Agent
     # Parameters
-    r::AbstractFloat # planning reserve (fraction)
-    z::AbstractFloat # allowed return on investment (fraction)
+    r::ParamScalar # planning reserve (fraction)
+    z::ParamScalar # allowed return on investment (fraction)
 
     # Primal Variables
-    p::Dict{Tuple{Vararg{Symbol,2}}, AbstractFloat} # retail price
-    p_ex::Dict{Tuple{Vararg{Symbol,2}}, AbstractFloat} # DER excess generation rate
+    p::ParamArray # retail price
+    p_ex::ParamArray # DER excess generation rate
 end
 
 function Regulator(input_filename::String, model_data::HEMData)
     return Regulator(
-        0.14,
-        0.09,
-        initialize_param(model_data.index_h, model_data.index_t, value=10.0),
-        initialize_param(model_data.index_h, model_data.index_t, value=10.0)
+        ParamScalar("r", 0.14, description = "planning reserve (fraction)"),
+        ParamScalar("z", 0.09, description = "allowed return on investment (fraction)"),
+        initialize_param("p", model_data.index_h, model_data.index_t, value=10.0,
+            description = "retail price"),
+        initialize_param("p_ex", model_data.index_h, model_data.index_t, value=10.0,
+            description = "DER excess generation rate")
     )
 end
 
@@ -95,12 +97,12 @@ function solve_agent_problem(
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
-        regulator.p = Dict(
+        regulator.p.values = Dict(
             (h,t) => (energy_cost + der_excess_cost + (1 + regulator.z) * capital_cost) / net_demand
             for h in model_data.index_h, t in model_data.index_t)
     elseif regulator_opts.rate_design isa TOU
-        regulator.p = Dict(
-            (h,t) => (energy_cost_t[t] + der_excess_cost_t[t]) / net_demand_t[t] + (1 + regulator.z) * capital_cost / net_demand
+        regulator.p.values = Dict(
+            (h,t) => (energy_cost_t[t] + der_excess_cost_t[t]) / net_demand_t[t] + (1.0 + regulator.z) * capital_cost / net_demand
             for h in model_data.index_h, t in model_data.index_t)
     end
 
@@ -108,9 +110,9 @@ function solve_agent_problem(
     if regulator_opts.net_metering_policy isa ExcessRetailRate
         regulator.p_ex = regulator.p
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-        regulator.p_ex = Dict((h,t) => utility.miu[t]/model_data.omega[t] for h in model_data.index_h, t in model_data.index_t)
+        regulator.p_ex.values = Dict((h,t) => utility.miu[t]/model_data.omega[t] for h in model_data.index_h, t in model_data.index_t)
     elseif regulator_opts.net_metering_policy isa ExcessZero
-        regulator.p_ex = Dict((h,t) => 0.0 for h in model_data.index_h, t in model_data.index_t)
+        regulator.p_ex.values = Dict((h,t) => 0.0 for h in model_data.index_h, t in model_data.index_t)
     end
 
     @info "Original retail price" p_before
@@ -119,8 +121,8 @@ function solve_agent_problem(
     @info "New DER excess rate" regulator.p_ex
                    
     return compute_difference_one_norm([
-        (p_before, regulator.p),
-        (p_ex_before, regulator.p_ex)
+        (p_before, regulator.p.values),
+        (p_ex_before, regulator.p_ex.values)
     ])    
 end
 
@@ -207,8 +209,8 @@ function save_results(
         exportfilepath::AbstractString, 
         fileprefix::AbstractString)
     # Primal Variables
-    save_param(regulator.p, [:CustomerType, :Time], :Price, 
+    save_param(regulator.p.values, [:CustomerType, :Time], :Price, 
                joinpath(exportfilepath, "$(fileprefix)_p.csv"))
-    save_param(regulator.p_ex, [:CustomerType, :Time], :Price, 
+    save_param(regulator.p_ex.values, [:CustomerType, :Time], :Price, 
                joinpath(exportfilepath, "$(fileprefix)_p_ex.csv"))
 end

@@ -23,7 +23,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         index_t, 
         read_set(input_filename, "index_h", "index_h", 
                  prose_name = "customer types h"),
-        ParamVector("omega", index_t, read_param(input_filename, "Omega", index_t),
+        read_param("omega", input_filename, "Omega", index_t,
             description = "number of hours per timeslice")
     )
 end
