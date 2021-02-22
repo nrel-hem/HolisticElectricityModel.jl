@@ -1,4 +1,5 @@
 using Lazy: @forward
+import Base.copy
 
 # ------------------------------------------------------------------------------
 # Base Data Types
@@ -23,6 +24,12 @@ description(hemsym::HEMSymbol) = hemsym.description
 
 abstract type HEMSet <: HEMSymbol end
 
+copy(symbol::HEMSymbol)::HEMSymbol = error("Not implemented")
+
+copy(symbol::HEMSymbol, name::AbstractString; 
+     prose_name::AbstractString = "", 
+     description::AbstractString = "")::HEMSymbol = error("Not implemented")
+
 struct Set1D <: HEMSet
     name::AbstractString
     prose_name::AbstractString
@@ -30,14 +37,29 @@ struct Set1D <: HEMSet
     elements::Vector{Symbol}
 end
 
-function Set1D(name::AbstractString, elements::Vector{Symbol}; prose_name = "", description = "")
+function Set1D(name::AbstractString, elements::Vector{Symbol}; 
+               prose_name = "", description = "")
     return Set1D(name, prose_name, description, elements)
 end
 
 @forward Set1D.elements Base.IteratorSize, Base.IteratorEltype, Base.size, 
     Base.axes, Base.ndims, Base.length, Base.iterate
 
+copy(symbol::Set1D)::Set1D = Set1D(
+    copy(symbol.name), 
+    copy(symbol.prose_name),
+    copy(symbol.description),
+    copy(symbol.elements))
+
+function copy(symbol::Set1D, name::AbstractString; 
+              prose_name::AbstractString = "", 
+              description::AbstractString = "")::Set1D
+    return Set1D(name, prose_name, description, copy(symbol.elements))
+end
+
 abstract type HEMParameter <: HEMSymbol end
+
+update(param::HEMParameter, ::Any)::HEMParameter = error("Not implemented")
 
 struct ParamScalar{T<:Number} <: HEMParameter
     name::AbstractString
@@ -56,6 +78,27 @@ end
 
 Base.:+(x::Number, y::ParamScalar) = x + y.value
 Base.:*(x::Number, y::ParamScalar) = x * y.value
+
+copy(symbol::ParamScalar)::ParamScalar = ParamScalar(
+    symbol.name,
+    symbol.prose_name,
+    symbol.description,
+    symbol.value)
+
+function copy(symbol::ParamScalar, name::AbstractString; 
+              prose_name::AbstractString = "", 
+              description::AbstractString = "")::ParamScalar
+    return ParamScalar(name, prose_name, description, copy(symbol.value))
+end
+
+function update(param::ParamScalar{T}, value::T)::ParamScalar{T} where {T<:Number}
+    return ParamScalar(
+        param.name,
+        param.prose_name,
+        param.description,
+        value
+    )
+end
 
 struct ParamVector <: HEMParameter
     name::AbstractString
@@ -90,7 +133,31 @@ function ParamVector(name::AbstractString, dim::Set1D, values::Dict{Symbol};
     return ParamVector(name, prose_name, description, dim, values)
 end
 
-@forward ParamVector.values Base.getindex
+@forward ParamVector.values Base.getindex, Base.setindex!, Base.keys
+
+copy(symbol::ParamVector)::ParamVector = ParamVector(
+    symbol.name,
+    symbol.prose_name,
+    symbol.description,
+    symbol.dim, # sets are fully static, unlike parameters; therefore reuse them
+    copy(symbol.values))
+
+function copy(symbol::ParamVector, name::AbstractString; 
+              prose_name::AbstractString = "", 
+              description::AbstractString = "")::ParamVector
+    return ParamVector(name, prose_name, description, 
+                       symbol.dim, copy(symbol.values))
+end
+
+function update(param::ParamVector, values::Dict{Symbol})::ParamVector
+    return ParamVector(
+        param.name,
+        param.prose_name,
+        param.description,
+        param.dim,
+        values
+    )
+end
 
 struct ParamArray{N} <: HEMParameter
     name::AbstractString
@@ -134,6 +201,20 @@ struct ParamArray{N} <: HEMParameter
     end
 end
 
+copy(symbol::ParamArray)::ParamArray = ParamArray(
+    symbol.name,
+    symbol.prose_name,
+    symbol.description,
+    Tuple(symbol.dims), 
+    copy(symbol.values))
+
+function copy(symbol::ParamArray, name::AbstractString; 
+              prose_name::AbstractString = "", 
+              description::AbstractString = "")::ParamArray
+    return ParamArray(name, prose_name, description, 
+                      Tuple(symbol.dims), copy(symbol.values))
+end
+
 function ParamArray(name::AbstractString, dims::NTuple{N,Set1D}, 
         values::Dict{NTuple{N,Symbol}}; prose_name = "", 
         description = "") where {N}
@@ -142,11 +223,15 @@ end
 
 @forward ParamArray.values Base.getindex, Base.keys, Base.setindex!
 
-# ETH@20210218 - For now forwarding values to copy. This came up because of 
-# x_DG_before = copy(customers.x_DG_new). The copy doesn't really have the same
-# name as x_DG_new, and it's just a temporary variable, so for now I am leaving 
-# it as a bare Dict of values.
-@forward ParamArray.values Base.copy
+function update(param::ParamArray, values::Dict{NTuple{N,Symbol}})::ParamArray where {N}
+    return ParamArray(
+        param.name,
+        param.prose_name,
+        param.description,
+        param.dims,
+        values
+    )
+end
 
 # ------------------------------------------------------------------------------
 # Collections

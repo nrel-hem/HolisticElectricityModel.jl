@@ -92,27 +92,29 @@ function solve_agent_problem(
     )
 
     # compute the retail price
-    p_before = copy(regulator.p)
-    p_ex_before = copy(regulator.p_ex)
+    p_before = copy(regulator.p, "p_before")
+    p_ex_before = copy(regulator.p_ex, "p_ex_before")
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
-        regulator.p.values = Dict(
+        regulator.p = update(regulator.p, Dict(
             (h,t) => (energy_cost + der_excess_cost + (1 + regulator.z) * capital_cost) / net_demand
-            for h in model_data.index_h, t in model_data.index_t)
+            for h in model_data.index_h, t in model_data.index_t))
     elseif regulator_opts.rate_design isa TOU
-        regulator.p.values = Dict(
+        regulator.p = update(regulator.p, Dict(
             (h,t) => (energy_cost_t[t] + der_excess_cost_t[t]) / net_demand_t[t] + (1.0 + regulator.z) * capital_cost / net_demand
-            for h in model_data.index_h, t in model_data.index_t)
+            for h in model_data.index_h, t in model_data.index_t))
     end
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
-        regulator.p_ex = regulator.p
+        regulator.p_ex = update(regulator.p, regulator.p.values)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-        regulator.p_ex.values = Dict((h,t) => utility.miu[t]/model_data.omega[t] for h in model_data.index_h, t in model_data.index_t)
+        regulator.p_ex = update(regulator.p_ex, 
+            Dict((h,t) => utility.miu[t]/model_data.omega[t] for h in model_data.index_h, t in model_data.index_t))
     elseif regulator_opts.net_metering_policy isa ExcessZero
-        regulator.p_ex.values = Dict((h,t) => 0.0 for h in model_data.index_h, t in model_data.index_t)
+        regulator.p_ex = update(regulator.p_ex,
+            Dict((h,t) => 0.0 for h in model_data.index_h, t in model_data.index_t))
     end
 
     @info "Original retail price" p_before
@@ -121,8 +123,8 @@ function solve_agent_problem(
     @info "New DER excess rate" regulator.p_ex
                    
     return compute_difference_one_norm([
-        (p_before, regulator.p.values),
-        (p_ex_before, regulator.p_ex.values)
+        (p_before.values, regulator.p.values),
+        (p_ex_before.values, regulator.p_ex.values)
     ])    
 end
 
@@ -168,8 +170,8 @@ function solve_agent_problem(
     )
 
     # compute the retail price
-    p_before = copy(regulator.p)
-    p_ex_before = copy(regulator.p_ex)
+    p_before = copy(regulator.p, "p_before")
+    p_ex_before = copy(regulator.p_ex, "p_ex_before")
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
@@ -197,8 +199,8 @@ function solve_agent_problem(
     @info "New DER excess rate" regulator.p_ex
                    
     return compute_difference_one_norm([
-        (p_before, regulator.p),
-        (p_ex_before, regulator.p_ex)
+        (p_before.values, regulator.p.values),
+        (p_ex_before.values, regulator.p_ex.values)
     ])    
 end
 

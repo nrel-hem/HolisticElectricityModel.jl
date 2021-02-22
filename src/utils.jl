@@ -1,6 +1,7 @@
 using DataFrames
 using Logging
 using XLSX
+import Base.copy
 
 
 # Question: Best practice for documenting data types? Why doesn't my type 
