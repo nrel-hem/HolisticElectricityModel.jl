@@ -3,50 +3,58 @@ using JuMP
 
 mutable struct Utility <: Agent
     # Sets
-    index_k::Array{Symbol,1} # bulk generation technologies
+    index_k::Set1D # bulk generation technologies
 
     # Parameters
-    x_E::ParamType1D # existing capacity (MW)
-    f_E::ParamType1D # fixed cost of existing capacity ($/MW-yr)
-    f_C::ParamType1D # fixed cost of new capacity ($/MW-yr)
-    v_E::ParamTypeND # variable cost of existing capacity ($/MWh)
-    v_C::ParamTypeND # variable cost of new capacity ($/MWh)
-    rho_E::ParamTypeND # availability of existing capacity (fraction)
-    rho_C::ParamTypeND # availability of new capacity (fraction)
+    x_E::ParamVector # existing capacity (MW)
+    f_E::ParamVector # fixed cost of existing capacity ($/MW-yr)
+    f_C::ParamVector # fixed cost of new capacity ($/MW-yr)
+    v_E::ParamArray # variable cost of existing capacity ($/MWh)
+    v_C::ParamArray # variable cost of new capacity ($/MWh)
+    rho_E::ParamArray # availability of existing capacity (fraction)
+    rho_C::ParamArray # availability of new capacity (fraction)
 
     # Primal Variables
-    y_E::ParamTypeND
-    y_C::ParamTypeND
-    x_R::ParamType1D
-    x_C::ParamType1D
+    y_E::ParamArray
+    y_C::ParamArray
+    x_R::ParamVector
+    x_C::ParamVector
     # Dual Variables
-    miu::ParamType1D
+    miu::ParamVector
 end
 
 function Utility(input_filename::String, model_data::HEMData)
-    index_k = read_set(input_filename, "index_k")
+    index_k = read_set(input_filename, "index_k", "index_k",
+                       prose_name = "bulk generation technologies k")
 
     return Utility(
         index_k,
-        read_param(input_filename, "ExistingCapacity", index_k),
-        read_param(input_filename, "FixedCostOld", index_k),
-        read_param(input_filename, "FixedCostNew", index_k),
-        read_param(input_filename, "VariableCostOld", model_data.index_t, [index_k]),
-        read_param(input_filename, "VariableCostNew", model_data.index_t, [index_k]),
-        read_param(input_filename, "AvailabilityOld", model_data.index_t, [index_k]),
-        read_param(input_filename, "AvailabilityNew", model_data.index_t, [index_k]),
-        initialize_param(index_k, model_data.index_t),
-        initialize_param(index_k, model_data.index_t),
-        initialize_param(index_k),
-        initialize_param(index_k),
-        initialize_param(model_data.index_t)
+        read_param("x_E", input_filename, "ExistingCapacity", index_k,
+            description = "existing capacity (MW)"),
+        read_param("f_E", input_filename, "FixedCostOld", index_k,
+            description = "fixed cost of existing capacity (\$/MW-yr)"),
+        read_param("f_C", input_filename, "FixedCostNew", index_k,
+            description = "fixed cost of new capacity (\$/MW-yr)"),
+        read_param("v_E", input_filename, "VariableCostOld", model_data.index_t, 
+            row_indices = [index_k],
+            description = "variable cost of existing capacity (\$/MWh)"),
+        read_param("v_C", input_filename, "VariableCostNew", model_data.index_t, 
+            row_indices = [index_k],
+            description = "variable cost of new capacity (\$/Mwh)"),
+        read_param("rho_E", input_filename, "AvailabilityOld", model_data.index_t,
+            row_indices = [index_k],
+            description = "availability of existing capacity (fraction)"),
+        read_param("rho_C", input_filename, "AvailabilityNew", model_data.index_t, 
+            row_indices = [index_k],
+            description = "availability of new capacity (fraction)"),
+        initialize_param("y_E", index_k, model_data.index_t,
+            description = "existing capacity generation in each time period"),
+        initialize_param("y_C", index_k, model_data.index_t,
+            description = "new capacity generation in each time period"),
+        initialize_param("x_R", index_k),
+        initialize_param("x_C", index_k),
+        initialize_param("miu", model_data.index_t)
     )
-end
-
-function get_utility(agent_list::Array{Agent})
-    for agent in agent_list
-        
-    end
 end
 
 function solve_agent_problem(
@@ -168,13 +176,13 @@ function save_results(
         exportfilepath::AbstractString, 
         fileprefix::AbstractString)
     # Primal Variables
-    save_param(utility.y_E, [:GenTech, :Time], :Generation_MWh, 
+    save_param(utility.y_E.values, [:GenTech, :Time], :Generation_MWh, 
                joinpath(exportfilepath, "$(fileprefix)_y_E.csv"))
-    save_param(utility.y_C, [:GenTech, :Time], :Generation_MWh, 
+    save_param(utility.y_C.values, [:GenTech, :Time], :Generation_MWh, 
                joinpath(exportfilepath, "$(fileprefix)_y_C.csv"))
-    save_param(utility.x_R, [:GenTech], :Capacity_MW, 
+    save_param(utility.x_R.values, [:GenTech], :Capacity_MW, 
                joinpath(exportfilepath, "$(fileprefix)_x_R.csv"))
-    save_param(utility.x_C, [:GenTech], :Capacity_MW, 
+    save_param(utility.x_C.values, [:GenTech], :Capacity_MW, 
                joinpath(exportfilepath, "$(fileprefix)_x_C.csv"))
 end
 

@@ -1,45 +1,30 @@
 # This module defines inputs that are held in common across all agents
 
-abstract type HEMSolver end
-
-struct XpressSolver <: HEMSolver
-    solver
-end
-
-function get_new_jump_model(hem_solver::XpressSolver)
-    return Model(hem_solver.solver.Optimizer)
-end
-
-struct GurobiSolver <: HEMSolver
-    solver
-    env
-end
-
-function get_new_jump_model(hem_solver::GurobiSolver)
-    return Model(() -> hem_solver.solver.Optimizer(hem_solver.env))
-end
-
-
 struct HEMData
     # Configuration
-    epsilon::AbstractFloat # iteration tolerance
+    epsilon::ParamScalar # iteration tolerance
 
     # Sets
-    index_t::Array{Symbol,1} # time index, currently 17 ReEDS timeslices
-    index_h::Array{Symbol,1} # customer types
+    index_t::Set1D # time index, currently 17 ReEDS timeslices
+    index_h::Set1D # customer types
 
     # Parameters
-    omega::Dict{Symbol, AbstractFloat} # number of hours per timeslice
+    omega::ParamVector # number of hours per timeslice
 end
 
-function HEMData(input_filename::String)
-    index_t = read_set(input_filename, "index_t") # 17 timeslices (from ReEDS)
-
+function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
+    # 17 timeslices (from ReEDS)
+    index_t = read_set(input_filename, "index_t", "index_t",
+                       prose_name = "time index t", 
+                       description = "ReEDS 17 timeslices representation")
+    
     return HEMData(
-        1.0E-3,
+        ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
         index_t, 
-        read_set(input_filename, "index_h"),
-        read_param(input_filename, "Omega", index_t) # number of hours per timeslice
+        read_set(input_filename, "index_h", "index_h", 
+                 prose_name = "customer types h"),
+        read_param("omega", input_filename, "Omega", index_t,
+            description = "number of hours per timeslice")
     )
 end
 

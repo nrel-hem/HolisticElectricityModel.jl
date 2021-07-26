@@ -1,6 +1,7 @@
 using DataFrames
 using Logging
 using XLSX
+import Base.copy
 
 
 # Question: Best practice for documenting data types? Why doesn't my type 
@@ -20,15 +21,19 @@ using XLSX
 
 Reads the column names of Excel filename, sheetname in as symbols.
 """
-function read_set(filename::AbstractString, sheetname::AbstractString)
-    result = Symbol.(names(DataFrame(XLSX.readtable(filename, sheetname)...)))
+function read_set(filename::AbstractString, sheetname::AbstractString, 
+                  name::AbstractString; prose_name = "", description = "")::Set1D
+    result = Set1D(name, 
+                   Symbol.(names(DataFrame(XLSX.readtable(filename, sheetname)...))),
+                   prose_name = prose_name, 
+                   description = description)
     @info "Loaded $sheetname = $result" result
     return result
 end
 
 
 """
-    read_param(filename, sheetname, column_index, row_indices=[])
+    read_param(name, filename, sheetname, column_index; row_indices=[])
 
 Reads parameter data from the Excel workbook at filename. Assumes the data is
 in sheetname, with a single header row, and that the column_index dimension is
@@ -41,19 +46,26 @@ Symbol values in column_index as its keys. If ~isempty(row_indices), then the
 Dict keys are tuples of length(row_indices) + 1, and with values taken from each
 of the row_indices in turn, plus a column_index value.
 """
-function read_param(filename::AbstractString, 
+function read_param(name::AbstractString, 
+                    filename::AbstractString, 
                     sheetname::AbstractString, 
-                    column_index::SetType1D, 
-                    row_indices::Vector{SetType1D}=Vector{SetType1D}())
+                    column_index::Set1D; 
+                    row_indices::Vector{Set1D}=Vector{Set1D}(),
+                    prose_name::AbstractString="", 
+                    description::AbstractString="")::HEMParameter
     # load the sheet as a DataFrame
     table = DataFrame(XLSX.readtable(filename, sheetname)...)
 
     # determine the return type
     n = 0
-    result = Dict{Symbol, AbstractFloat}()
-    if ~isempty(row_indices)
+    values = nothing
+    if isempty(row_indices)
+        values = Dict{Symbol, AbstractFloat}()
+    else
         n = length(row_indices)
-        result = Dict{Tuple{Vararg{Symbol,length(row_indices)+1}}, AbstractFloat}()
+        N = n + 1
+        dims = Tuple(push!(copy(row_indices), column_index))
+        values = Dict{NTuple{N,Symbol}, AbstractFloat}()
     end
 
     # process each row
@@ -70,8 +82,16 @@ function read_param(filename::AbstractString,
             if ~isempty(row_indices)
                 key = Tuple(push!(copy(preamble), j))
             end
-            push!(result, key => row[j])
+            push!(values, key => row[j])
         end
+    end
+    result = nothing
+    if isempty(row_indices)
+        result = ParamVector(name, column_index, values, 
+            prose_name = prose_name, description = description)
+    else
+        result = ParamArray(name, dims, values, 
+            prose_name = prose_name, description = description)
     end
     @debug "Loaded $sheetname" result
     return result
@@ -149,11 +169,16 @@ Returns a Dict with all values set to value, and keys formed from
 Iterators.product(indices..). If only one list of indices is passed, the key is 
 not a tuple, but is instead a bare Symbol.
 """
-function initialize_param(indices...; value=0.0)
+function initialize_param(name::AbstractString, indices...; value=0.0, prose_name = "", 
+        description = "")
     if length(indices) == 1
-        return Dict(t[1] => value for t in Iterators.product(indices...))
+        return ParamVector(name, indices[1], 
+            Dict(t[1] => value for t in Iterators.product(indices...)),
+            prose_name = prose_name, description = description)
     end
-    return Dict(t => value for t in Iterators.product(indices...))
+    return ParamArray(name, Tuple(indices), 
+        Dict(t => value for t in Iterators.product(indices...)), 
+        prose_name = prose_name, description = description)
 end
 
 

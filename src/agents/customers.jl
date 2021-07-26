@@ -1,12 +1,12 @@
 # This module defines data and functions associated with the customer
 
 mutable struct PVAdoptionModel
-    Shape::ParamTypeND
-    MeanPayback::ParamTypeND
-    Bass_p::ParamType1D
-    Bass_q::ParamType1D
+    Shape::ParamArray
+    MeanPayback::ParamArray
+    Bass_p::ParamVector
+    Bass_q::ParamVector
 
-    Rate::ParamTypeND
+    Rate::ParamArray
 end
 
 """
@@ -23,49 +23,54 @@ function PVAdoptionModel(Shape,
         MeanPayback,
         Bass_p,
         Bass_q,
-        Dict(key => Shape[key]/MeanPayback[key] for key in keys(Shape)) # Rate
+        ParamArray("Rate", Shape.dims, Dict(key => Shape[key]/MeanPayback[key] for key in keys(Shape))) # Rate
     )    
 end
 
 mutable struct Customers <: Agent
     # Sets
-    index_m::SetType1D # behind-the-meter technologies
+    index_m::Set1D # behind-the-meter technologies
 
     # Parameters
-    gamma::ParamType1D # number of customers of type h
-    d::ParamTypeND # demand (MWh per representative agent per hour)
-    x_DG_E::ParamTypeND
-    Opti_DG::ParamTypeND
-    DERGen::ParamTypeND # DER generation by a representative customer h and DER technology m
-    CapEx_DG::ParamTypeND
-    FOM_DG::ParamTypeND
-    rho_DG::ParamTypeND
-    delta::AbstractFloat    # Annualization factor for net consumer surplus of PV installation
+    gamma::ParamVector # number of customers of type h
+    d::ParamArray # demand (MWh per representative agent per hour)
+    x_DG_E::ParamArray
+    Opti_DG::ParamArray
+    DERGen::ParamArray # DER generation by a representative customer h and DER technology m
+    CapEx_DG::ParamArray
+    FOM_DG::ParamArray
+    rho_DG::ParamArray
+    delta::ParamScalar    # Annualization factor for net consumer surplus of PV installation
 
     # Primal Variables
-    x_DG_new::ParamTypeND
+    x_DG_new::ParamArray
 
     # Auxiliary Variables
-    Payback::ParamTypeND
-    MarketShare::ParamTypeND
-    MaxDG::ParamTypeND
-    F::ParamTypeND
-    year::ParamTypeND
-    A::ParamTypeND
-    ConPVNetSurplus::ParamTypeND
+    Payback::ParamArray
+    MarketShare::ParamArray
+    MaxDG::ParamArray
+    F::ParamArray
+    year::ParamArray
+    A::ParamArray
+    ConPVNetSurplus::ParamArray
 
     pv_adoption_model::PVAdoptionModel
 end
 
 function Customers(input_filename::AbstractString, model_data::HEMData)
-    index_m = read_set(input_filename, "index_m")
+    index_m = read_set(input_filename, "index_m", "index_m",
+                       prose_name = "behind-the-meter technologies m")
 
-    gamma = read_param(input_filename, "Gamma", model_data.index_h)
-    x_DG_E = read_param(input_filename, "ExistingDER", index_m, [model_data.index_h])
-    Opti_DG = read_param(input_filename, "OptimalDER", index_m, [model_data.index_h])
-    rho_DG = read_param(input_filename, "AvailabilityDER", model_data.index_t, [model_data.index_h, index_m])
+    gamma = read_param("gamma", input_filename, "Gamma", model_data.index_h, 
+        description = "number of customers of type h")
+    x_DG_E = read_param("x_DG_E", input_filename, "ExistingDER", index_m, 
+        row_indices = [model_data.index_h], description = "existing DG capacity")
+    Opti_DG = read_param("Opti_DG", input_filename, "OptimalDER", index_m, 
+        row_indices = [model_data.index_h])
+    rho_DG = read_param("rho_DG", input_filename, "AvailabilityDER", 
+        model_data.index_t, row_indices = [model_data.index_h, index_m])
     # Define total DER generation per individual customer per hour
-    DERGen = initialize_param(model_data.index_h, model_data.index_t, value=1.0)
+    DERGen = initialize_param("DERGen", model_data.index_h, model_data.index_t, value=1.0)
     for h in model_data.index_h, t in model_data.index_t
         if sum(rho_DG[h,m,t]*Opti_DG[h,m] for m in index_m) != 0.0
             DERGen[h,t] = sum(rho_DG[h,m,t]*Opti_DG[h,m] for m in index_m)
@@ -73,32 +78,39 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
             DERGen[h,t] = 1.0
         end
     end
+
+    pv_adoption_model = PVAdoptionModel(
+        initialize_param("Shape", model_data.index_h, index_m, value=1.7), # Shape
+        initialize_param("MeanPayback", model_data.index_h, index_m, value=8.8), # MeanPayback
+        ParamVector("Bass_p", model_data.index_h, 
+                    Dict(:Residential => 7.7E-07, :Commercial => 6.0E-04, :Industrial => 6.0E-04)), # Bass_p
+        ParamVector("Bass_q", model_data.index_h, 
+                    Dict(:Residential => 0.663, :Commercial => 0.133, :Industrial => 0.133)), # Bass_q
+    )
     
     return Customers(
         index_m,
         gamma,
-        read_param(input_filename, "Demand", model_data.index_t, [model_data.index_h]),
+        read_param("d", input_filename, "Demand", model_data.index_t, 
+            row_indices = [model_data.index_h]),
         x_DG_E,
         Opti_DG,
         DERGen,
-        read_param(input_filename, "CapExDER", index_m, [model_data.index_h]),
-        read_param(input_filename, "FOMDER", index_m, [model_data.index_h]),
+        read_param("CapEx_DG", input_filename, "CapExDER", index_m, 
+            row_indices = [model_data.index_h]),
+        read_param("FOM_DG", input_filename, "FOMDER", index_m, 
+            row_indices = [model_data.index_h]),
         rho_DG,
-        0.05,
-        initialize_param(model_data.index_h, index_m),
-        initialize_param(model_data.index_h, index_m),
-        initialize_param(model_data.index_h, index_m),
-        initialize_param(model_data.index_h, index_m),
-        initialize_param(model_data.index_h, index_m),
-        initialize_param(model_data.index_h, index_m),
-        initialize_param(model_data.index_h, index_m),
-        initialize_param(model_data.index_h, index_m),
-        PVAdoptionModel(
-            initialize_param(model_data.index_h, index_m, value=1.7), # Shape
-            initialize_param(model_data.index_h, index_m, value=8.8), # MeanPayback
-            Dict(:Residential => 7.7E-07, :Commercial => 6.0E-04, :Industrial => 6.0E-04), # Bass_p
-            Dict(:Residential => 0.663, :Commercial => 0.133, :Industrial => 0.133), # Bass_q
-        )
+        ParamScalar("delta", 0.05),
+        initialize_param("x_DG_new", model_data.index_h, index_m),
+        initialize_param("Payback", model_data.index_h, index_m),
+        initialize_param("MarketShare", model_data.index_h, index_m),
+        initialize_param("MaxDG", model_data.index_h, index_m),
+        initialize_param("F", model_data.index_h, index_m),
+        initialize_param("year", model_data.index_h, index_m),
+        initialize_param("A", model_data.index_h, index_m),
+        initialize_param("ConPVNetSurplus", model_data.index_h, index_m),
+        pv_adoption_model
     )
 end
 
@@ -170,7 +182,7 @@ function save_results(
         fileprefix::AbstractString)
 
     # Primal Variables
-    save_param(customers.x_DG_new, [:CustomerType, :DERTech], :Capacity_MW, 
+    save_param(customers.x_DG_new.values, [:CustomerType, :DERTech], :Capacity_MW, 
                joinpath(exportfilepath, "$(fileprefix)_x_DG.csv"))
 end
 
