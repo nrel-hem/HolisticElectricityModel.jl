@@ -163,14 +163,14 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
     )
 end
 
-function solve_agent_problem(
+function solve_agent_problem!(
     customers::Customers,
     customers_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions,
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
-    regulator = get_agent(other_agents, Regulator)
+    regulator = get_agent(Regulator, agent_store)
 
     x_DG_before = copy(customers.x_DG_new)
 

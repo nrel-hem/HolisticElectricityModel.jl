@@ -91,6 +91,7 @@ end
 
 Base.:+(x::Number, y::ParamScalar) = x + y.value
 Base.:*(x::Number, y::ParamScalar) = x * y.value
+Base.isless(x::Number, y::ParamScalar) = isless(x, y.value)
 
 copy(symbol::ParamScalar)::ParamScalar =
     ParamScalar(symbol.name, symbol.prose_name, symbol.description, symbol.value)
@@ -311,13 +312,11 @@ end
 
 function Base.getproperty(agent_data::AgentData, sym::Symbol)
     val = get_set(agent_data, sym)
-    if not
-        isnothing(val)
+    if !isnothing(val)
         return val
     end
     val = get_parameter(agent_data, sym)
-    if not
-        isnothing(val)
+    if !isnothing(val)
         return val
     end
     return getfield(agent_data, sym)

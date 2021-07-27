@@ -58,15 +58,15 @@ end
 # this function will work. Can also:
 # Vector{Agent}([c1, c2, c3])
 
-function solve_agent_problem(
+function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
-    utility = get_agent(other_agents, Utility)
-    customers = get_agent(other_agents, Customers)
+    utility = get_agent(Utility, agent_store)
+    customers = get_agent(Customers, agent_store)
 
     # pure volumetric rate
     energy_cost = sum(
@@ -211,15 +211,15 @@ function solve_agent_problem(
     ])
 end
 
-function solve_agent_problem(
+function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
     customers = get_agent(other_agents, Customers)
-    ipp = get_agent(other_agents, IPP)
+    ipp = get_agent(IPP, agent_store)
 
     # pure volumetric rate
     der_excess_cost = sum(

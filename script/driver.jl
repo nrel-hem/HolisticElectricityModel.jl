@@ -17,9 +17,9 @@ solver = XpressSolver(Xpress)
 # File locations
 hem_data_dir = joinpath(@__DIR__, "..", "..", "HolisticElectricityModel-Data")
 input_filename = joinpath(hem_data_dir, "inputs", "HEM_Parameters_ReEDS_17_dGen_julia.xlsx")
-exportfilepath = joinpath(hem_data_dir, "outputs")
-if !isdir(exportfilepath)
-    mkdir(exportfilepath)
+export_file_path = joinpath(hem_data_dir, "outputs")
+if !isdir(export_file_path)
+    mkdir(export_file_path)
 end
 
 configure_logging(console_level = Logging.Info, file_level = Logging.Info, filename = "driver.log")
@@ -42,11 +42,17 @@ utility = Utility(input_filename, model_data)
 customers = Customers(input_filename, model_data)
 ipp = IPP(input_filename, model_data)
 
-fileprefix = "Results_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
+file_prefix = "Results_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
 
-solve_equilibrium_problem!(hem_opts, model_data, [
-    AgentAndOptions(regulator, regulator_opts),
-    AgentAndOptions(utility, NullAgentOptions()),
-    AgentAndOptions(customers, NullAgentOptions()),
-    AgentAndOptions(ipp, NullAgentOptions())], 
-    exportfilepath, fileprefix)
+solve_equilibrium_problem!(
+    hem_opts,
+    model_data,
+    [
+        AgentAndOptions(regulator, regulator_opts),
+        AgentAndOptions(utility, NullAgentOptions()),
+        AgentAndOptions(customers, NullAgentOptions()),
+        AgentAndOptions(ipp, NullAgentOptions()),
+    ],
+    export_file_path,
+    file_prefix,
+)

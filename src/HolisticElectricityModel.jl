@@ -31,7 +31,7 @@ export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
 
 # Solvers
-export solve_equilibrium_problem
+export solve_equilibrium_problem!
 
 ################################################################################
 # Imports

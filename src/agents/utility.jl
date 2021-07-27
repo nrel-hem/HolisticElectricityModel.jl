@@ -111,25 +111,25 @@ function Utility(input_filename::String, model_data::HEMData)
     )
 end
 
-function solve_agent_problem(
+function solve_agent_problem!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
     return 0.0
 end
 
-function solve_agent_problem(
+function solve_agent_problem!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
-    regulator = get_agent(other_agents, Regulator)
-    customers = get_agent(other_agents, Customers)
+    regulator = get_agent(Regulator, agent_store)
+    customers = get_agent(Customers, agent_store)
 
     VIUDER_Utility = get_new_jump_model(hem_opts.solver)
 

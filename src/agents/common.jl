@@ -63,77 +63,93 @@ end
 #     vars::Vector{MyVariableType}
 # end
 
-function get_agent(agents::Vector{Agent}, agent_type::Type{T}) where {T <: Agent}
-    result = filter(x -> x isa agent_type, agents)
-    @assert length(result) == 1 "$agents does not have exactly one $T, it has $(length(result))"
-    return first(result)
+SolveAgentCallInfo = @NamedTuple {agent::Agent, options::AgentOptions}
+
+struct AgentStore
+    data::Dict{DataType, <:AgentAndOptions}
+end
+
+function AgentStore(agents_and_opts::Vector{<:AgentAndOptions})
+    data = Dict{DataType, AgentAndOptions}()
+    for item in agents_and_opts
+        type = typeof(item.agent)
+        haskey(data, type) && error("$type cannot be stored multiple times")
+        data[type] = item
+    end
+
+    return AgentStore(data)
+end
+
+get_agent(::Type{T}, store::AgentStore) where {T <: Agent} = store.data[T].agent
+# TODO DT: could implement Base collection interfaces
+
+function get_call_info(store::AgentStore)
+    return [SolveAgentCallInfo((x.agent, x.options)) for x in values(store.data)]
 end
 
 function save_results(
     agent::Agent,
     agent_opts::AgentOptions,
     hem_opts::HEMOptions,
-    exportfilepath::AbstractString,
-    fileprefix::AbstractString,
+    export_file_path::AbstractString,
+    file_prefix::AbstractString,
 )
     @info "No results defined for $(typeof(agent)) agents when $hem_opts and $agent_opts"
     return
 end
 
-SolveAgentCallInfo =
-    @NamedTuple {agent::Agent, options::AgentOptions, other_agents::Vector{Agent}}
-
-function get_call_info(agents_and_opts::Vector{AgentAndOptions})
-    result = Vector{SolveAgentCallInfo}()
-    for (i, agent_and_opts) in enumerate(agents_and_opts)
-        other_agents = Agent[val.agent for (j, val) in enumerate(agents_and_opts) if j != i]
-        push!(
-            result,
-            SolveAgentCallInfo((
-                agent_and_opts.agent,
-                agent_and_opts.options,
-                other_agents,
-            )),
-        )
-    end
-    return result
-end
-
-function solve_equilibrium_problem(
+function solve_equilibrium_problem!(
     hem_opts::HEMOptions,
     model_data::HEMData,
     agents_and_opts::Vector{AgentAndOptions},
-    exportfilepath::AbstractString,
-    fileprefix::AbstractString,
+    export_file_path::AbstractString,
+    file_prefix::AbstractString,
+)
+    store = AgentStore(agents_and_opts)
+    return solve_equilibrium_problem!(
+        hem_opts,
+        model_data,
+        store,
+        export_file_path,
+        file_prefix,
+    )
+end
+
+function solve_equilibrium_problem!(
+    hem_opts::HEMOptions,
+    model_data::HEMData,
+    agent_store::AgentStore,
+    export_file_path::AbstractString,
+    file_prefix::AbstractString,
 )
     iter = 1
     max_iter = 10
     diff = 100.0
 
-    call_info = get_call_info(agents_and_opts)
+    call_info = get_call_info(agent_store)
 
-    while diff >= model_data.epsilon
+    for i in 1:max_iter
         diff = 0.0
 
-        for (agent, options, other_agents) in call_info
+        for (agent, options) in call_info
             @info "$(typeof(agent)), iteration $iter"
-            diff += solve_agent_problem(agent, options, model_data, hem_opts, other_agents)
+            diff += solve_agent_problem!(agent, options, model_data, hem_opts, agent_store)
         end
+        @info "Iteration $i value: $diff"
 
-        iter += 1
-        @info "Iteration $iter value: $diff"
-        if iter == max_iter
-            stop()
+        if diff < model_data.epsilon
+            break
         end
     end
+    # TODO DT: does it matter if we reached max_iter?
 
     welfare = []
-    for (agent, options, other_agents) in call_info
+    for (agent, options) in call_info
         # push!(welfare, welfare_calculation(agent, options, model_data, hem_opts, other_agents))
-        save_results(agent, options, hem_opts, exportfilepath, fileprefix)
+        save_results(agent, options, hem_opts, export_file_path, file_prefix)
     end
 
-    # save_welfare(welfare, exportfilepath, fileprefix)
+    # save_welfare(welfare, export_file_path, file_prefix)
     @info "Problem solved!"
 end
 
@@ -141,16 +157,16 @@ end
 function save_welfare(
     Supply::Any,
     Demand::Any,
-    exportfilepath::AbstractString,
-    fileprefix::AbstractString,
+    export_file_path::AbstractString,
+    file_prefix::AbstractString,
 )
     save_param(
         Demand[1],
         [:CustomerType, :DERTech],
         :PVNetCS_dollar,
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVNetCS.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVNetCS.csv",
         ),
     )
     save_param(
@@ -158,8 +174,8 @@ function save_welfare(
         [:CustomerType, :DERTech],
         :PVEnergySaving_dollar,
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVSaving.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVSaving.csv",
         ),
     )
     save_param(
@@ -167,8 +183,8 @@ function save_welfare(
         [:CustomerType, :DERTech],
         :EnergyCost_dollar,
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_EnergyCost.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_EnergyCost.csv",
         ),
     )
     save_param(
@@ -176,8 +192,8 @@ function save_welfare(
         [:CustomerType, :DERTech],
         :NetCS_dollar,
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_NetCS.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_NetCS.csv",
         ),
     )
     SocialWelfare = DataFrame(
@@ -187,8 +203,8 @@ function save_welfare(
     )
     CSV.write(
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_socialwelfare.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_socialwelfare.csv",
         ),
         SocialWelfare,
     )
