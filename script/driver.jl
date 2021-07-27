@@ -22,6 +22,8 @@ if !isdir(exportfilepath)
     mkdir(exportfilepath)
 end
 
+configure_logging(console_level = Logging.Info, file_level = Logging.Info, filename = "driver.log")
+
 hem_opts = HEMOptions(
     solver,                       # HEMSolver    
     VerticallyIntegratedUtility() # MarketStructure    
@@ -31,8 +33,6 @@ regulator_opts = RegulatorOptions(
     TOU(),              # RateDesign
     ExcessRetailRate()  # NetMeteringPolicy
 )
-
-configure_logging(console_level = Logging.Info, file_level = Logging.Info, filename = "driver.log")
 
 # Load sets and parameters, define functions -----------------------------------
 @info "Loading data"
@@ -44,7 +44,7 @@ ipp = IPP(input_filename, model_data)
 
 fileprefix = "Results_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
 
-solve_equilibrium_problem(hem_opts, model_data, [
+solve_equilibrium_problem!(hem_opts, model_data, [
     AgentAndOptions(regulator, regulator_opts),
     AgentAndOptions(utility, NullAgentOptions()),
     AgentAndOptions(customers, NullAgentOptions()),
