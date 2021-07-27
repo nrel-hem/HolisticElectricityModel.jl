@@ -1,12 +1,14 @@
 # This module defines inputs that are held in common across all agents
 
+const DEFAULT_ID = "default"
+
 struct HEMData
     # Configuration
     epsilon::ParamScalar # iteration tolerance
 
     # Sets
-    index_t::Set1D # time index, currently 17 ReEDS timeslices
-    index_h::Set1D # customer types
+    index_t::Dimension # time index, currently 17 ReEDS timeslices
+    index_h::Dimension # customer types
 
     # Parameters
     omega::ParamVector # number of hours per timeslice
@@ -46,7 +48,21 @@ struct HEMOptions{T <: MarketStructure}
     market_structure::T
 end
 
+"""
+Abstract type for all agents.
+
+Required interfaces:
+- get_id(agent::Agent)::String
+- solve_agent_problem!(
+      regulator::Agent,
+      agent_opts::AgentOptions,
+      model_data::HEMData,
+      hem_opts::HEMOptions,
+      agent_store::AgentStore,
+  )
+"""
 abstract type Agent end
+
 abstract type AgentOptions end
 struct NullAgentOptions <: AgentOptions end
 
@@ -55,36 +71,50 @@ struct AgentAndOptions{T <: Agent, U <: AgentOptions}
     options::U
 end
 
-# make this be the data field of every agent type
-# still need abstract type (no data) for Agent, then derive from it
-# mutable struct AgentData
-#     sets::Vector{MySetType}
-#     params::Vector{MyParameterType}
-#     vars::Vector{MyVariableType}
-# end
-
-SolveAgentCallInfo = @NamedTuple {agent::Agent, options::AgentOptions}
-
 struct AgentStore
-    data::Dict{DataType, <:AgentAndOptions}
+    data::OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}
 end
 
-function AgentStore(agents_and_opts::Vector{<:AgentAndOptions})
-    data = Dict{DataType, AgentAndOptions}()
+function AgentStore(agents_and_opts::Vector{AgentAndOptions})
+    data = OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}()
     for item in agents_and_opts
         type = typeof(item.agent)
-        haskey(data, type) && error("$type cannot be stored multiple times")
-        data[type] = item
+        id = get_id(item.agent)
+        if haskey(data, type)
+            sub_dict = data[type]
+            haskey(sub_dict, id) && error("$type agent with ID = $id is already stored")
+            sub_dict[id] = item
+        else
+            data[type] = OrderedDict{String, AgentAndOptions}()
+            data[type][id] = item
+        end
     end
 
     return AgentStore(data)
 end
 
-get_agent(::Type{T}, store::AgentStore) where {T <: Agent} = store.data[T].agent
-# TODO DT: could implement Base collection interfaces
+"""
+Return the agent of the given type and ID from the store.
 
-function get_call_info(store::AgentStore)
-    return [SolveAgentCallInfo((x.agent, x.options)) for x in values(store.data)]
+If there is only one agent of the given type then `id` is optional.
+"""
+function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: Agent}
+    !haskey(store.data, T) && error("No agents of type $T are stored.")
+    agents_and_opts = store.data[T]
+
+    if id === nothing
+        if length(agents_and_opts) > 1
+            error("Passing 'id' is required if more than one agent is stored.")
+        end
+        return first(values(agents_and_opts)).agent
+    end
+
+    !haskey(agents_and_opts, id) && error("No agent of type $T id = $id is stored")
+    return agents_and_opts[id].agent
+end
+
+function iter_agents_and_options(store::AgentStore)
+    return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
 end
 
 function save_results(
@@ -106,34 +136,16 @@ function solve_equilibrium_problem!(
     file_prefix::AbstractString,
 )
     store = AgentStore(agents_and_opts)
-    return solve_equilibrium_problem!(
-        hem_opts,
-        model_data,
-        store,
-        export_file_path,
-        file_prefix,
-    )
-end
-
-function solve_equilibrium_problem!(
-    hem_opts::HEMOptions,
-    model_data::HEMData,
-    agent_store::AgentStore,
-    export_file_path::AbstractString,
-    file_prefix::AbstractString,
-)
-    iter = 1
     max_iter = 10
     diff = 100.0
 
-    call_info = get_call_info(agent_store)
-
+    i = 0
     for i in 1:max_iter
         diff = 0.0
 
-        for (agent, options) in call_info
-            @info "$(typeof(agent)), iteration $iter"
-            diff += solve_agent_problem!(agent, options, model_data, hem_opts, agent_store)
+        for (agent, options) in iter_agents_and_options(store)
+            @info "$(typeof(agent)), iteration $i"
+            diff += solve_agent_problem!(agent, options, model_data, hem_opts, store)
         end
         @info "Iteration $i value: $diff"
 
@@ -141,15 +153,15 @@ function solve_equilibrium_problem!(
             break
         end
     end
-    # TODO DT: does it matter if we reached max_iter?
 
     welfare = []
-    for (agent, options) in call_info
+    for (agent, options) in iter_agents_and_options(store)
         # push!(welfare, welfare_calculation(agent, options, model_data, hem_opts, other_agents))
         save_results(agent, options, hem_opts, export_file_path, file_prefix)
     end
 
     # save_welfare(welfare, export_file_path, file_prefix)
+    i >= max_iter && error("Reached max iterations $max_iter with no solution")
     @info "Problem solved!"
 end
 

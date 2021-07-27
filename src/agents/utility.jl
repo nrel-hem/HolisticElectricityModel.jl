@@ -1,9 +1,12 @@
 # This file defines the data and functions associated with the utility.
 
-mutable struct Utility <: Agent
+abstract type AbstractUtility <: Agent end
+
+mutable struct Utility <: AbstractUtility
+    id::String
     # Sets
     # bulk generation technologies
-    index_k::Set1D
+    index_k::Dimension
 
     # Parameters
     "existing capacity (MW)"
@@ -39,6 +42,7 @@ function Utility(input_filename::String, model_data::HEMData)
     )
 
     return Utility(
+        DEFAULT_ID,
         index_k,
         read_param(
             "x_E",
@@ -66,7 +70,7 @@ function Utility(input_filename::String, model_data::HEMData)
             input_filename,
             "VariableCostOld",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "variable cost of existing capacity (\$/MWh)",
         ),
         read_param(
@@ -74,7 +78,7 @@ function Utility(input_filename::String, model_data::HEMData)
             input_filename,
             "VariableCostNew",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "variable cost of new capacity (\$/Mwh)",
         ),
         read_param(
@@ -82,7 +86,7 @@ function Utility(input_filename::String, model_data::HEMData)
             input_filename,
             "AvailabilityOld",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "availability of existing capacity (fraction)",
         ),
         read_param(
@@ -90,7 +94,7 @@ function Utility(input_filename::String, model_data::HEMData)
             input_filename,
             "AvailabilityNew",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "availability of new capacity (fraction)",
         ),
         initialize_param(
@@ -110,6 +114,8 @@ function Utility(input_filename::String, model_data::HEMData)
         initialize_param("miu", model_data.index_t),
     )
 end
+
+get_id(x::Utility) = x.id
 
 function solve_agent_problem!(
     utility::Utility,
@@ -229,8 +235,8 @@ function solve_agent_problem!(
         utility.y_C[k, t] = value.(y_C[k, t])
     end
 
-    x_R_before = copy(utility.x_R)
-    x_C_before = copy(utility.x_C)
+    x_R_before = ParamVector(utility.x_R)
+    x_C_before = ParamVector(utility.x_C)
     for k in utility.index_k
         utility.x_R[k] = value.(x_R[k])
         utility.x_C[k] = value.(x_C[k])
@@ -254,7 +260,7 @@ function save_results(
     utility::Utility,
     utility_opts::AgentOptions,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
-    exportfilepath::AbstractString,
+    export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
     # Primal Variables
@@ -262,25 +268,25 @@ function save_results(
         utility.y_E.values,
         [:GenTech, :Time],
         :Generation_MWh,
-        joinpath(exportfilepath, "$(fileprefix)_y_E.csv"),
+        joinpath(export_file_path, "$(fileprefix)_y_E.csv"),
     )
     save_param(
         utility.y_C.values,
         [:GenTech, :Time],
         :Generation_MWh,
-        joinpath(exportfilepath, "$(fileprefix)_y_C.csv"),
+        joinpath(export_file_path, "$(fileprefix)_y_C.csv"),
     )
     save_param(
         utility.x_R.values,
         [:GenTech],
         :Capacity_MW,
-        joinpath(exportfilepath, "$(fileprefix)_x_R.csv"),
+        joinpath(export_file_path, "$(fileprefix)_x_R.csv"),
     )
     save_param(
         utility.x_C.values,
         [:GenTech],
         :Capacity_MW,
-        joinpath(exportfilepath, "$(fileprefix)_x_C.csv"),
+        joinpath(export_file_path, "$(fileprefix)_x_C.csv"),
     )
 end
 

@@ -1,8 +1,17 @@
 # This module defines the data and functions associated with the Independent Power Producer
 
-mutable struct IPP <: Agent
+abstract type AbstractIPP <: Agent end
+
+struct IPPCommon
+    # TODO: populate this struct with fields common to all IPPs.
+    # Everything in this struct should probably be immutable.
+end
+
+mutable struct IPP <: AbstractIPP
+    id::String
     # Sets
-    index_k::Set1D # bulk generation technologies
+    common::IPPCommon
+    index_k::Dimension # bulk generation technologies
 
     # Parameters
     "existing capacity (MW)"
@@ -30,7 +39,7 @@ mutable struct IPP <: Agent
     miu::ParamVector
 end
 
-function IPP(input_filename::String, model_data::HEMData)
+function IPP(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
     index_k = read_set(
         input_filename,
         "index_k",
@@ -39,6 +48,8 @@ function IPP(input_filename::String, model_data::HEMData)
     )
 
     return IPP(
+        id,
+        IPPCommon(),
         index_k,
         read_param(
             "x_E",
@@ -66,7 +77,7 @@ function IPP(input_filename::String, model_data::HEMData)
             input_filename,
             "VariableCostOld",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "variable cost of existing capacity (\$/MWh)",
         ),
         read_param(
@@ -74,7 +85,7 @@ function IPP(input_filename::String, model_data::HEMData)
             input_filename,
             "VariableCostNew",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "variable cost of new capacity (\$/Mwh)",
         ),
         read_param(
@@ -82,7 +93,7 @@ function IPP(input_filename::String, model_data::HEMData)
             input_filename,
             "AvailabilityOld",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "availability of existing capacity (fraction)",
         ),
         read_param(
@@ -90,7 +101,7 @@ function IPP(input_filename::String, model_data::HEMData)
             input_filename,
             "AvailabilityNew",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "availability of new capacity (fraction)",
         ),
         ParamScalar("B1GM", 1000000),
@@ -111,6 +122,8 @@ function IPP(input_filename::String, model_data::HEMData)
         initialize_param("miu", model_data.index_t),
     )
 end
+
+get_id(x::IPP) = x.id
 
 function solve_agent_problem!(
     ipp::IPP,
@@ -297,8 +310,8 @@ function solve_agent_problem!(
         ipp.y_C[k, t] = value.(y_C[k, t])
     end
 
-    x_R_before = copy(ipp.x_R)
-    x_C_before = copy(ipp.x_C)
+    x_R_before = ParamVector(ipp.x_R)
+    x_C_before = ParamVector(ipp.x_C)
     for k in ipp.index_k
         ipp.x_R[k] = value.(x_R[k])
         ipp.x_C[k] = value.(x_C[k])
@@ -319,7 +332,7 @@ function save_results(
     ipp::IPP,
     ipp_opts::AgentOptions,
     hem_opts::HEMOptions{WholesaleMarket},
-    exportfilepath::AbstractString,
+    export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
     # Primal Variables
@@ -327,25 +340,25 @@ function save_results(
         ipp.y_E.values,
         [:GenTech, :Time],
         :Generation_MWh,
-        joinpath(exportfilepath, "$(fileprefix)_y_E.csv"),
+        joinpath(export_file_path, "$(fileprefix)_y_E.csv"),
     )
     save_param(
         ipp.y_C.values,
         [:GenTech, :Time],
         :Generation_MWh,
-        joinpath(exportfilepath, "$(fileprefix)_y_C.csv"),
+        joinpath(export_file_path, "$(fileprefix)_y_C.csv"),
     )
     save_param(
         ipp.x_R.values,
         [:GenTech],
         :Capacity_MW,
-        joinpath(exportfilepath, "$(fileprefix)_x_R.csv"),
+        joinpath(export_file_path, "$(fileprefix)_x_R.csv"),
     )
     save_param(
         ipp.x_C.values,
         [:GenTech],
         :Capacity_MW,
-        joinpath(exportfilepath, "$(fileprefix)_x_C.csv"),
+        joinpath(export_file_path, "$(fileprefix)_x_C.csv"),
     )
 end
 

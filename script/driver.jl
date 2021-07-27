@@ -18,20 +18,22 @@ solver = XpressSolver(Xpress)
 hem_data_dir = joinpath(@__DIR__, "..", "..", "HolisticElectricityModel-Data")
 input_filename = joinpath(hem_data_dir, "inputs", "HEM_Parameters_ReEDS_17_dGen_julia.xlsx")
 export_file_path = joinpath(hem_data_dir, "outputs")
-if !isdir(export_file_path)
-    mkdir(export_file_path)
-end
+mkpath(export_file_path)
 
-configure_logging(console_level = Logging.Info, file_level = Logging.Info, filename = "driver.log")
+logger = configure_logging(
+    console_level = Logging.Info,
+    file_level = Logging.Info,
+    filename = "driver.log",
+)
 
 hem_opts = HEMOptions(
     solver,                       # HEMSolver    
-    VerticallyIntegratedUtility() # MarketStructure    
-) 
+    VerticallyIntegratedUtility(), # MarketStructure    
+)
 
 regulator_opts = RegulatorOptions(
     TOU(),              # RateDesign
-    ExcessRetailRate()  # NetMeteringPolicy
+    ExcessRetailRate(),  # NetMeteringPolicy
 )
 
 # Load sets and parameters, define functions -----------------------------------
@@ -56,3 +58,5 @@ solve_equilibrium_problem!(
     export_file_path,
     file_prefix,
 )
+
+close(logger)

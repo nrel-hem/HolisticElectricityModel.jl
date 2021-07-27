@@ -26,9 +26,12 @@ function PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
     )
 end
 
-mutable struct Customers <: Agent
+abstract type AbstractCustomers <: Agent end
+
+mutable struct Customers <: AbstractCustomers
+    id::String
     # Sets
-    index_m::Set1D # behind-the-meter technologies
+    index_m::Dimension # behind-the-meter technologies
 
     # Parameters
     "number of customers of type h"
@@ -80,22 +83,17 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
         input_filename,
         "ExistingDER",
         index_m,
-        row_indices = [model_data.index_h],
+        [model_data.index_h],
         description = "existing DG capacity",
     )
-    Opti_DG = read_param(
-        "Opti_DG",
-        input_filename,
-        "OptimalDER",
-        index_m,
-        row_indices = [model_data.index_h],
-    )
+    Opti_DG =
+        read_param("Opti_DG", input_filename, "OptimalDER", index_m, [model_data.index_h])
     rho_DG = read_param(
         "rho_DG",
         input_filename,
         "AvailabilityDER",
         model_data.index_t,
-        row_indices = [model_data.index_h, index_m],
+        [model_data.index_h, index_m],
     )
     # Define total DER generation per individual customer per hour
     DERGen = initialize_param("DERGen", model_data.index_h, model_data.index_t, value = 1.0)
@@ -123,32 +121,15 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
     )
 
     return Customers(
+        DEFAULT_ID,
         index_m,
         gamma,
-        read_param(
-            "d",
-            input_filename,
-            "Demand",
-            model_data.index_t,
-            row_indices = [model_data.index_h],
-        ),
+        read_param("d", input_filename, "Demand", model_data.index_t, [model_data.index_h]),
         x_DG_E,
         Opti_DG,
         DERGen,
-        read_param(
-            "CapEx_DG",
-            input_filename,
-            "CapExDER",
-            index_m,
-            row_indices = [model_data.index_h],
-        ),
-        read_param(
-            "FOM_DG",
-            input_filename,
-            "FOMDER",
-            index_m,
-            row_indices = [model_data.index_h],
-        ),
+        read_param("CapEx_DG", input_filename, "CapExDER", index_m, [model_data.index_h]),
+        read_param("FOM_DG", input_filename, "FOMDER", index_m, [model_data.index_h]),
         rho_DG,
         ParamScalar("delta", 0.05),
         initialize_param("x_DG_new", model_data.index_h, index_m),
@@ -163,6 +144,8 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
     )
 end
 
+get_id(x::Customers) = x.id
+
 function solve_agent_problem!(
     customers::Customers,
     customers_opts::AgentOptions,
@@ -172,7 +155,7 @@ function solve_agent_problem!(
 )
     regulator = get_agent(Regulator, agent_store)
 
-    x_DG_before = copy(customers.x_DG_new)
+    x_DG_before = ParamArray(customers.x_DG_new)
 
     adopt_model = customers.pv_adoption_model
 
@@ -267,7 +250,7 @@ function save_results(
     customers::Customers,
     customers_opts::AgentOptions,
     hem_opts::HEMOptions,
-    exportfilepath::AbstractString,
+    export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
 
@@ -276,7 +259,7 @@ function save_results(
         customers.x_DG_new.values,
         [:CustomerType, :DERTech],
         :Capacity_MW,
-        joinpath(exportfilepath, "$(fileprefix)_x_DG.csv"),
+        joinpath(export_file_path, "$(fileprefix)_x_DG.csv"),
     )
 end
 

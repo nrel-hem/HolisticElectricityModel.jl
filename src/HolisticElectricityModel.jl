@@ -15,6 +15,7 @@ export Agent
 export AgentOptions, NullAgentOptions
 export AgentAndOptions
 export configure_logging
+export read_dataframe
 
 # Agents
 export Regulator

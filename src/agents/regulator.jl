@@ -11,12 +11,17 @@ struct ExcessRetailRate <: NetMeteringPolicy end
 struct ExcessMarginalCost <: NetMeteringPolicy end
 struct ExcessZero <: NetMeteringPolicy end
 
-struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AgentOptions
+abstract type AbstractRegulatorOptions <: AgentOptions end
+
+struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegulatorOptions
     rate_design::T
     net_metering_policy::U
 end
 
-mutable struct Regulator <: Agent
+abstract type AbstractRegulator <: Agent end
+
+mutable struct Regulator <: AbstractRegulator
+    id::String
     # Parameters
     "planning reserve (fraction)"
     r::ParamScalar
@@ -32,6 +37,7 @@ end
 
 function Regulator(input_filename::String, model_data::HEMData)
     return Regulator(
+        DEFAULT_ID,
         ParamScalar("r", 0.14, description = "planning reserve (fraction)"),
         ParamScalar("z", 0.09, description = "allowed return on investment (fraction)"),
         initialize_param(
@@ -50,6 +56,8 @@ function Regulator(input_filename::String, model_data::HEMData)
         ),
     )
 end
+
+get_id(x::Regulator) = x.id
 
 # although Customer is subtype of Agent, 
 # Vector{Customer} is not subtype of Vector{Agent}
@@ -157,12 +165,13 @@ function solve_agent_problem!(
     )
 
     # compute the retail price
-    p_before = copy(regulator.p, "p_before")
-    p_ex_before = copy(regulator.p_ex, "p_ex_before")
+    p_before = ParamArray(regulator.p, "p_before")
+    p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
-        regulator.p = update(
+        empty!(regulator.p)
+        merge!(
             regulator.p,
             Dict(
                 (h, t) =>
@@ -171,7 +180,8 @@ function solve_agent_problem!(
             ),
         )
     elseif regulator_opts.rate_design isa TOU
-        regulator.p = update(
+        empty!(regulator.p)
+        merge!(
             regulator.p,
             Dict(
                 (h, t) =>
@@ -184,17 +194,19 @@ function solve_agent_problem!(
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
-        regulator.p_ex = update(regulator.p, regulator.p.values)
+        regulator.p_ex = ParamArray(regulator.p)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-        regulator.p_ex = update(
+        empty!(regulator.p_ex)
+        merge!(
             regulator.p_ex,
             Dict(
-                (h, t) => utility.miu[t] / model_data.omega[t] for
-                h in model_data.index_h, t in model_data.index_t
+                (h, t) => utility.miu[t] / model_data.omega[t] for h in model_data.index_h,
+                t in model_data.index_t
             ),
         )
     elseif regulator_opts.net_metering_policy isa ExcessZero
-        regulator.p_ex = update(
+        empty!(regulator.p_ex)
+        merge!(
             regulator.p_ex,
             Dict((h, t) => 0.0 for h in model_data.index_h, t in model_data.index_t),
         )
@@ -218,7 +230,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
 )
-    customers = get_agent(other_agents, Customers)
+    customers = get_agent(agent_store, Customers)
     ipp = get_agent(IPP, agent_store)
 
     # pure volumetric rate
@@ -296,8 +308,8 @@ function solve_agent_problem!(
     )
 
     # compute the retail price
-    p_before = copy(regulator.p, "p_before")
-    p_ex_before = copy(regulator.p_ex, "p_ex_before")
+    p_before = ParamArray(regulator.p, "p_before")
+    p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
@@ -350,7 +362,7 @@ function save_results(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     hem_opts::HEMOptions,
-    exportfilepath::AbstractString,
+    export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
     # Primal Variables
@@ -358,12 +370,12 @@ function save_results(
         regulator.p.values,
         [:CustomerType, :Time],
         :Price,
-        joinpath(exportfilepath, "$(fileprefix)_p.csv"),
+        joinpath(export_file_path, "$(fileprefix)_p.csv"),
     )
     save_param(
         regulator.p_ex.values,
         [:CustomerType, :Time],
         :Price,
-        joinpath(exportfilepath, "$(fileprefix)_p_ex.csv"),
+        joinpath(export_file_path, "$(fileprefix)_p_ex.csv"),
     )
 end
