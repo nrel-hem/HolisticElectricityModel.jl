@@ -1,3 +1,5 @@
+isdefined(Base, :__precompile__) && __precompile__()
+
 module HolisticElectricityModel
 
 ################################################################################
@@ -12,6 +14,7 @@ export HEMOptions
 export Agent
 export AgentOptions, NullAgentOptions
 export AgentAndOptions
+export configure_logging
 
 # Agents
 export Regulator
@@ -33,14 +36,18 @@ export solve_equilibrium_problem
 ################################################################################
 # Imports
 
-import JuMP
-import Cbc
-import DataFrames
-import Logging
-import XLSX
+using Logging
+using DataFrames
+using DataStructures
+using Logging
+using JuMP
+using XLSX
+using Lazy: @forward
+import InfrastructureSystems
 import Distributions
 import CSV
-import QuadGK
+
+const IS = InfrastructureSystems
 
 #################################################################################
 

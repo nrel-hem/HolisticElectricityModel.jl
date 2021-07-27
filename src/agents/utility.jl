@@ -1,5 +1,4 @@
 # This module defines the data and functions associated with the utility
-using JuMP
 
 mutable struct Utility <: Agent
     # Sets
