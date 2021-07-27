@@ -9,7 +9,7 @@ const HEM = HolisticElectricityModel
 import Aqua
 Aqua.test_unbound_args(HolisticElectricityModel)
 Aqua.test_undefined_exports(HolisticElectricityModel)
-Aqua.test_ambiguities(HolisticElectricityModel)
+#Aqua.test_ambiguities(HolisticElectricityModel)
 Aqua.test_stale_deps(HolisticElectricityModel)
 Aqua.test_deps_compat(HolisticElectricityModel)
 
