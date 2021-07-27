@@ -134,8 +134,6 @@ end
 
 
 """
-    set_log_level(level)
-
 Sets the log level to, e.g., Logging.Debug, Logging.Warn. Currently only 
 implemented for ConsoleLogger.
 """
@@ -197,8 +195,6 @@ function configure_logging(;
 end
 
 """
-    initialize_param(indices...; value=0.0)
-
 Returns a Dict with all values set to value, and keys formed from 
 Iterators.product(indices..). If only one list of indices is passed, the key is 
 not a tuple, but is instead a bare Symbol.

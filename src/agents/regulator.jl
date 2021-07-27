@@ -20,12 +20,16 @@ end
 
 mutable struct Regulator <: Agent
     # Parameters
-    r::ParamScalar # planning reserve (fraction)
-    z::ParamScalar # allowed return on investment (fraction)
+    "planning reserve (fraction)"
+    r::ParamScalar
+    "allowed return on investment (fraction)"
+    z::ParamScalar
 
     # Primal Variables
-    p::ParamArray # retail price
-    p_ex::ParamArray # DER excess generation rate
+    "retail price"
+    p::ParamArray
+    "DER excess generation rate"
+    p_ex::ParamArray
 end
 
 function Regulator(input_filename::String, model_data::HEMData)

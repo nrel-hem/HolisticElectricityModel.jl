@@ -5,14 +5,22 @@ mutable struct IPP <: Agent
     index_k::Set1D # bulk generation technologies
 
     # Parameters
-    x_E::ParamVector # existing capacity (MW)
-    f_E::ParamVector # fixed cost of existing capacity ($/MW-yr)
-    f_C::ParamVector # fixed cost of new capacity ($/MW-yr)
-    v_E::ParamArray # variable cost of existing capacity ($/MWh)
-    v_C::ParamArray # variable cost of new capacity ($/MWh)
-    rho_E::ParamArray # availability of existing capacity (fraction)
-    rho_C::ParamArray # availability of new capacity (fraction)
-    B1GM::ParamScalar{<:Integer} # Big M Parameter
+    "existing capacity (MW)"
+    x_E::ParamVector
+    "fixed cost of existing capacity (\$/MW-yr)"
+    f_E::ParamVector
+    "fixed cost of new capacity (\$/MW-yr)"
+    f_C::ParamVector
+    "variable cost of existing capacity (\$/MWh)"
+    v_E::ParamArray
+    "variable cost of new capacity (\$/MWh)"
+    v_C::ParamArray
+    "availability of existing capacity (fraction)"
+    rho_E::ParamArray
+    "availability of new capacity (fraction)"
+    rho_C::ParamArray
+    "Big M Parameter"
+    B1GM::ParamScalar{<:Integer}
 
     # Primal Variables
     y_E::ParamArray

@@ -1,4 +1,4 @@
-# This module defines data and functions associated with the customer
+# This file defines data and functions associated with the customer.
 
 mutable struct PVAdoptionModel
     Shape::ParamArray
@@ -10,8 +10,6 @@ mutable struct PVAdoptionModel
 end
 
 """
-    PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
-
 Constructs a PVAdoptionModel by computing Rate from the other parameters.
 """
 function PVAdoptionModel(Shape, 
@@ -32,15 +30,19 @@ mutable struct Customers <: Agent
     index_m::Set1D # behind-the-meter technologies
 
     # Parameters
-    gamma::ParamVector # number of customers of type h
-    d::ParamArray # demand (MWh per representative agent per hour)
+    "number of customers of type h"
+    gamma::ParamVector
+    "demand (MWh per representative agent per hour)"
+    d::ParamArray
     x_DG_E::ParamArray
     Opti_DG::ParamArray
-    DERGen::ParamArray # DER generation by a representative customer h and DER technology m
+    "DER generation by a representative customer h and DER technology m"
+    DERGen::ParamArray
     CapEx_DG::ParamArray
     FOM_DG::ParamArray
     rho_DG::ParamArray
-    delta::ParamScalar    # Annualization factor for net consumer surplus of PV installation
+    "Annualization factor for net consumer surplus of PV installation"
+    delta::ParamScalar
 
     # Primal Variables
     x_DG_new::ParamArray
