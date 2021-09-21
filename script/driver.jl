@@ -1,12 +1,7 @@
+using Logging
 using HolisticElectricityModel
 
 # This is the driver script
-
-# Logging options --------------------------------------------------------------
-using Logging
-# ETH@20210219 - Below line no longer works; I don't understand why
-# set_log_level(Logging.Debug) # if commented, will revert to Info
-# ------------------------------------------------------------------------------
 
 # Define the solver ------------------------------------------------------------
 using Xpress
@@ -26,6 +21,8 @@ exportfilepath = joinpath(hem_data_dir, "outputs")
 if !isdir(exportfilepath)
     mkdir(exportfilepath)
 end
+
+configure_logging(console_level = Logging.Info, file_level = Logging.Info, filename = "driver.log")
 
 hem_opts = HEMOptions(
     solver,                       # HEMSolver    
@@ -47,7 +44,7 @@ ipp = IPP(input_filename, model_data)
 
 fileprefix = "Results_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
 
-solve_equilibrium_problem(hem_opts, model_data, [
+solve_equilibrium_problem!(hem_opts, model_data, [
     AgentAndOptions(regulator, regulator_opts),
     AgentAndOptions(utility, NullAgentOptions()),
     AgentAndOptions(customers, NullAgentOptions()),
