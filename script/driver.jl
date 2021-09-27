@@ -15,7 +15,8 @@ solver = XpressSolver(Xpress)
 # Define the model run ---------------------------------------------------------
 
 # File locations
-hem_data_dir = joinpath(@__DIR__, "..", "..", "HolisticElectricityModel-Data")
+base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
+hem_data_dir = joinpath(base_dir, "..", "HolisticElectricityModel-Data")
 input_filename = joinpath(hem_data_dir, "inputs", "HEM_Parameters_ReEDS_17_dGen_julia.xlsx")
 export_file_path = joinpath(hem_data_dir, "outputs")
 mkpath(export_file_path)
