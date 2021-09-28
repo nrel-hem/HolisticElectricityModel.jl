@@ -49,24 +49,44 @@ struct HEMOptions{T <: MarketStructure}
 end
 
 """
-Abstract type for all agents.
+Abstract type for agents.
 
 Required interfaces:
 - get_id(agent::Agent)::String
 - solve_agent_problem!(
-      regulator::Agent,
+      agents::Agents,
       agent_opts::AgentOptions,
       model_data::HEMData,
       hem_opts::HEMOptions,
       agent_store::AgentStore,
   )
+- save_results(
+    agent::AbstractAgent,
+    agent_opts::AgentOptions,
+    hem_opts::HEMOptions,
+    export_file_path::AbstractString,
+    file_prefix::AbstractString,
+)
 """
-abstract type Agent end
+abstract type AbstractAgent end
+
+# There is currently no behavioral difference between the structs Agents and Agent, but
+# there may be differences in the future.
+
+"""
+Abstract type for a group of individual agents.
+"""
+abstract type Agents <: AbstractAgent end
+
+"""
+Abstract type for all individual agents.
+"""
+abstract type Agent <: AbstractAgent end
 
 abstract type AgentOptions end
 struct NullAgentOptions <: AgentOptions end
 
-struct AgentAndOptions{T <: Agent, U <: AgentOptions}
+struct AgentAndOptions{T <: AbstractAgent, U <: AgentOptions}
     agent::T
     options::U
 end
@@ -98,7 +118,7 @@ Return the agent of the given type and ID from the store.
 
 If there is only one agent of the given type then `id` is optional.
 """
-function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: Agent}
+function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: AbstractAgent}
     !haskey(store.data, T) && error("No agents of type $T are stored.")
     agents_and_opts = store.data[T]
 
@@ -118,7 +138,7 @@ function iter_agents_and_options(store::AgentStore)
 end
 
 function save_results(
-    agent::Agent,
+    agent::AbstractAgent,
     agent_opts::AgentOptions,
     hem_opts::HEMOptions,
     export_file_path::AbstractString,

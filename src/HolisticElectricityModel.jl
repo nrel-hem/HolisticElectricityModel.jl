@@ -11,6 +11,8 @@ export XpressSolver
 export GurobiSolver
 export HEMData
 export HEMOptions
+export AbstractAgent
+export Agents
 export Agent
 export AgentOptions, NullAgentOptions
 export AgentAndOptions
@@ -21,7 +23,7 @@ export read_dataframe
 export Regulator
 export Utility
 export Customers
-export IPP
+export IPPs
 
 # Agent Options
 export RegulatorOptions

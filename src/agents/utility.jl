@@ -33,7 +33,7 @@ mutable struct Utility <: AbstractUtility
     miu::ParamVector
 end
 
-function Utility(input_filename::String, model_data::HEMData)
+function Utility(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
     index_k = read_set(
         input_filename,
         "index_k",
@@ -42,7 +42,7 @@ function Utility(input_filename::String, model_data::HEMData)
     )
 
     return Utility(
-        DEFAULT_ID,
+        id,
         index_k,
         read_param(
             "x_E",

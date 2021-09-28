@@ -26,7 +26,7 @@ function PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
     )
 end
 
-abstract type AbstractCustomers <: Agent end
+abstract type AbstractCustomers <: Agents end
 
 mutable struct Customers <: AbstractCustomers
     id::String
@@ -63,7 +63,7 @@ mutable struct Customers <: AbstractCustomers
     pv_adoption_model::PVAdoptionModel
 end
 
-function Customers(input_filename::AbstractString, model_data::HEMData)
+function Customers(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
     index_m = read_set(
         input_filename,
         "index_m",
@@ -121,7 +121,7 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
     )
 
     return Customers(
-        DEFAULT_ID,
+        id,
         index_m,
         gamma,
         read_param("d", input_filename, "Demand", model_data.index_t, [model_data.index_h]),

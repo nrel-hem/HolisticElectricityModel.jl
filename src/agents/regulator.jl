@@ -35,9 +35,9 @@ mutable struct Regulator <: AbstractRegulator
     p_ex::ParamArray
 end
 
-function Regulator(input_filename::String, model_data::HEMData)
+function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
     return Regulator(
-        DEFAULT_ID,
+        id,
         ParamScalar("r", 0.14, description = "planning reserve (fraction)"),
         ParamScalar("z", 0.09, description = "allowed return on investment (fraction)"),
         initialize_param(
