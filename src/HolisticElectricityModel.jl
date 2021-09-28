@@ -70,7 +70,7 @@ include("utils.jl")
 include("agents/common.jl")
 include("agents/regulator.jl")
 include("agents/utility.jl")
-include("agents/customers.jl")
-include("agents/ipp.jl")
+include("agents/customer_group.jl")
+include("agents/ipp_group.jl")
 
 end # module
