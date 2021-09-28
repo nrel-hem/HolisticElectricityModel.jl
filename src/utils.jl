@@ -1,12 +1,3 @@
-import Base.copy
-
-# Question: Best practice for documenting data types? Why doesn't my type 
-# mark-up in the code show up when I look at ?read_set or ?read_param
-# Answer: Documentation below is correct--types are not listed explicitly in the docstrings. 
-#     using DocStringExtensions is your friend for pulling that information 
-#     together. For example, see 
-#     https://github.com/NREL-SIIP/PowerSystems.jl/blob/master/src/PowerSystems.jl#L292
-
 # Question: Also, when should I specify types?
 # Answer: When necessary for dispatch, and often for clarity. 
 #         Always use AbstractString, not String.
@@ -23,8 +14,8 @@ function read_set(
     name::AbstractString;
     prose_name = "",
     description = "",
-)::Set1D
-    result = Set1D(
+)
+    result = Dimension(
         name,
         Symbol.(names(DataFrame(XLSX.readtable(filename, sheetname)...))),
         prose_name = prose_name,
@@ -35,78 +26,81 @@ function read_set(
 end
 
 """
-    read_param(name, filename, sheetname, column_index; row_indices=[])
+Reads parameter data from the Excel workbook at filename. Assumes the data is
+in sheetname, with a single header row, and that the column_index dimension is
+expressed in the column names.
 
+Returns the data loaded into a Dict with the Symbol values in column_index as its keys.
+"""
+function read_param(
+    name::AbstractString,
+    filename::AbstractString,
+    sheetname::AbstractString,
+    column_index::Dimension;
+    prose_name::AbstractString = "",
+    description::AbstractString = "",
+)
+    table = DataFrame(XLSX.readtable(filename, sheetname)...)
+    vals = Dict{Symbol, Float64}()
+
+    for row in eachrow(table)
+        # register all of the values in this row
+        for i in column_index
+            push!(vals, i => row[i])
+        end
+    end
+    result = ParamVector(
+        name,
+        column_index,
+        vals,
+        prose_name = prose_name,
+        description = description,
+    )
+    @debug "Loaded $sheetname" result
+    return result
+end
+
+"""
 Reads parameter data from the Excel workbook at filename. Assumes the data is
 in sheetname, with a single header row, and that the column_index dimension is
 expressed in the column names. All other data dimension values are listed in the 
 first length(row_indices) columns of sheetname, corresonding one-to-one and in 
 the same order as the row_indices.
 
-Returns the data loaded into a Dict. If isempty(row_indices), the Dict has the 
-Symbol values in column_index as its keys. If ~isempty(row_indices), then the 
-Dict keys are tuples of length(row_indices) + 1, and with values taken from each
-of the row_indices in turn, plus a column_index value.
+Returns the data loaded into a Dict. The Dict keys are tuples of
+length(row_indices) + 1, and with values taken from each of the row_indices in
+turn, plus a column_index value.
 """
 function read_param(
     name::AbstractString,
     filename::AbstractString,
     sheetname::AbstractString,
-    column_index::Set1D;
-    row_indices::Vector{Set1D} = Vector{Set1D}(),
+    column_index::Dimension,
+    row_indices::Vector{Dimension};
     prose_name::AbstractString = "",
     description::AbstractString = "",
-)::HEMParameter
-    # load the sheet as a DataFrame
+)
     table = DataFrame(XLSX.readtable(filename, sheetname)...)
 
-    # determine the return type
-    n = 0
-    values = nothing
-    if isempty(row_indices)
-        values = Dict{Symbol, AbstractFloat}()
-    else
-        n = length(row_indices)
-        N = n + 1
-        dims = Tuple(push!(copy(row_indices), column_index))
-        values = Dict{NTuple{N, Symbol}, AbstractFloat}()
-    end
+    n = length(row_indices)
+    dims = Tuple(push!(copy(row_indices), column_index))
+    vals = Dict{DimensionKey{n + 1}, Float64}()
 
-    # process each row
     for row in eachrow(table)
         # the Dict key starts with the first n values in row
-        preamble = isempty(row_indices) ? [] : Symbol.(Array(row[1:n]))
+        preamble = Symbol.(Array(row[1:n]))
         # check that the key values are expected
         for (i, rindex) in enumerate(row_indices)
             @assert preamble[i] in rindex "Entry $i $(preamble[i]) not in $rindex"
         end
         # now register all of the values in this row
-        for j in column_index
-            key = j
-            if ~isempty(row_indices)
-                key = Tuple(push!(copy(preamble), j))
-            end
-            push!(values, key => row[j])
+        for i in column_index
+            key = Tuple(push!(copy(preamble), i))
+            push!(vals, key => row[i])
         end
     end
-    result = nothing
-    if isempty(row_indices)
-        result = ParamVector(
-            name,
-            column_index,
-            values,
-            prose_name = prose_name,
-            description = description,
-        )
-    else
-        result = ParamArray(
-            name,
-            dims,
-            values,
-            prose_name = prose_name,
-            description = description,
-        )
-    end
+    result =
+        ParamArray(name, dims, vals, prose_name = prose_name, description = description)
     @debug "Loaded $sheetname" result
     return result
 end
@@ -215,8 +209,27 @@ end
 
 """
 Returns a Dict with all values set to value, and keys formed from 
-Iterators.product(indices..). If only one list of indices is passed, the key is 
-not a tuple, but is instead a bare Symbol.
+indices. Each key is a Symbol.
+"""
+function initialize_param(
+    name::AbstractString,
+    indices::Dimension;
+    value = 0.0,
+    prose_name = "",
+    description = "",
+)
+    return ParamVector(
+        name,
+        indices,
+        Dict(t => value for t in indices),
+        prose_name = prose_name,
+        description = description,
+    )
+end
+
+"""
+Returns a Dict with all values set to value, and keys formed from
+Iterators.product(indices...).
 """
 function initialize_param(
     name::AbstractString,
@@ -225,22 +238,19 @@ function initialize_param(
     prose_name = "",
     description = "",
 )
-    if length(indices) == 1
-        return ParamVector(
-            name,
-            indices[1],
-            Dict(t[1] => value for t in Iterators.product(indices...)),
-            prose_name = prose_name,
-            description = description,
-        )
-    end
     return ParamArray(
         name,
-        Tuple(indices),
+        indices,
         Dict(t => value for t in Iterators.product(indices...)),
         prose_name = prose_name,
         description = description,
     )
+end
+
+function read_dataframe(filename::AbstractString)
+    open(filename) do io
+        CSV.read(io, DataFrame)
+    end
 end
 
 # Code from https://stackoverflow.com/a/60907180 that provides a stop() function

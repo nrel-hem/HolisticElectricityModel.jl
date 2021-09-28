@@ -11,12 +11,17 @@ struct ExcessRetailRate <: NetMeteringPolicy end
 struct ExcessMarginalCost <: NetMeteringPolicy end
 struct ExcessZero <: NetMeteringPolicy end
 
-struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AgentOptions
+abstract type AbstractRegulatorOptions <: AgentOptions end
+
+struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegulatorOptions
     rate_design::T
     net_metering_policy::U
 end
 
-mutable struct Regulator <: Agent
+abstract type AbstractRegulator <: Agent end
+
+mutable struct Regulator <: AbstractRegulator
+    id::String
     # Parameters
     "planning reserve (fraction)"
     r::ParamScalar
@@ -30,8 +35,9 @@ mutable struct Regulator <: Agent
     p_ex::ParamArray
 end
 
-function Regulator(input_filename::String, model_data::HEMData)
+function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
     return Regulator(
+        id,
         ParamScalar("r", 0.14, description = "planning reserve (fraction)"),
         ParamScalar("z", 0.09, description = "allowed return on investment (fraction)"),
         initialize_param(
@@ -51,6 +57,8 @@ function Regulator(input_filename::String, model_data::HEMData)
     )
 end
 
+get_id(x::Regulator) = x.id
+
 # although Customer is subtype of Agent, 
 # Vector{Customer} is not subtype of Vector{Agent}
 # But if a vector of customers c1, c2, c3 is defined 
@@ -58,15 +66,15 @@ end
 # this function will work. Can also:
 # Vector{Agent}([c1, c2, c3])
 
-function solve_agent_problem(
+function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
-    utility = get_agent(other_agents, Utility)
-    customers = get_agent(other_agents, Customers)
+    utility = get_agent(Utility, agent_store)
+    customers = get_agent(CustomerGroup, agent_store)
 
     # pure volumetric rate
     energy_cost = sum(
@@ -157,12 +165,13 @@ function solve_agent_problem(
     )
 
     # compute the retail price
-    p_before = copy(regulator.p, "p_before")
-    p_ex_before = copy(regulator.p_ex, "p_ex_before")
+    p_before = ParamArray(regulator.p, "p_before")
+    p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
-        regulator.p = update(
+        empty!(regulator.p)
+        merge!(
             regulator.p,
             Dict(
                 (h, t) =>
@@ -171,7 +180,8 @@ function solve_agent_problem(
             ),
         )
     elseif regulator_opts.rate_design isa TOU
-        regulator.p = update(
+        empty!(regulator.p)
+        merge!(
             regulator.p,
             Dict(
                 (h, t) =>
@@ -184,17 +194,19 @@ function solve_agent_problem(
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
-        regulator.p_ex = update(regulator.p, regulator.p.values)
+        regulator.p_ex = ParamArray(regulator.p)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-        regulator.p_ex = update(
+        empty!(regulator.p_ex)
+        merge!(
             regulator.p_ex,
             Dict(
-                (h, t) => utility.miu[t] / model_data.omega[t] for
-                h in model_data.index_h, t in model_data.index_t
+                (h, t) => utility.miu[t] / model_data.omega[t] for h in model_data.index_h,
+                t in model_data.index_t
             ),
         )
     elseif regulator_opts.net_metering_policy isa ExcessZero
-        regulator.p_ex = update(
+        empty!(regulator.p_ex)
+        merge!(
             regulator.p_ex,
             Dict((h, t) => 0.0 for h in model_data.index_h, t in model_data.index_t),
         )
@@ -211,15 +223,15 @@ function solve_agent_problem(
     ])
 end
 
-function solve_agent_problem(
+function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
-    customers = get_agent(other_agents, Customers)
-    ipp = get_agent(other_agents, IPP)
+    customers = get_agent(agent_store, CustomerGroup)
+    ipps = get_agent(IPPGroup, agent_store)
 
     # pure volumetric rate
     der_excess_cost = sum(
@@ -296,8 +308,8 @@ function solve_agent_problem(
     )
 
     # compute the retail price
-    p_before = copy(regulator.p, "p_before")
-    p_ex_before = copy(regulator.p_ex, "p_ex_before")
+    p_before = ParamArray(regulator.p, "p_before")
+    p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
@@ -305,8 +317,8 @@ function solve_agent_problem(
             (h, t) =>
                 (
                     sum(
-                        ipp.miu[t] *
-                        sum(ipp.y_E[k, t] + ipp.y_C[k, t] for k in ipp.index_k) for
+                        ipps.miu[t] *
+                        sum(ipps.y_E[k, t] + ipps.y_C[k, t] for k in ipps.index_k) for
                         t in model_data.index_t
                     ) + der_excess_cost
                 ) / net_demand for h in model_data.index_h, t in model_data.index_t
@@ -315,8 +327,8 @@ function solve_agent_problem(
         regulator.p = Dict(
             (h, t) =>
                 (
-                    ipp.miu[t] / model_data.omega[t] *
-                    sum(ipp.y_E[k, t] + ipp.y_C[k, t] for k in ipp.index_k) +
+                    ipps.miu[t] / model_data.omega[t] *
+                    sum(ipps.y_E[k, t] + ipps.y_C[k, t] for k in ipps.index_k) +
                     der_excess_cost_t[t]
                 ) / net_demand_t[t] for h in model_data.index_h, t in model_data.index_t
         )
@@ -327,7 +339,7 @@ function solve_agent_problem(
         regulator.p_ex = regulator.p
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         regulator.p_ex = Dict(
-            (h, t) => ipp.miu[t] / model_data.omega[t] for h in model_data.index_h,
+            (h, t) => ipps.miu[t] / model_data.omega[t] for h in model_data.index_h,
             t in model_data.index_t
         )
     elseif regulator_opts.net_metering_policy isa ExcessZero
@@ -350,7 +362,7 @@ function save_results(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     hem_opts::HEMOptions,
-    exportfilepath::AbstractString,
+    export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
     # Primal Variables
@@ -358,12 +370,12 @@ function save_results(
         regulator.p.values,
         [:CustomerType, :Time],
         :Price,
-        joinpath(exportfilepath, "$(fileprefix)_p.csv"),
+        joinpath(export_file_path, "$(fileprefix)_p.csv"),
     )
     save_param(
         regulator.p_ex.values,
         [:CustomerType, :Time],
         :Price,
-        joinpath(exportfilepath, "$(fileprefix)_p_ex.csv"),
+        joinpath(export_file_path, "$(fileprefix)_p_ex.csv"),
     )
 end

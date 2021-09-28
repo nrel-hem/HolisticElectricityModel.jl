@@ -26,9 +26,12 @@ function PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
     )
 end
 
-mutable struct Customers <: Agent
+abstract type AbstractCustomerGroup <: AgentGroup end
+
+mutable struct CustomerGroup <: AbstractCustomerGroup
+    id::String
     # Sets
-    index_m::Set1D # behind-the-meter technologies
+    index_m::Dimension # behind-the-meter technologies
 
     # Parameters
     "number of customers of type h"
@@ -60,7 +63,7 @@ mutable struct Customers <: Agent
     pv_adoption_model::PVAdoptionModel
 end
 
-function Customers(input_filename::AbstractString, model_data::HEMData)
+function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
     index_m = read_set(
         input_filename,
         "index_m",
@@ -80,22 +83,17 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
         input_filename,
         "ExistingDER",
         index_m,
-        row_indices = [model_data.index_h],
+        [model_data.index_h],
         description = "existing DG capacity",
     )
-    Opti_DG = read_param(
-        "Opti_DG",
-        input_filename,
-        "OptimalDER",
-        index_m,
-        row_indices = [model_data.index_h],
-    )
+    Opti_DG =
+        read_param("Opti_DG", input_filename, "OptimalDER", index_m, [model_data.index_h])
     rho_DG = read_param(
         "rho_DG",
         input_filename,
         "AvailabilityDER",
         model_data.index_t,
-        row_indices = [model_data.index_h, index_m],
+        [model_data.index_h, index_m],
     )
     # Define total DER generation per individual customer per hour
     DERGen = initialize_param("DERGen", model_data.index_h, model_data.index_t, value = 1.0)
@@ -122,33 +120,16 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
         ), # Bass_q
     )
 
-    return Customers(
+    return CustomerGroup(
+        id,
         index_m,
         gamma,
-        read_param(
-            "d",
-            input_filename,
-            "Demand",
-            model_data.index_t,
-            row_indices = [model_data.index_h],
-        ),
+        read_param("d", input_filename, "Demand", model_data.index_t, [model_data.index_h]),
         x_DG_E,
         Opti_DG,
         DERGen,
-        read_param(
-            "CapEx_DG",
-            input_filename,
-            "CapExDER",
-            index_m,
-            row_indices = [model_data.index_h],
-        ),
-        read_param(
-            "FOM_DG",
-            input_filename,
-            "FOMDER",
-            index_m,
-            row_indices = [model_data.index_h],
-        ),
+        read_param("CapEx_DG", input_filename, "CapExDER", index_m, [model_data.index_h]),
+        read_param("FOM_DG", input_filename, "FOMDER", index_m, [model_data.index_h]),
         rho_DG,
         ParamScalar("delta", 0.05),
         initialize_param("x_DG_new", model_data.index_h, index_m),
@@ -163,16 +144,18 @@ function Customers(input_filename::AbstractString, model_data::HEMData)
     )
 end
 
-function solve_agent_problem(
-    customers::Customers,
+get_id(x::CustomerGroup) = x.id
+
+function solve_agent_problem!(
+    customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions,
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
-    regulator = get_agent(other_agents, Regulator)
+    regulator = get_agent(Regulator, agent_store)
 
-    x_DG_before = copy(customers.x_DG_new)
+    x_DG_before = ParamArray(customers.x_DG_new)
 
     adopt_model = customers.pv_adoption_model
 
@@ -264,10 +247,10 @@ function solve_agent_problem(
 end
 
 function save_results(
-    customers::Customers,
+    customers::CustomerGroup,
     customers_opts::AgentOptions,
     hem_opts::HEMOptions,
-    exportfilepath::AbstractString,
+    export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
 
@@ -276,11 +259,15 @@ function save_results(
         customers.x_DG_new.values,
         [:CustomerType, :DERTech],
         :Capacity_MW,
-        joinpath(exportfilepath, "$(fileprefix)_x_DG.csv"),
+        joinpath(export_file_path, "$(fileprefix)_x_DG.csv"),
     )
 end
 
-function welfare_calculation(customers::Customers, model_data::HEMData, regulator::Agent)
+function welfare_calculation(
+    customers::CustomerGroup,
+    model_data::HEMData,
+    regulator::Agent,
+)
     adopt_model = customers.pv_adoption_model
 
     """

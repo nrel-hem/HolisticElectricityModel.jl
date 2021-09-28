@@ -11,16 +11,19 @@ export XpressSolver
 export GurobiSolver
 export HEMData
 export HEMOptions
+export AbstractAgent
+export AgentGroup
 export Agent
 export AgentOptions, NullAgentOptions
 export AgentAndOptions
 export configure_logging
+export read_dataframe
 
 # Agents
 export Regulator
 export Utility
-export Customers
-export IPP
+export CustomerGroup
+export IPPGroup
 
 # Agent Options
 export RegulatorOptions
@@ -31,7 +34,7 @@ export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
 
 # Solvers
-export solve_equilibrium_problem
+export solve_equilibrium_problem!
 
 ################################################################################
 # Imports
@@ -67,7 +70,7 @@ include("utils.jl")
 include("agents/common.jl")
 include("agents/regulator.jl")
 include("agents/utility.jl")
-include("agents/customers.jl")
-include("agents/ipp.jl")
+include("agents/customer_group.jl")
+include("agents/ipp_group.jl")
 
 end # module

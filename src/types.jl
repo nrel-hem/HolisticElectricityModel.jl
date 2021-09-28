@@ -1,54 +1,56 @@
-import Base.copy
-
 # ------------------------------------------------------------------------------
 # Base Data Types
 # ------------------------------------------------------------------------------
 
-abstract type HEMSymbol end
+abstract type AbstractData end
 
-# HERE -- What properties should all HEMSymbols have? 
+# Required interface functions:
+# - Constructor(src::AbstractData, name; prose_name = "", description = "")
+# Optional interface functions:
+# - Default function exists for types with a field called name.
+# - get_name()
+# - Default function exists for types with a field called name.
+# - get_description()
+# - Default function exists for types with a field called prose_name.
+# - get_prose_name()
+# - get_symbol()
+
+# HERE -- What properties should all AbstractDatas have? 
 # HERE -- What is key for working with JuMP?
 # HERE -- Why doesn't JuMP have better support for this kind of stuff?
 # 1. Start with JuMP docs
 # 2. Maybe take a quick look at Victor Zavela's packages
 # 3. Other JuMP-compatible packages that may be helpful?
 
-name(hemsym::HEMSymbol) = hemsym.name
+get_name(data::AbstractData) = data.name
+get_symbol(data::AbstractData) = Symbol(get_name(data))
+get_prose_name(data::AbstractData) = data.prose_name
+get_description(data::AbstractData) = data.description
 
-symbol(hemsym::HEMSymbol) = Symbol(symbol(name(hemsym)))
+abstract type AbstractDimension <: AbstractData end
 
-prose_name(hemsym::HEMSymbol) = hemsym.prose_name
+const DimensionKey{N} = NTuple{N, Symbol}
 
-description(hemsym::HEMSymbol) = hemsym.description
-
-abstract type HEMSet <: HEMSymbol end
-
-copy(symbol::HEMSymbol)::HEMSymbol = error("Not implemented")
-
-copy(
-    symbol::HEMSymbol,
-    name::AbstractString;
-    prose_name::AbstractString = "",
-    description::AbstractString = "",
-)::HEMSymbol = error("Not implemented")
-
-struct Set1D <: HEMSet
-    name::AbstractString
-    prose_name::AbstractString
-    description::AbstractString
+"""
+Behaves like a Vector of Symbols with additional metadata fields.
+"""
+struct Dimension <: AbstractDimension
+    name::String
+    prose_name::String
+    description::String
     elements::Vector{Symbol}
 end
 
-function Set1D(
+function Dimension(
     name::AbstractString,
     elements::Vector{Symbol};
     prose_name = "",
     description = "",
 )
-    return Set1D(name, prose_name, description, elements)
+    return Dimension(name, prose_name, description, elements)
 end
 
-@forward Set1D.elements Base.IteratorSize,
+@forward Dimension.elements Base.IteratorSize,
 Base.IteratorEltype,
 Base.size,
 Base.axes,
@@ -56,76 +58,73 @@ Base.ndims,
 Base.length,
 Base.iterate
 
-copy(symbol::Set1D)::Set1D = Set1D(
-    copy(symbol.name),
-    copy(symbol.prose_name),
-    copy(symbol.description),
-    copy(symbol.elements),
-)
+Dimension(x::Dimension) = Dimension(x.name, x.prose_name, x.description, copy(x.elements))
 
-function copy(
-    symbol::Set1D,
+function Dimension(
+    dim::Dimension,
     name::AbstractString;
     prose_name::AbstractString = "",
     description::AbstractString = "",
-)::Set1D
-    return Set1D(name, prose_name, description, copy(symbol.elements))
+)
+    return Dimension(name, prose_name, description, copy(dim.elements))
 end
 
-abstract type HEMParameter <: HEMSymbol end
+abstract type HEMParameter <: AbstractData end
 
-update(param::HEMParameter, ::Any)::HEMParameter = error("Not implemented")
-
+"""
+Behaves like a number with additional metadata fields.
+"""
 struct ParamScalar{T <: Number} <: HEMParameter
-    name::AbstractString
-    prose_name::AbstractString
-    description::AbstractString
-    value::T
+    name::String
+    prose_name::String
+    description::String
+    value::Ref{T}
 end
 
 function ParamScalar(name::AbstractString, value::Number; prose_name = "", description = "")
-    return ParamScalar(name, prose_name, description, value)
+    return ParamScalar(name, prose_name, description, Ref(value))
 end
 
 @forward ParamScalar.value Base.isless, Base.isgreater, Base.:+, Base.:*, Base.:-, Base.:/
 
-Base.:+(x::Number, y::ParamScalar) = x + y.value
-Base.:*(x::Number, y::ParamScalar) = x * y.value
+Base.:+(x::Number, y::ParamScalar) = x + y.value[]
+Base.:*(x::Number, y::ParamScalar) = x * y.value[]
+Base.isless(x::Number, y::ParamScalar) = isless(x, y.value[])
 
-copy(symbol::ParamScalar)::ParamScalar =
-    ParamScalar(symbol.name, symbol.prose_name, symbol.description, symbol.value)
+ParamScalar(param::ParamScalar) =
+    ParamScalar(param.name, param.prose_name, param.description, param.value)
 
-function copy(
-    symbol::ParamScalar,
+function ParamScalar(
+    param::ParamScalar,
     name::AbstractString;
     prose_name::AbstractString = "",
     description::AbstractString = "",
-)::ParamScalar
-    return ParamScalar(name, prose_name, description, copy(symbol.value))
+)
+    return ParamScalar(name, prose_name, description, copy(param.value))
 end
 
-function update(param::ParamScalar{T}, value::T)::ParamScalar{T} where {T <: Number}
-    return ParamScalar(param.name, param.prose_name, param.description, value)
-end
+update!(param::ParamScalar, value) = param.value[] = value
 
+"""
+Behaves like a dictionary with one Dimension and additional metadata fields.
+"""
 struct ParamVector <: HEMParameter
-    name::AbstractString
-    prose_name::AbstractString
-    description::AbstractString
-    dim::Set1D
-    values::Dict{Symbol, AbstractFloat}
+    name::String
+    prose_name::String
+    description::String
+    dim::Dimension
+    values::Dict{Symbol, Float64}
 
     function ParamVector(
         name::AbstractString,
         prose_name::AbstractString,
         description::AbstractString,
-        dim::Set1D,
-        values::Dict{Symbol},
+        dim::Dimension,
+        vals::Dict{Symbol, Float64},
     )
-
         # Check that values are defined over dim
         set_symbols = Set([sym for sym in dim])
-        value_symbols = Set([k for k in keys(values)])
+        value_symbols = Set(keys(vals))
         invalid_symbols = setdiff(value_symbols, set_symbols)
         if !isempty(invalid_symbols)
             error(
@@ -135,208 +134,128 @@ struct ParamVector <: HEMParameter
         end
         missing_symbols = setdiff(set_symbols, value_symbols)
         if !isempty(missing_symbols)
-            @warn "ParamVector definition of $name over $name(dim) is missing " *
+            @warn "ParamVector definition of $name over $(get_name(dim)) is missing " *
                   "values for $missing_symbols"
         end
 
-        new(name, prose_name, description, dim, values)
+        new(name, prose_name, description, dim, vals)
     end
 end
 
 function ParamVector(
     name::AbstractString,
-    dim::Set1D,
-    values::Dict{Symbol};
+    dim::Dimension,
+    vals::Dict{Symbol, Float64};
     prose_name = "",
     description = "",
 )
-    return ParamVector(name, prose_name, description, dim, values)
+    return ParamVector(name, prose_name, description, dim, vals)
 end
 
 @forward ParamVector.values Base.getindex, Base.setindex!, Base.keys
 
-copy(symbol::ParamVector)::ParamVector = ParamVector(
-    symbol.name,
-    symbol.prose_name,
-    symbol.description,
-    symbol.dim, # sets are fully static, unlike parameters; therefore reuse them
-    copy(symbol.values),
+ParamVector(param::ParamVector) = ParamVector(
+    param.name,
+    param.prose_name,
+    param.description,
+    param.dim, # sets are fully static, unlike parameters; therefore reuse them
+    copy(param.values),
 )
 
-function copy(
-    symbol::ParamVector,
+function ParamVector(
+    param::ParamVector,
     name::AbstractString;
     prose_name::AbstractString = "",
     description::AbstractString = "",
-)::ParamVector
-    return ParamVector(name, prose_name, description, symbol.dim, copy(symbol.values))
+)
+    return ParamVector(name, prose_name, description, param.dim, copy(param.values))
 end
 
-function update(param::ParamVector, values::Dict{Symbol})::ParamVector
-    return ParamVector(param.name, param.prose_name, param.description, param.dim, values)
-end
+Base.empty!(x::ParamVector) = empty!(x.values)
+Base.merge!(x::ParamVector, vals::Dict{Symbol}) = merge!(x.values, vals)
 
-struct ParamArray{N} <: HEMParameter
-    name::AbstractString
-    prose_name::AbstractString
-    description::AbstractString
-    dims::NTuple{N, Set1D}
-    values::Dict{NTuple{N, Symbol}, AbstractFloat}
+# TODO: We currently can't make this immutable because of how it's used in regulator.jl.
+"""
+Behaves like a dictionary with N Dimensions and additional metadata fields.
+"""
+mutable struct ParamArray{N} <: HEMParameter
+    name::String
+    prose_name::String
+    description::String
+    dims::NTuple{N, Dimension}
+    values::Dict{DimensionKey{N}, Float64}
 
     function ParamArray(
         name::AbstractString,
         prose_name::AbstractString,
         description::AbstractString,
-        dims::NTuple{N, Set1D},
-        values::Dict{NTuple{N, Symbol}},
+        dims::NTuple{N, Dimension},
+        vals::Dict{DimensionKey{N}, Float64},
     ) where {N}
         for (index, dim) in enumerate(dims)
-            # Check that values are defined over dim
-            set_symbols = Set([sym for sym in dim])
-            value_symbols = Set([k[index] for k in keys(values)])
+            # Check that vals are defined over dim
+            set_symbols = Set(dim)
+            value_symbols = Set((k[index] for k in keys(vals)))
             invalid_symbols = setdiff(value_symbols, set_symbols)
             if !isempty(invalid_symbols)
                 error(
                     "Attempted ParamArray definition of $name, but definition " *
-                    "over dim $index, $name(dim), is invalid. " *
+                    "over dim $index, $(get_name(dim)), is invalid. " *
                     "Values provided for symbols $invalid_symbols that are not in $dim.",
                 )
             end
             missing_symbols = setdiff(set_symbols, value_symbols)
             if !isempty(missing_symbols)
                 @warn "ParamArray definition of $name is missing " *
-                      "values for some of $(name(dim))'s elements: " *
+                      "values for some of $(get_name(dim))'s elements: " *
                       "$missing_symbols"
             end
         end
 
         # Check for expected number of combinations
         n_expected = reduce(*, map(length, dims))
-        n_actual = length(values)
+        n_actual = length(vals)
         @assert n_actual <= n_expected "There are at most $n_expected combinations of $dims, but $n_actual parameter values were passed"
         if n_actual < n_expected
             @warn "ParamArray definition of $name has not defined values for all" *
                   "$n_expected possible combinations of $dims"
         end
 
-        new{N}(name, prose_name, description, dims, values)
+        new{N}(name, prose_name, description, dims, vals)
     end
 end
 
-copy(symbol::ParamArray)::ParamArray = ParamArray(
-    symbol.name,
-    symbol.prose_name,
-    symbol.description,
-    Tuple(symbol.dims),
-    copy(symbol.values),
+ParamArray(param::ParamArray) = ParamArray(
+    param.name,
+    param.prose_name,
+    param.description,
+    param.dims,
+    copy(param.values),
 )
 
-function copy(
-    symbol::ParamArray,
+function ParamArray(
+    param::ParamArray,
     name::AbstractString;
     prose_name::AbstractString = "",
     description::AbstractString = "",
-)::ParamArray
-    return ParamArray(
-        name,
-        prose_name,
-        description,
-        Tuple(symbol.dims),
-        copy(symbol.values),
-    )
+)
+    return ParamArray(name, prose_name, description, param.dims, copy(param.values))
 end
 
 function ParamArray(
     name::AbstractString,
-    dims::NTuple{N, Set1D},
-    values::Dict{NTuple{N, Symbol}};
+    dims::NTuple{N, Dimension},
+    vals::Dict{DimensionKey{N}, Float64};
     prose_name = "",
     description = "",
 ) where {N}
-    return ParamArray(name, prose_name, description, dims, values)
+    return ParamArray(name, prose_name, description, dims, vals)
 end
 
 @forward ParamArray.values Base.getindex, Base.keys, Base.setindex!
 
-function update(param::ParamArray, values::Dict{NTuple{N, Symbol}})::ParamArray where {N}
-    return ParamArray(param.name, param.prose_name, param.description, param.dims, values)
-end
-
-# ------------------------------------------------------------------------------
-# Collections
-# ------------------------------------------------------------------------------
-
-# https://docs.julialang.org/en/v1/base/base/#Base.getproperty
-
-struct AgentData{T <: HEMSet, U <: HEMParameter}
-    sets::Vector{T}
-    parameters::Vector{U}
-end
-
-function get_set(agent_data::AgentData, sym::Symbol)
-    for a_set in agent_data.sets
-        if symbol(a_set) == sym
-            return a_set
-        end
-    end
-    return nothing
-end
-
-function get_set(agent_data::AgentData, name::AbstractString)
-    for a_set in agent_data.sets
-        if name(a_set) == name
-            return a_set
-        end
-    end
-    return nothing
-end
-
-function get_parameter(agent_data::AgentData, sym::Symbol)
-    for a_param in agent_data.parameters
-        if symbol(a_param) == sym
-            return a_param
-        end
-    end
-    return nothing
-end
-
-function get_parameter(agent_data::AgentData, name::AbstractString)
-    for a_param in agent_data.parameters
-        if name(a_param) == name
-            return a_param
-        end
-    end
-    return nothing
-end
-
-function Base.getproperty(agent_data::AgentData, sym::Symbol)
-    val = get_set(agent_data, sym)
-    if not
-        isnothing(val)
-        return val
-    end
-    val = get_parameter(agent_data, sym)
-    if not
-        isnothing(val)
-        return val
-    end
-    return getfield(agent_data, sym)
-end
-
-function Base.propertynames(agent_data::AgentData)
-    # static properties
-    result = [fn for fn in fieldnames(typeof(agent_data))]
-
-    # properties defined by contents of agent_data
-    for a_set in agent_data.sets
-        append!(result, symbol(a_set))
-    end
-    for a_param in agent_data.parameters
-        append!(result, symbol(a_param))
-    end
-
-    return Tuple(result)
-end
+Base.empty!(x::ParamArray) = empty!(x.values)
+Base.merge!(x::ParamArray, vals) = merge!(x.values, vals)
 
 # ------------------------------------------------------------------------------
 # Optimization Solvers

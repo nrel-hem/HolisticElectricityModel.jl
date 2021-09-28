@@ -57,7 +57,6 @@ function run_tests()
         end
 
         @test length(IS.get_log_events(multi_logger.tracker, Logging.Error)) == 0
-        @info IS.report_log_summary(multi_logger)
     end
 end
 

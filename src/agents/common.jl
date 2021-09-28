@@ -1,12 +1,14 @@
 # This module defines inputs that are held in common across all agents
 
+const DEFAULT_ID = "default"
+
 struct HEMData
     # Configuration
     epsilon::ParamScalar # iteration tolerance
 
     # Sets
-    index_t::Set1D # time index, currently 17 ReEDS timeslices
-    index_h::Set1D # customer types
+    index_t::Dimension # time index, currently 17 ReEDS timeslices
+    index_h::Dimension # customer types
 
     # Parameters
     omega::ParamVector # number of hours per timeslice
@@ -46,94 +48,140 @@ struct HEMOptions{T <: MarketStructure}
     market_structure::T
 end
 
-abstract type Agent end
+"""
+Abstract type for agents.
+
+Required interfaces:
+- get_id(agent::Agent)::String
+- solve_agent_problem!(
+      agents::AgentGroup,
+      agent_opts::AgentOptions,
+      model_data::HEMData,
+      hem_opts::HEMOptions,
+      agent_store::AgentStore,
+  )
+- save_results(
+    agent::AbstractAgent,
+    agent_opts::AgentOptions,
+    hem_opts::HEMOptions,
+    export_file_path::AbstractString,
+    file_prefix::AbstractString,
+)
+"""
+abstract type AbstractAgent end
+
+# There is currently no behavioral difference between the structs AgentGroup and Agent, but
+# there may be differences in the future.
+
+"""
+Abstract type for a group of individual agents.
+"""
+abstract type AgentGroup <: AbstractAgent end
+
+"""
+Abstract type for all individual agents.
+"""
+abstract type Agent <: AbstractAgent end
+
 abstract type AgentOptions end
 struct NullAgentOptions <: AgentOptions end
 
-struct AgentAndOptions{T <: Agent, U <: AgentOptions}
+struct AgentAndOptions{T <: AbstractAgent, U <: AgentOptions}
     agent::T
     options::U
 end
 
-# make this be the data field of every agent type
-# still need abstract type (no data) for Agent, then derive from it
-# mutable struct AgentData
-#     sets::Vector{MySetType}
-#     params::Vector{MyParameterType}
-#     vars::Vector{MyVariableType}
-# end
+struct AgentStore
+    data::OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}
+end
 
-function get_agent(agents::Vector{Agent}, agent_type::Type{T}) where {T <: Agent}
-    result = filter(x -> x isa agent_type, agents)
-    @assert length(result) == 1 "$agents does not have exactly one $T, it has $(length(result))"
-    return first(result)
+function AgentStore(agents_and_opts::Vector{AgentAndOptions})
+    data = OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}()
+    for item in agents_and_opts
+        type = typeof(item.agent)
+        id = get_id(item.agent)
+        if haskey(data, type)
+            sub_dict = data[type]
+            haskey(sub_dict, id) && error("$type agent with ID = $id is already stored")
+            sub_dict[id] = item
+        else
+            data[type] = OrderedDict{String, AgentAndOptions}()
+            data[type][id] = item
+        end
+    end
+
+    return AgentStore(data)
+end
+
+"""
+Return the agent of the given type and ID from the store.
+
+If there is only one agent of the given type then `id` is optional.
+"""
+function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: AbstractAgent}
+    !haskey(store.data, T) && error("No agents of type $T are stored.")
+    agents_and_opts = store.data[T]
+
+    if id === nothing
+        if length(agents_and_opts) > 1
+            error("Passing 'id' is required if more than one agent is stored.")
+        end
+        return first(values(agents_and_opts)).agent
+    end
+
+    !haskey(agents_and_opts, id) && error("No agent of type $T id = $id is stored")
+    return agents_and_opts[id].agent
+end
+
+function iter_agents_and_options(store::AgentStore)
+    return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
 end
 
 function save_results(
-    agent::Agent,
+    agent::AbstractAgent,
     agent_opts::AgentOptions,
     hem_opts::HEMOptions,
-    exportfilepath::AbstractString,
-    fileprefix::AbstractString,
+    export_file_path::AbstractString,
+    file_prefix::AbstractString,
 )
     @info "No results defined for $(typeof(agent)) agents when $hem_opts and $agent_opts"
     return
 end
 
-SolveAgentCallInfo =
-    @NamedTuple {agent::Agent, options::AgentOptions, other_agents::Vector{Agent}}
-
-function get_call_info(agents_and_opts::Vector{AgentAndOptions})
-    result = Vector{SolveAgentCallInfo}()
-    for (i, agent_and_opts) in enumerate(agents_and_opts)
-        other_agents = Agent[val.agent for (j, val) in enumerate(agents_and_opts) if j != i]
-        push!(
-            result,
-            SolveAgentCallInfo((
-                agent_and_opts.agent,
-                agent_and_opts.options,
-                other_agents,
-            )),
-        )
-    end
-    return result
-end
-
-function solve_equilibrium_problem(
+function solve_equilibrium_problem!(
     hem_opts::HEMOptions,
     model_data::HEMData,
     agents_and_opts::Vector{AgentAndOptions},
-    exportfilepath::AbstractString,
-    fileprefix::AbstractString,
+    export_file_path::AbstractString,
+    file_prefix::AbstractString,
 )
-    iter = 1
+    store = AgentStore(agents_and_opts)
     max_iter = 10
     diff = 100.0
 
-    call_info = get_call_info(agents_and_opts)
-
-    while diff >= model_data.epsilon
+    i = 0
+    for i in 1:max_iter
         diff = 0.0
 
-        for (agent, options, other_agents) in call_info
-            @info "$(typeof(agent)), iteration $iter"
-            diff += solve_agent_problem(agent, options, model_data, hem_opts, other_agents)
+        for (agent, options) in iter_agents_and_options(store)
+            @info "$(typeof(agent)), iteration $i"
+            diff += solve_agent_problem!(agent, options, model_data, hem_opts, store)
         end
+        @info "Iteration $i value: $diff"
 
-        iter += 1
-        @info "Iteration $iter value: $diff"
-        if iter == max_iter
-            stop()
+        if diff < model_data.epsilon
+            break
         end
     end
 
     welfare = []
-    for (agent, options, other_agents) in call_info
+    for (agent, options) in iter_agents_and_options(store)
         # push!(welfare, welfare_calculation(agent, options, model_data, hem_opts, other_agents))
-        save_results(agent, options, hem_opts, exportfilepath, fileprefix)
+        save_results(agent, options, hem_opts, export_file_path, file_prefix)
     end
 
-    # save_welfare(welfare, exportfilepath, fileprefix)
+    # save_welfare(welfare, export_file_path, file_prefix)
+    i >= max_iter && error("Reached max iterations $max_iter with no solution")
     @info "Problem solved!"
 end
 
@@ -141,16 +189,16 @@ end
 function save_welfare(
     Supply::Any,
     Demand::Any,
-    exportfilepath::AbstractString,
-    fileprefix::AbstractString,
+    export_file_path::AbstractString,
+    file_prefix::AbstractString,
 )
     save_param(
         Demand[1],
         [:CustomerType, :DERTech],
         :PVNetCS_dollar,
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVNetCS.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVNetCS.csv",
         ),
     )
     save_param(
@@ -158,8 +206,8 @@ function save_welfare(
         [:CustomerType, :DERTech],
         :PVEnergySaving_dollar,
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVSaving.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVSaving.csv",
         ),
     )
     save_param(
@@ -167,8 +215,8 @@ function save_welfare(
         [:CustomerType, :DERTech],
         :EnergyCost_dollar,
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_EnergyCost.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_EnergyCost.csv",
         ),
     )
     save_param(
@@ -176,8 +224,8 @@ function save_welfare(
         [:CustomerType, :DERTech],
         :NetCS_dollar,
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_NetCS.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_NetCS.csv",
         ),
     )
     SocialWelfare = DataFrame(
@@ -187,8 +235,8 @@ function save_welfare(
     )
     CSV.write(
         joinpath(
-            exportfilepath,
-            "$(fileprefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_socialwelfare.csv",
+            export_file_path,
+            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_socialwelfare.csv",
         ),
         SocialWelfare,
     )

@@ -1,8 +1,11 @@
 # This module defines the data and functions associated with the Independent Power Producer
 
-mutable struct IPP <: Agent
+abstract type AbstractIPPGroup <: AgentGroup end
+
+mutable struct IPPGroup <: AbstractIPPGroup
+    id::String
     # Sets
-    index_k::Set1D # bulk generation technologies
+    index_k::Dimension # bulk generation technologies
 
     # Parameters
     "existing capacity (MW)"
@@ -30,7 +33,7 @@ mutable struct IPP <: Agent
     miu::ParamVector
 end
 
-function IPP(input_filename::String, model_data::HEMData)
+function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
     index_k = read_set(
         input_filename,
         "index_k",
@@ -38,7 +41,8 @@ function IPP(input_filename::String, model_data::HEMData)
         prose_name = "bulk generation technologies k",
     )
 
-    return IPP(
+    return IPPGroup(
+        id,
         index_k,
         read_param(
             "x_E",
@@ -66,7 +70,7 @@ function IPP(input_filename::String, model_data::HEMData)
             input_filename,
             "VariableCostOld",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "variable cost of existing capacity (\$/MWh)",
         ),
         read_param(
@@ -74,7 +78,7 @@ function IPP(input_filename::String, model_data::HEMData)
             input_filename,
             "VariableCostNew",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "variable cost of new capacity (\$/Mwh)",
         ),
         read_param(
@@ -82,7 +86,7 @@ function IPP(input_filename::String, model_data::HEMData)
             input_filename,
             "AvailabilityOld",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "availability of existing capacity (fraction)",
         ),
         read_param(
@@ -90,7 +94,7 @@ function IPP(input_filename::String, model_data::HEMData)
             input_filename,
             "AvailabilityNew",
             model_data.index_t,
-            row_indices = [index_k],
+            [index_k],
             description = "availability of new capacity (fraction)",
         ),
         ParamScalar("B1GM", 1000000),
@@ -112,42 +116,44 @@ function IPP(input_filename::String, model_data::HEMData)
     )
 end
 
-function solve_agent_problem(
-    ipp::IPP,
+get_id(x::IPPGroup) = x.id
+
+function solve_agent_problem!(
+    ipps::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
     return 0.0
 end
 
-function solve_agent_problem(
-    ipp::IPP,
+function solve_agent_problem!(
+    ipps::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
-    other_agents::Vector{Agent},
+    agent_store::AgentStore,
 )
-    regulator = get_agent(other_agents, Regulator)
-    customers = get_agent(other_agents, Customers)
+    regulator = get_agent(Regulator, agent_store)
+    customers = get_agent(CustomerGroup, agent_store)
 
     WMDER_IPP = get_new_jump_model(hem_opts.solver)
 
     # Define positive variables
-    @variable(WMDER_IPP, x_C[ipp.index_k] >= 0)
-    @variable(WMDER_IPP, x_R[ipp.index_k] >= 0)
-    @variable(WMDER_IPP, y_E[ipp.index_k, model_data.index_t] >= 0)
-    @variable(WMDER_IPP, y_C[ipp.index_k, model_data.index_t] >= 0)
+    @variable(WMDER_IPP, x_C[ipps.index_k] >= 0)
+    @variable(WMDER_IPP, x_R[ipps.index_k] >= 0)
+    @variable(WMDER_IPP, y_E[ipps.index_k, model_data.index_t] >= 0)
+    @variable(WMDER_IPP, y_C[ipps.index_k, model_data.index_t] >= 0)
     @variable(WMDER_IPP, miu[model_data.index_t] >= 0)
-    @variable(WMDER_IPP, eta[ipp.index_k, model_data.index_t] >= 0)
-    @variable(WMDER_IPP, lambda[ipp.index_k, model_data.index_t] >= 0)
+    @variable(WMDER_IPP, eta[ipps.index_k, model_data.index_t] >= 0)
+    @variable(WMDER_IPP, lambda[ipps.index_k, model_data.index_t] >= 0)
 
-    @variable(WMDER_IPP, u_y_E[ipp.index_k, model_data.index_t], Bin)
-    @variable(WMDER_IPP, u_y_C[ipp.index_k, model_data.index_t], Bin)
+    @variable(WMDER_IPP, u_y_E[ipps.index_k, model_data.index_t], Bin)
+    @variable(WMDER_IPP, u_y_C[ipps.index_k, model_data.index_t], Bin)
     @variable(WMDER_IPP, u_miu[model_data.index_t], Bin)
-    @variable(WMDER_IPP, u_eta[ipp.index_k, model_data.index_t], Bin)
-    @variable(WMDER_IPP, u_lambda[ipp.index_k, model_data.index_t], Bin)
+    @variable(WMDER_IPP, u_eta[ipps.index_k, model_data.index_t], Bin)
+    @variable(WMDER_IPP, u_lambda[ipps.index_k, model_data.index_t], Bin)
 
     objective_function = begin
         # Linearized revenue term 
@@ -165,54 +171,57 @@ function solve_agent_problem(
         # generation costs
         #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
         sum(
-            model_data.omega[t] * (ipp.v_E[k, t] * y_E[k, t] + ipp.v_C[k, t] * y_C[k, t]) for
-            t in model_data.index_t, k in ipp.index_k
+            model_data.omega[t] * (ipps.v_E[k, t] * y_E[k, t] + ipps.v_C[k, t] * y_C[k, t]) for
+            t in model_data.index_t, k in ipps.index_k
         ) -
         # fixed costs
         #   fom * (cap exist - cap retiring) + fom * cap new for gen type
-        sum(ipp.f_E[k] * (ipp.x_E[k] - x_R[k]) + ipp.f_C[k] * x_C[k] for k in ipp.index_k)
+        sum(
+            ipps.f_E[k] * (ipps.x_E[k] - x_R[k]) + ipps.f_C[k] * x_C[k] for
+            k in ipps.index_k
+        )
     end
 
     @objective(WMDER_IPP, Max, objective_function)
 
     @constraint(
         WMDER_IPP,
-        Eq_y_E_1[k in ipp.index_k, t in model_data.index_t],
-        y_E[k, t] <= ipp.B1GM * u_y_E[k, t]
+        Eq_y_E_1[k in ipps.index_k, t in model_data.index_t],
+        y_E[k, t] <= ipps.B1GM * u_y_E[k, t]
     )
     @constraint(
         WMDER_IPP,
-        Eq_y_E_2[k in ipp.index_k, t in model_data.index_t],
-        model_data.omega[t] * ipp.v_E[k, t] - miu[t] + eta[k, t] <=
-        ipp.B1GM * (1 - u_y_E[k, t])
+        Eq_y_E_2[k in ipps.index_k, t in model_data.index_t],
+        model_data.omega[t] * ipps.v_E[k, t] - miu[t] + eta[k, t] <=
+        ipps.B1GM * (1 - u_y_E[k, t])
     )
     @constraint(
         WMDER_IPP,
-        Eq_y_E_3[k in ipp.index_k, t in model_data.index_t],
-        model_data.omega[t] * ipp.v_E[k, t] - miu[t] + eta[k, t] >= 0
+        Eq_y_E_3[k in ipps.index_k, t in model_data.index_t],
+        model_data.omega[t] * ipps.v_E[k, t] - miu[t] + eta[k, t] >= 0
     )
 
     @constraint(
         WMDER_IPP,
-        Eq_y_C_1[k in ipp.index_k, t in model_data.index_t],
-        y_C[k, t] <= ipp.B1GM * u_y_C[k, t]
+        Eq_y_C_1[k in ipps.index_k, t in model_data.index_t],
+        y_C[k, t] <= ipps.B1GM * u_y_C[k, t]
     )
     @constraint(
         WMDER_IPP,
-        Eq_y_C_2[k in ipp.index_k, t in model_data.index_t],
-        model_data.omega[t] * ipp.v_C[k, t] - miu[t] + lambda[k, t] <=
-        ipp.B1GM * (1 - u_y_C[k, t])
+        Eq_y_C_2[k in ipps.index_k, t in model_data.index_t],
+        model_data.omega[t] * ipps.v_C[k, t] - miu[t] + lambda[k, t] <=
+        ipps.B1GM * (1 - u_y_C[k, t])
     )
     @constraint(
         WMDER_IPP,
-        Eq_y_C_3[k in ipp.index_k, t in model_data.index_t],
-        model_data.omega[t] * ipp.v_C[k, t] - miu[t] + lambda[k, t] >= 0
+        Eq_y_C_3[k in ipps.index_k, t in model_data.index_t],
+        model_data.omega[t] * ipps.v_C[k, t] - miu[t] + lambda[k, t] >= 0
     )
 
     supply_demand_balance =
         t -> begin
             # bulk generation at time t
-            sum(y_E[k, t] + y_C[k, t] for k in ipp.index_k) -
+            sum(y_E[k, t] + y_C[k, t] for k in ipps.index_k) -
             # demand at time t
             sum(customers.gamma[h] * customers.d[h, t] for h in model_data.index_h) +
             # existing DG generation at time t
@@ -227,54 +236,59 @@ function solve_agent_problem(
             )
         end
 
-    @constraint(WMDER_IPP, Eq_miu_1[t in model_data.index_t], miu[t] <= ipp.B1GM * u_miu[t])
+    @constraint(
+        WMDER_IPP,
+        Eq_miu_1[t in model_data.index_t],
+        miu[t] <= ipps.B1GM * u_miu[t]
+    )
     @constraint(
         WMDER_IPP,
         Eq_miu_2[t in model_data.index_t],
-        supply_demand_balance(t) <= ipp.B1GM * (1 - u_miu[t])
+        supply_demand_balance(t) <= ipps.B1GM * (1 - u_miu[t])
     )
     @constraint(WMDER_IPP, Eq_miu_3[t in model_data.index_t], supply_demand_balance(t) >= 0)
 
     @constraint(
         WMDER_IPP,
-        Eq_eta_1[k in ipp.index_k, t in model_data.index_t],
-        eta[k, t] <= ipp.B1GM * u_eta[k, t]
+        Eq_eta_1[k in ipps.index_k, t in model_data.index_t],
+        eta[k, t] <= ipps.B1GM * u_eta[k, t]
     )
     @constraint(
         WMDER_IPP,
-        Eq_eta_2[k in ipp.index_k, t in model_data.index_t],
-        ipp.rho_E[k, t] * (ipp.x_E[k] - x_R[k]) - y_E[k, t] <= ipp.B1GM * (1 - u_eta[k, t])
+        Eq_eta_2[k in ipps.index_k, t in model_data.index_t],
+        ipps.rho_E[k, t] * (ipps.x_E[k] - x_R[k]) - y_E[k, t] <=
+        ipps.B1GM * (1 - u_eta[k, t])
     )
     @constraint(
         WMDER_IPP,
-        Eq_eta_3[k in ipp.index_k, t in model_data.index_t],
-        ipp.rho_E[k, t] * (ipp.x_E[k] - x_R[k]) - y_E[k, t] >= 0
+        Eq_eta_3[k in ipps.index_k, t in model_data.index_t],
+        ipps.rho_E[k, t] * (ipps.x_E[k] - x_R[k]) - y_E[k, t] >= 0
     )
 
     @constraint(
         WMDER_IPP,
-        Eq_lambda_1[k in ipp.index_k, t in model_data.index_t],
-        lambda[k, t] <= ipp.B1GM * u_lambda[k, t]
+        Eq_lambda_1[k in ipps.index_k, t in model_data.index_t],
+        lambda[k, t] <= ipps.B1GM * u_lambda[k, t]
     )
     @constraint(
         WMDER_IPP,
-        Eq_lambda_2[k in ipp.index_k, t in model_data.index_t],
-        ipp.rho_C[k, t] * x_C[k] - y_C[k, t] <= ipp.B1GM * (1 - u_lambda[k, t])
+        Eq_lambda_2[k in ipps.index_k, t in model_data.index_t],
+        ipps.rho_C[k, t] * x_C[k] - y_C[k, t] <= ipps.B1GM * (1 - u_lambda[k, t])
     )
     @constraint(
         WMDER_IPP,
-        Eq_lambda_3[k in ipp.index_k, t in model_data.index_t],
-        ipp.rho_C[k, t] * x_C[k] - y_C[k, t] >= 0
+        Eq_lambda_3[k in ipps.index_k, t in model_data.index_t],
+        ipps.rho_C[k, t] * x_C[k] - y_C[k, t] >= 0
     )
 
-    @constraint(WMDER_IPP, Eq_sigma[k in ipp.index_k], ipp.x_E[k] - x_R[k] >= 0)
+    @constraint(WMDER_IPP, Eq_sigma[k in ipps.index_k], ipps.x_E[k] - x_R[k] >= 0)
 
     planning_reserves =
         t -> begin
             # bulk generation available capacity at time t
             sum(
-                ipp.rho_E[k, t] * (ipp.x_E[k] - x_R[k]) + ipp.rho_C[k, t] * x_C[k] for
-                k in ipp.index_k
+                ipps.rho_E[k, t] * (ipps.x_E[k] - x_R[k]) + ipps.rho_C[k, t] * x_C[k]
+                for k in ipps.index_k
             ) -
             # net_load plus planning reserve
             (1 + regulator.r) * (
@@ -292,65 +306,65 @@ function solve_agent_problem(
     optimize!(WMDER_IPP)
 
     # record current primary variable values
-    for k in ipp.index_k, t in model_data.index_t
-        ipp.y_E[k, t] = value.(y_E[k, t])
-        ipp.y_C[k, t] = value.(y_C[k, t])
+    for k in ipps.index_k, t in model_data.index_t
+        ipps.y_E[k, t] = value.(y_E[k, t])
+        ipps.y_C[k, t] = value.(y_C[k, t])
     end
 
-    x_R_before = copy(ipp.x_R)
-    x_C_before = copy(ipp.x_C)
-    for k in ipp.index_k
-        ipp.x_R[k] = value.(x_R[k])
-        ipp.x_C[k] = value.(x_C[k])
+    x_R_before = ParamVector(ipps.x_R)
+    x_C_before = ParamVector(ipps.x_C)
+    for k in ipps.index_k
+        ipps.x_R[k] = value.(x_R[k])
+        ipps.x_C[k] = value.(x_C[k])
     end
 
     for t in model_data.index_t
-        ipp.miu[t] = value.(miu[t])
+        ipps.miu[t] = value.(miu[t])
     end
 
     @info "Original built capacity" x_C_before
-    @info "New built capacity" ipp.x_C
+    @info "New built capacity" ipps.x_C
 
     # report change in key variables from previous iteration to this one
-    return compute_difference_one_norm([(x_R_before, ipp.x_R), (x_C_before, ipp.x_C)])
+    return compute_difference_one_norm([(x_R_before, ipps.x_R), (x_C_before, ipps.x_C)])
 end
 
 function save_results(
-    ipp::IPP,
+    ipps::IPPGroup,
     ipp_opts::AgentOptions,
     hem_opts::HEMOptions{WholesaleMarket},
-    exportfilepath::AbstractString,
+    export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
     # Primal Variables
     save_param(
-        ipp.y_E.values,
+        ipps.y_E.values,
         [:GenTech, :Time],
         :Generation_MWh,
-        joinpath(exportfilepath, "$(fileprefix)_y_E.csv"),
+        joinpath(export_file_path, "$(fileprefix)_y_E.csv"),
     )
     save_param(
-        ipp.y_C.values,
+        ipps.y_C.values,
         [:GenTech, :Time],
         :Generation_MWh,
-        joinpath(exportfilepath, "$(fileprefix)_y_C.csv"),
+        joinpath(export_file_path, "$(fileprefix)_y_C.csv"),
     )
     save_param(
-        ipp.x_R.values,
+        ipps.x_R.values,
         [:GenTech],
         :Capacity_MW,
-        joinpath(exportfilepath, "$(fileprefix)_x_R.csv"),
+        joinpath(export_file_path, "$(fileprefix)_x_R.csv"),
     )
     save_param(
-        ipp.x_C.values,
+        ipps.x_C.values,
         [:GenTech],
         :Capacity_MW,
-        joinpath(exportfilepath, "$(fileprefix)_x_C.csv"),
+        joinpath(export_file_path, "$(fileprefix)_x_C.csv"),
     )
 end
 
 function welfare_calculation(
-    ipp::IPP,
+    ipps::IPPGroup,
     model_data::HEMData,
     regulator::Agent,
     customers::Agent,
@@ -359,7 +373,7 @@ function welfare_calculation(
     IPP_Revenue =
     # Linearized revenue term 
         sum(
-            ipp.miu[t] * (
+            ipps.miu[t] * (
                 sum(customers.gamma[h] * customers.d[h, t] for h in model_data.index_h) -
                 sum(
                     customers.rho_DG[h, m, t] * customers.x_DG_E[h, m] for
@@ -374,14 +388,14 @@ function welfare_calculation(
     #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
         sum(
             model_data.omega[t] *
-            (ipp.v_E[k, t] * ipp.y_E[k, t] + ipp.v_C[k, t] * ipp.y_C[k, t]) for
-            t in model_data.index_t, k in ipp.index_k
+            (ipps.v_E[k, t] * ipps.y_E[k, t] + ipps.v_C[k, t] * ipps.y_C[k, t]) for
+            t in model_data.index_t, k in ipps.index_k
         ) +
         # fixed costs
         #   fom * (cap exist - cap retiring) + fom * cap new for gen type
         sum(
-            ipp.f_E[k] * (ipp.x_E[k] - ipp.x_R[k]) + ipp.f_C[k] * ipp.x_C[k] for
-            k in ipp.index_k
+            ipps.f_E[k] * (ipps.x_E[k] - ipps.x_R[k]) + ipps.f_C[k] * ipps.x_C[k] for
+            k in ipps.index_k
         )
 
     return IPP_Revenue, IPP_Cost
