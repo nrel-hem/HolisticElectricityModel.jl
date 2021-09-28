@@ -26,9 +26,9 @@ function PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
     )
 end
 
-abstract type AbstractCustomers <: Agents end
+abstract type AbstractCustomerGroup <: AgentGroup end
 
-mutable struct Customers <: AbstractCustomers
+mutable struct CustomerGroup <: AbstractCustomerGroup
     id::String
     # Sets
     index_m::Dimension # behind-the-meter technologies
@@ -63,7 +63,7 @@ mutable struct Customers <: AbstractCustomers
     pv_adoption_model::PVAdoptionModel
 end
 
-function Customers(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
     index_m = read_set(
         input_filename,
         "index_m",
@@ -120,7 +120,7 @@ function Customers(input_filename::AbstractString, model_data::HEMData; id = DEF
         ), # Bass_q
     )
 
-    return Customers(
+    return CustomerGroup(
         id,
         index_m,
         gamma,
@@ -144,10 +144,10 @@ function Customers(input_filename::AbstractString, model_data::HEMData; id = DEF
     )
 end
 
-get_id(x::Customers) = x.id
+get_id(x::CustomerGroup) = x.id
 
 function solve_agent_problem!(
-    customers::Customers,
+    customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions,
@@ -247,7 +247,7 @@ function solve_agent_problem!(
 end
 
 function save_results(
-    customers::Customers,
+    customers::CustomerGroup,
     customers_opts::AgentOptions,
     hem_opts::HEMOptions,
     export_file_path::AbstractString,
@@ -263,7 +263,11 @@ function save_results(
     )
 end
 
-function welfare_calculation(customers::Customers, model_data::HEMData, regulator::Agent)
+function welfare_calculation(
+    customers::CustomerGroup,
+    model_data::HEMData,
+    regulator::Agent,
+)
     adopt_model = customers.pv_adoption_model
 
     """

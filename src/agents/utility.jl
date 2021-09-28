@@ -135,7 +135,7 @@ function solve_agent_problem!(
     agent_store::AgentStore,
 )
     regulator = get_agent(Regulator, agent_store)
-    customers = get_agent(Customers, agent_store)
+    customers = get_agent(CustomerGroup, agent_store)
 
     VIUDER_Utility = get_new_jump_model(hem_opts.solver)
 

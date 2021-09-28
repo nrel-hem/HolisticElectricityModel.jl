@@ -74,7 +74,7 @@ function solve_agent_problem!(
     agent_store::AgentStore,
 )
     utility = get_agent(Utility, agent_store)
-    customers = get_agent(Customers, agent_store)
+    customers = get_agent(CustomerGroup, agent_store)
 
     # pure volumetric rate
     energy_cost = sum(
@@ -230,8 +230,8 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
 )
-    customers = get_agent(agent_store, Customers)
-    ipp = get_agent(IPP, agent_store)
+    customers = get_agent(agent_store, CustomerGroup)
+    ipps = get_agent(IPPGroup, agent_store)
 
     # pure volumetric rate
     der_excess_cost = sum(
@@ -317,8 +317,8 @@ function solve_agent_problem!(
             (h, t) =>
                 (
                     sum(
-                        ipp.miu[t] *
-                        sum(ipp.y_E[k, t] + ipp.y_C[k, t] for k in ipp.index_k) for
+                        ipps.miu[t] *
+                        sum(ipps.y_E[k, t] + ipps.y_C[k, t] for k in ipps.index_k) for
                         t in model_data.index_t
                     ) + der_excess_cost
                 ) / net_demand for h in model_data.index_h, t in model_data.index_t
@@ -327,8 +327,8 @@ function solve_agent_problem!(
         regulator.p = Dict(
             (h, t) =>
                 (
-                    ipp.miu[t] / model_data.omega[t] *
-                    sum(ipp.y_E[k, t] + ipp.y_C[k, t] for k in ipp.index_k) +
+                    ipps.miu[t] / model_data.omega[t] *
+                    sum(ipps.y_E[k, t] + ipps.y_C[k, t] for k in ipps.index_k) +
                     der_excess_cost_t[t]
                 ) / net_demand_t[t] for h in model_data.index_h, t in model_data.index_t
         )
@@ -339,7 +339,7 @@ function solve_agent_problem!(
         regulator.p_ex = regulator.p
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         regulator.p_ex = Dict(
-            (h, t) => ipp.miu[t] / model_data.omega[t] for h in model_data.index_h,
+            (h, t) => ipps.miu[t] / model_data.omega[t] for h in model_data.index_h,
             t in model_data.index_t
         )
     elseif regulator_opts.net_metering_policy isa ExcessZero

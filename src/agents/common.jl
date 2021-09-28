@@ -54,7 +54,7 @@ Abstract type for agents.
 Required interfaces:
 - get_id(agent::Agent)::String
 - solve_agent_problem!(
-      agents::Agents,
+      agents::AgentGroup,
       agent_opts::AgentOptions,
       model_data::HEMData,
       hem_opts::HEMOptions,
@@ -70,13 +70,13 @@ Required interfaces:
 """
 abstract type AbstractAgent end
 
-# There is currently no behavioral difference between the structs Agents and Agent, but
+# There is currently no behavioral difference between the structs AgentGroup and Agent, but
 # there may be differences in the future.
 
 """
 Abstract type for a group of individual agents.
 """
-abstract type Agents <: AbstractAgent end
+abstract type AgentGroup <: AbstractAgent end
 
 """
 Abstract type for all individual agents.

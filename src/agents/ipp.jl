@@ -1,8 +1,8 @@
 # This module defines the data and functions associated with the Independent Power Producer
 
-abstract type AbstractIPPs <: Agents end
+abstract type AbstractIPPGroup <: AgentGroup end
 
-mutable struct IPPs <: AbstractIPPs
+mutable struct IPPGroup <: AbstractIPPGroup
     id::String
     # Sets
     index_k::Dimension # bulk generation technologies
@@ -33,7 +33,7 @@ mutable struct IPPs <: AbstractIPPs
     miu::ParamVector
 end
 
-function IPPs(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
+function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
     index_k = read_set(
         input_filename,
         "index_k",
@@ -41,7 +41,7 @@ function IPPs(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         prose_name = "bulk generation technologies k",
     )
 
-    return IPPs(
+    return IPPGroup(
         id,
         index_k,
         read_param(
@@ -116,10 +116,10 @@ function IPPs(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
     )
 end
 
-get_id(x::IPPs) = x.id
+get_id(x::IPPGroup) = x.id
 
 function solve_agent_problem!(
-    ipps::IPPs,
+    ipps::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
@@ -129,14 +129,14 @@ function solve_agent_problem!(
 end
 
 function solve_agent_problem!(
-    ipps::IPPs,
+    ipps::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
 )
     regulator = get_agent(Regulator, agent_store)
-    customers = get_agent(Customers, agent_store)
+    customers = get_agent(CustomerGroup, agent_store)
 
     WMDER_IPP = get_new_jump_model(hem_opts.solver)
 
@@ -330,7 +330,7 @@ function solve_agent_problem!(
 end
 
 function save_results(
-    ipps::IPPs,
+    ipps::IPPGroup,
     ipp_opts::AgentOptions,
     hem_opts::HEMOptions{WholesaleMarket},
     export_file_path::AbstractString,
@@ -364,7 +364,7 @@ function save_results(
 end
 
 function welfare_calculation(
-    ipps::IPPs,
+    ipps::IPPGroup,
     model_data::HEMData,
     regulator::Agent,
     customers::Agent,

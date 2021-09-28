@@ -42,8 +42,8 @@ regulator_opts = RegulatorOptions(
 model_data = HEMData(input_filename)
 regulator = Regulator(input_filename, model_data)
 utility = Utility(input_filename, model_data)
-customers = Customers(input_filename, model_data)
-ipps = IPPs(input_filename, model_data)
+customers = CustomerGroup(input_filename, model_data)
+ipps = IPPGroup(input_filename, model_data)
 
 file_prefix = "Results_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
 
