@@ -9,6 +9,7 @@ module HolisticElectricityModel
 export HEMSolver
 export XpressSolver
 export GurobiSolver
+export Ipopt_Solver
 export HEMData
 export HEMOptions
 export AbstractAgent
@@ -18,6 +19,8 @@ export AgentOptions, NullAgentOptions
 export AgentAndOptions
 export configure_logging
 export read_dataframe
+export AgentStore
+export iter_agents_and_options
 
 # Agents
 export Regulator
@@ -35,6 +38,18 @@ export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
 
 # Solvers
 export solve_equilibrium_problem!
+export solve_agent_problem!
+export Lagrange_Sub_Investment_Retirement_Cap
+export Lagrange_Sub_Dispatch_Cap
+export Lagrange_Feasible_Cap
+export solve_agent_problem_ipp_lagrange_cap
+export save_results
+export welfare_calculation!
+export solve_agent_problem_ipp_energy_cap_combined
+export solve_agent_problem_decomposition_by_year
+export solve_agent_problem_decomposition_by_year_feasible
+export solve_agent_problem_decomposition_by_year_feasible_obj
+export solve_agent_problem_decomposition_by_year_master
 
 ################################################################################
 # Imports
@@ -49,6 +64,7 @@ using Lazy: @forward
 import InfrastructureSystems
 import Distributions
 import CSV
+import QuadGK
 
 const IS = InfrastructureSystems
 

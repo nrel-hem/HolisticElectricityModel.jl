@@ -15,7 +15,7 @@
             actual_data = actual[!, col]
             expected_data = expected[!, col]
             if eltype(expected_data) === Float64
-                @test isapprox(actual_data, expected_data)
+                @test isapprox(actual_data, expected_data, nans=true)
             else
                 @test actual_data == expected_data
             end
