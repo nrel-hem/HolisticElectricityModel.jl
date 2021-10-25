@@ -13,7 +13,7 @@ struct HEMData
     index_t::Dimension # time index, currently 17 ReEDS timeslices
     index_h::Dimension # customer types
     index_j::Dimension # green tariff technologies
-    
+
     # Parameters
     omega::ParamVector # number of hours per timeslice
     year::ParamVector
@@ -82,20 +82,8 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-1)
             index_t,
             description = "number of hours per timeslice",
         ),
-        read_param(
-            "year",
-            input_filename,
-            "Year",
-            index_y,
-            description = "Year",
-        ),
-        read_param(
-            "hour",
-            input_filename,
-            "Hour",
-            index_t,
-            description = "Hour",
-        ),
+        read_param("year", input_filename, "Year", index_y, description = "Year"),
+        read_param("hour", input_filename, "Hour", index_t, description = "Hour"),
         ParamScalar("year_start", 2018, description = "simulation start year"),
     )
 end
@@ -222,8 +210,9 @@ function solve_equilibrium_problem!(
     max_iter = 100
     window_length = 1
 
-    for w = 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
-        model_data.index_y.elements = model_data.index_y_fix.elements[w:(w + window_length - 1)]
+    for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+        model_data.index_y.elements =
+            model_data.index_y_fix.elements[w:(w + window_length - 1)]
         i = 0
         for i in 1:max_iter
             diff = 0.0
@@ -251,36 +240,124 @@ function solve_equilibrium_problem!(
 
     if hem_opts.market_structure == VerticallyIntegratedUtility()
         x = store.data[Utility]["default"]
-        Welfare_supply = welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
+        Welfare_supply =
+            welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
         y = store.data[CustomerGroup]["default"]
-        Welfare_demand = welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
+        Welfare_demand =
+            welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
     elseif hem_opts.market_structure == WholesaleMarket()
         x = store.data[IPPGroup]["default"]
-        Welfare_supply = welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
+        Welfare_supply =
+            welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
         y = store.data[CustomerGroup]["default"]
-        Welfare_demand = welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
+        Welfare_demand =
+            welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
     end
 
     save_welfare!(Welfare_supply, Welfare_demand, export_file_path, file_prefix)
-
 end
 
 # TODO: Write the welfare calculation and saving more generally
-function save_welfare!(Supply::Any, Demand::Any, exportfilepath::AbstractString, fileprefix::AbstractString)
-    save_param(Demand[1].values, [:Year, :CustomerType, :DERTech], :PVNetCS_dollar, joinpath(exportfilepath, "$(fileprefix)_PVNetCS.csv"))
-    save_param(Demand[2], [:Year, :CustomerType, :DERTech], :PVEnergySaving_dollar, joinpath(exportfilepath, "$(fileprefix)_PVSaving.csv"))
-    save_param(Demand[3], [:Year, :CustomerType, :DERTech], :EnergyCost_dollar, joinpath(exportfilepath, "$(fileprefix)_EnergyCost.csv"))
-    save_param(Demand[4], [:Year, :CustomerType, :DERTech], :NetCS_dollar, joinpath(exportfilepath, "$(fileprefix)_NetCS.csv"))
-    save_param(Demand[5], [:Year], :TotalNetCS_dollar, joinpath(exportfilepath, "$(fileprefix)_TotalNetCS.csv"))
-    save_param(Demand[6], [:Year, :CustomerType, :DERTech], :NetCS_dollar, joinpath(exportfilepath, "$(fileprefix)_NetCS_per_customer.csv"))
-    save_param(Demand[7], [:Year, :CustomerType], :dollar, joinpath(exportfilepath, "$(fileprefix)_annual_bill_per_customer.csv"))
-    save_param(Demand[8], [:Year, :CustomerType], :dollar, joinpath(exportfilepath, "$(fileprefix)_average_bill_per_customer.csv"))
-    save_param(Supply[1], [:Year], :SupplierRevenue_dollar, joinpath(exportfilepath, "$(fileprefix)_SupplierRevenue.csv"))
-    save_param(Supply[2], [:Year], :SupplierCost_dollar, joinpath(exportfilepath, "$(fileprefix)_SupplierCost.csv"))
-    save_param(Supply[3], [:Year], :DebtInterest_dollar, joinpath(exportfilepath, "$(fileprefix)_DebtInterest.csv"))
-    save_param(Supply[4], [:Year], :IncomeTax_dollar, joinpath(exportfilepath, "$(fileprefix)_IncomeTax.csv"))
-    save_param(Supply[5], [:Year], :OperationalCost_dollar, joinpath(exportfilepath, "$(fileprefix)_OperationalCost.csv"))
-    save_param(Supply[6], [:Year], :Depreciation_dollar, joinpath(exportfilepath, "$(fileprefix)_Depreciation.csv"))
-    save_param(Supply[7], [:Year], :Depreciation_dollar, joinpath(exportfilepath, "$(fileprefix)_Tax_Depreciation.csv"))
-    save_param(Supply[8], [:Year], :Metric_ton, joinpath(exportfilepath, "$(fileprefix)_Total_Emission.csv"))
+function save_welfare!(
+    Supply::Any,
+    Demand::Any,
+    exportfilepath::AbstractString,
+    fileprefix::AbstractString,
+)
+    save_param(
+        Demand[1].values,
+        [:Year, :CustomerType, :DERTech],
+        :PVNetCS_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_PVNetCS.csv"),
+    )
+    save_param(
+        Demand[2],
+        [:Year, :CustomerType, :DERTech],
+        :PVEnergySaving_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_PVSaving.csv"),
+    )
+    save_param(
+        Demand[3],
+        [:Year, :CustomerType, :DERTech],
+        :EnergyCost_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_EnergyCost.csv"),
+    )
+    save_param(
+        Demand[4],
+        [:Year, :CustomerType, :DERTech],
+        :NetCS_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_NetCS.csv"),
+    )
+    save_param(
+        Demand[5],
+        [:Year],
+        :TotalNetCS_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_TotalNetCS.csv"),
+    )
+    save_param(
+        Demand[6],
+        [:Year, :CustomerType, :DERTech],
+        :NetCS_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_NetCS_per_customer.csv"),
+    )
+    save_param(
+        Demand[7],
+        [:Year, :CustomerType],
+        :dollar,
+        joinpath(exportfilepath, "$(fileprefix)_annual_bill_per_customer.csv"),
+    )
+    save_param(
+        Demand[8],
+        [:Year, :CustomerType],
+        :dollar,
+        joinpath(exportfilepath, "$(fileprefix)_average_bill_per_customer.csv"),
+    )
+    save_param(
+        Supply[1],
+        [:Year],
+        :SupplierRevenue_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_SupplierRevenue.csv"),
+    )
+    save_param(
+        Supply[2],
+        [:Year],
+        :SupplierCost_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_SupplierCost.csv"),
+    )
+    save_param(
+        Supply[3],
+        [:Year],
+        :DebtInterest_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_DebtInterest.csv"),
+    )
+    save_param(
+        Supply[4],
+        [:Year],
+        :IncomeTax_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_IncomeTax.csv"),
+    )
+    save_param(
+        Supply[5],
+        [:Year],
+        :OperationalCost_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_OperationalCost.csv"),
+    )
+    save_param(
+        Supply[6],
+        [:Year],
+        :Depreciation_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_Depreciation.csv"),
+    )
+    save_param(
+        Supply[7],
+        [:Year],
+        :Depreciation_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_Tax_Depreciation.csv"),
+    )
+    save_param(
+        Supply[8],
+        [:Year],
+        :Metric_ton,
+        joinpath(exportfilepath, "$(fileprefix)_Total_Emission.csv"),
+    )
 end

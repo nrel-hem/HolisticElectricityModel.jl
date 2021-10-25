@@ -19,7 +19,8 @@ NLP_solver = Ipopt_Solver(Ipopt)
 # File locations
 base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
 hem_data_dir = joinpath(base_dir, "..", "HolisticElectricityModel-Data")
-input_filename = joinpath(hem_data_dir, "inputs", "HEM_Parameters_ipp1_single_year_final.xlsx")     # HEM_Parameters_ipp1_single_year_final, HEM_Parameters_ipp1_two_year_test
+input_filename =
+    joinpath(hem_data_dir, "inputs", "HEM_Parameters_ipp1_single_year_final.xlsx")     # HEM_Parameters_ipp1_single_year_final, HEM_Parameters_ipp1_two_year_test
 export_file_path = joinpath(hem_data_dir, "outputs")
 mkpath(export_file_path)
 
@@ -31,7 +32,7 @@ logger = configure_logging(
 
 hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
-    NLP_solver,    
+    NLP_solver,
     WholesaleMarket(), # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
 )
 
