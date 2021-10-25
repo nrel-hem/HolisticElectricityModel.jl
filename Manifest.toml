@@ -33,12 +33,6 @@ git-tree-sha1 = "19a35467a82e236ff51bc17a3a44b69ef35185a2"
 uuid = "6e34b625-4abd-537c-b88f-471c36dfa7a0"
 version = "1.0.8+0"
 
-[[CSTParser]]
-deps = ["Tokenize"]
-git-tree-sha1 = "b2667530e42347b10c10ba6623cfebc09ac5c7b6"
-uuid = "00ebfdb7-1f24-5e51-bd34-a7502290713f"
-version = "3.2.4"
-
 [[CSV]]
 deps = ["Dates", "Mmap", "Parsers", "PooledArrays", "SentinelArrays", "Tables", "Unicode"]
 git-tree-sha1 = "b83aa3f513be680454437a0eee21001607e5d983"
@@ -68,12 +62,6 @@ deps = ["TranscodingStreams", "Zlib_jll"]
 git-tree-sha1 = "ded953804d019afa9a3f98981d99b33e3db7b6da"
 uuid = "944b1d66-785c-5afd-91f1-9de20f533193"
 version = "0.7.0"
-
-[[CommonMark]]
-deps = ["Crayons", "JSON", "URIs"]
-git-tree-sha1 = "393ac9df4eb085c2ab12005fc496dae2e1da344e"
-uuid = "a80b9123-70ca-4bc0-993e-6e3bcb318db6"
-version = "0.8.3"
 
 [[CommonSubexpressions]]
 deps = ["MacroTools", "Test"]
@@ -264,12 +252,6 @@ deps = ["Calculus", "DataStructures", "ForwardDiff", "JSON", "LinearAlgebra", "M
 git-tree-sha1 = "4358b7cbf2db36596bdbbe3becc6b9d87e4eb8f5"
 uuid = "4076af6c-e467-56ae-b986-b466b2749572"
 version = "0.21.10"
-
-[[JuliaFormatter]]
-deps = ["CSTParser", "CommonMark", "DataStructures", "Pkg", "Tokenize"]
-git-tree-sha1 = "e7092df00019dab7ab81154df576c975fa6e47a3"
-uuid = "98e50ef6-434e-11e9-1051-2b60c6c9e899"
-version = "0.18.1"
 
 [[Lazy]]
 deps = ["MacroTools"]
@@ -591,11 +573,6 @@ deps = ["Dates", "DelimitedFiles", "DocStringExtensions", "RecipesBase", "Reexpo
 git-tree-sha1 = "3c91141a9f2276c37c3b6bc2bd83e652d50fecbc"
 uuid = "9e3dc215-6440-5c97-bce1-76c03772f85e"
 version = "0.23.0"
-
-[[Tokenize]]
-git-tree-sha1 = "0952c9cee34988092d73a5708780b3917166a0dd"
-uuid = "0796e94c-ce3b-5d07-9a54-7f471281c624"
-version = "0.5.21"
 
 [[TranscodingStreams]]
 deps = ["Random", "Test"]
