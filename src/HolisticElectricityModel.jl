@@ -30,22 +30,26 @@ export IPPGroup
 
 # Agent Options
 export RegulatorOptions
+export CustomerOptions
+export IPPOptions
 
 # Policies
 export FlatRate, TOU                                    # tariff structures
 export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
+export DERAdoption, SupplyChoice                        # consumer decisions
+export LagrangeDecomposition, MIQP                      # ipp algorithms
 
 # Solvers
 export solve_equilibrium_problem!
 export solve_agent_problem!
-export Lagrange_Sub_Investment_Retirement_Cap
-export Lagrange_Sub_Dispatch_Cap
-export Lagrange_Feasible_Cap
-export solve_agent_problem_ipp_lagrange_cap
+# export Lagrange_Sub_Investment_Retirement_Cap
+# export Lagrange_Sub_Dispatch_Cap
+# export Lagrange_Feasible_Cap
+# export solve_agent_problem_ipp_lagrange_cap
 export save_results
 export welfare_calculation!
-export solve_agent_problem_ipp_energy_cap_combined
+# export solve_agent_problem_ipp_energy_cap_combined
 export solve_agent_problem_decomposition_by_year
 export solve_agent_problem_decomposition_by_year_feasible
 export solve_agent_problem_decomposition_by_year_feasible_obj

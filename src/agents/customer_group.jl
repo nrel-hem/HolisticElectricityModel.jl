@@ -28,6 +28,17 @@ function PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
     )
 end
 
+# declare customer decision
+abstract type ConsumerModel end
+struct DERAdoption <: ConsumerModel end
+struct SupplyChoice <: ConsumerModel end
+
+abstract type AbstractCustomerOptions <: AgentOptions end
+
+struct CustomerOptions{T <: ConsumerModel} <: AbstractCustomerOptions
+    customer_model::T
+end
+
 abstract type AbstractCustomerGroup <: AgentGroup end
 
 mutable struct CustomerGroup <: AbstractCustomerGroup
@@ -272,7 +283,7 @@ get_id(x::CustomerGroup) = x.id
 
 function solve_agent_problem!(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customers_opts::CustomerOptions{DERAdoption},
     model_data::HEMData,
     hem_opts::HEMOptions,
     agent_store::AgentStore,
@@ -405,7 +416,7 @@ end
 
 function save_results(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customers_opts::CustomerOptions{DERAdoption},
     hem_opts::HEMOptions,
     export_file_path::AbstractString,
     fileprefix::AbstractString,
@@ -420,164 +431,9 @@ function save_results(
     )
 end
 
-function welfare_calculation(
-    customers::CustomerGroup,
-    model_data::HEMData,
-    regulator::Agent,
-)
-    adopt_model = customers.pv_adoption_model
-
-    """
-    Net Consumer Surplus Calculation:
-
-    + Annualized Net Consumer Surplus of New DER installation (including Energy Savings and DER Excess Credits associated with New DERs)
-
-    + Annualized Net Consumer Surplus of Existing PV installation (including Energy Savings and DER Excess Credits associated with Existing DERs)
-    (Note: this term is assumed to be a constant carried over from previous years and not quantified)
-
-    + Gross Surplus and energy consumption
-    (Note: this term is assumed to be a constant and not quantified (demand is inelastic))
-
-    - Cost of Energy Purchase
-    (Note: this is the out-of-pocket payment for purchasing energy from the utility company, therefore, this term double-counted the energy savings already accounted for in the Annualized Net Consumer Surplus)
-
-    - Energy Savings associaed with both new and existing DERs
-    (Note: this term is to remove the double-counted energy savings from the terms above)
-
-    Also note that DER Excess Credits are not listed here because they're implictly accounted for in the Annualized Net Consumer Surplus.
-
-    """
-
-    # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
-    NetProfit = Dict(
-        (h, m) =>
-        # value of distributed generation (offset load)
-            sum(
-                model_data.omega[t] *
-                regulator.p[h, t] *
-                min(
-                    customers.d[h, t],
-                    sum(
-                        customers.rho_DG[h, m, t] * customers.Opti_DG[h, m] for
-                        m in customers.index_m
-                    ),
-                ) *
-                (customers.rho_DG[h, m, t] * customers.Opti_DG[h, m]) /
-                customers.DERGen[h, t] for t in model_data.index_t
-            ) +
-            # value of distributed generation (excess generation)
-            sum(
-                model_data.omega[t] *
-                regulator.p_ex[h, t] *
-                max(
-                    0,
-                    sum(
-                        customers.rho_DG[h, m, t] * customers.Opti_DG[h, m] for
-                        m in customers.index_m
-                    ) - customers.d[h, t],
-                ) *
-                (customers.rho_DG[h, m, t] * customers.Opti_DG[h, m]) /
-                customers.DERGen[h, t] for t in model_data.index_t
-            ) -
-            # cost of distributed generation 
-            customers.FOM_DG[h, m] * customers.Opti_DG[h, m] for
-        h in model_data.index_h, m in customers.index_m
-    )
-
-    for h in model_data.index_h, m in customers.index_m
-        if NetProfit[h, m] >= 0.0
-            # Calculate total Net Consumer Surplus of PV installation
-            Integral = Dict(
-                (h, m) => quadgk(
-                    x ->
-                        customers.gamma[h] *
-                        customers.Opti_DG[h, m] *
-                        (
-                            1 - Distributions.cdf(
-                                Distributions.Gamma(
-                                    adopt_model.Shape[h, m],
-                                    1 / adopt_model.Rate[h, m] * NetProfit[h, m] /
-                                    customers.Opti_DG[h, m],
-                                ),
-                                x,
-                            )
-                        ),
-                    customers.CapEx_DG[h, m],
-                    100 * customers.CapEx_DG[h, m],
-                    rtol = 1e-8,
-                ),
-            )
-            # Calculate annualized Net Consumer Surplus of PV installation
-            if customers.MaxDG[h, m] == 0.0
-                customers.ConPVNetSurplus[h, m] = 0.0
-            else
-                customers.ConPVNetSurplus[h, m] =
-                    customers.delta * customers.x_DG_new[h, m] / customers.MaxDG[h, m] *
-                    Integral[h, m][1]
-            end
-        else
-            customers.ConPVNetSurplus[h, m] = 0.0
-        end
-    end
-
-    # Calculate energy savings associated with both new and existing DER
-    EnergySaving = Dict(
-        (h, m) =>
-            sum(
-                model_data.omega[t] *
-                regulator.p[h, t] *
-                min(
-                    customers.d[h, t],
-                    sum(
-                        customers.rho_DG[h, m, t] * customers.Opti_DG[h, m] for
-                        m in customers.index_m
-                    ),
-                ) *
-                (customers.rho_DG[h, m, t] * customers.Opti_DG[h, m]) /
-                customers.DERGen[h, t] for t in model_data.index_t
-            ) * (customers.x_DG_E[h, m] + customers.x_DG_new[h, m]) /
-            customers.Opti_DG[h, m] for h in model_data.index_h, m in customers.index_m
-    )
-    # Calculate out-of-pocket energy costs           
-    EnergyCost = Dict(
-        (h, m) => sum(
-            model_data.omega[t] *
-            regulator.p[h, t] *
-            (
-                customers.gamma[h] * customers.d[h, t] -
-                min(
-                    sum(
-                        customers.rho_DG[h, m, t] * customers.Opti_DG[h, m] for
-                        m in customers.index_m
-                    ),
-                    customers.d[h, t],
-                ) * (customers.rho_DG[h, m, t] * customers.Opti_DG[h, m]) /
-                customers.DERGen[h, t] *
-                (customers.x_DG_E[h, m] + customers.x_DG_new[h, m]) /
-                customers.Opti_DG[h, m]
-            ) for t in model_data.index_t
-        ) for h in model_data.index_h, m in customers.index_m
-    )
-    # Finally, calculate Net Consumer Surplus
-    ConNetSurplus = Dict(
-        (h, m) =>
-            customers.ConPVNetSurplus[h, m] - EnergySaving[h, m] - EnergyCost[h, m] for
-        h in model_data.index_h, m in customers.index_m
-    )
-    # Sum of Net Consumer Surplus across customer tpye and DER technology
-    TotalConNetSurplus =
-        sum(ConNetSurplus[h, m] for h in model_data.index_h, m in customers.index_m)
-
-    return customers.ConPVNetSurplus,
-    EnergySaving,
-    EnergyCost,
-    ConNetSurplus,
-    TotalConNetSurplus
-end
-
 function welfare_calculation!(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customers_opts::CustomerOptions{DERAdoption},
     model_data::HEMData,
     hem_opts::HEMOptions,
     agent_store::AgentStore,

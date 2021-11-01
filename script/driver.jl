@@ -37,8 +37,16 @@ hem_opts = HEMOptions(
 )
 
 regulator_opts = RegulatorOptions(
-    TOU(),              # RateDesign
+    TOU(),               # RateDesign
     ExcessRetailRate(),  # NetMeteringPolicy
+)
+
+customer_opts = CustomerOptions(
+    DERAdoption(),              # DERAdoption, SupplyChoice
+)
+
+ipp_opts = IPPOptions(
+    LagrangeDecomposition(),              # LagrangeDecomposition, MIQP
 )
 
 # Load sets and parameters, define functions -----------------------------------
@@ -56,9 +64,9 @@ solve_equilibrium_problem!(
     model_data,
     [
         AgentAndOptions(utility, NullAgentOptions()),
-        AgentAndOptions(ipp, NullAgentOptions()),
+        AgentAndOptions(ipp, ipp_opts),
         AgentAndOptions(regulator, regulator_opts),
-        AgentAndOptions(customers, NullAgentOptions()),
+        AgentAndOptions(customers, customer_opts),
     ],
     export_file_path,
     file_prefix,

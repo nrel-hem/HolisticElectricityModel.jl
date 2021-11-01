@@ -1,5 +1,16 @@
 # This module defines the data and functions associated with the Independent Power Producer
 
+# declare customer decision
+abstract type IPPAlgorithm end
+struct LagrangeDecomposition <: IPPAlgorithm end
+struct MIQP <: IPPAlgorithm end
+
+abstract type AbstractIPPOptions <: AgentOptions end
+
+struct IPPOptions{T <: IPPAlgorithm} <: AbstractIPPOptions
+    ipp_algorithm::T
+end
+
 abstract type AbstractIPPGroup <: AgentGroup end
 
 mutable struct IPPGroup <: AbstractIPPGroup
@@ -477,7 +488,7 @@ end
 # Subproblem 1 (Annual Investment & Retirement)
 function Lagrange_Sub_Investment_Retirement_Cap(
     ipp::IPPGroup,
-    ipp_opts::AgentOptions,
+    ipp_opts::IPPOptions{LagrangeDecomposition},
     p_star,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
@@ -858,7 +869,7 @@ end
 # Subproblem 2 (Hourly dispatch)
 function Lagrange_Sub_Dispatch_Cap(
     ipp::IPPGroup,
-    ipp_opts::AgentOptions,
+    ipp_opts::IPPOptions{LagrangeDecomposition},
     p_star,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
@@ -1531,7 +1542,7 @@ end
 # Feasible solution
 function Lagrange_Feasible_Cap(
     ipp::IPPGroup,
-    ipp_opts::AgentOptions,
+    ipp_opts::IPPOptions{LagrangeDecomposition},
     p_star,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
@@ -2068,9 +2079,9 @@ function Lagrange_Feasible_Cap(
     return ipp.obj_feasible
 end
 
-function solve_agent_problem_ipp_lagrange_cap(
+function solve_agent_problem_ipp_cap(
     ipp::IPPGroup,
-    ipp_opts::AgentOptions,
+    ipp_opts::IPPOptions{LagrangeDecomposition},
     p_star,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
@@ -2238,9 +2249,9 @@ function solve_agent_problem_ipp_lagrange_cap(
     return compute_difference_one_norm([(x_R_before, ipp.x_R_my), (x_C_before, ipp.x_C_my)])
 end
 
-function solve_agent_problem_ipp_energy_cap_combined(
+function solve_agent_problem_ipp_cap(
     ipp::IPPGroup,
-    ipp_opts::AgentOptions,
+    ipp_opts::IPPOptions{MIQP},
     p_star,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
@@ -3090,7 +3101,7 @@ function solve_agent_problem!(
     diff = 0.0
 
     for p in ipp.index_p
-        diff += solve_agent_problem_ipp_lagrange_cap(
+        diff += solve_agent_problem_ipp_cap(
             ipp,
             ipp_opts,
             p,
