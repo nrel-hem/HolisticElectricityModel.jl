@@ -7,14 +7,39 @@ struct HEMData
     epsilon::ParamScalar # iteration tolerance
 
     # Sets
+    index_y::Dimension # year index
+    index_y_fix::Dimension # year index
+    index_s::Dimension # year index (for new resources depreciation schedule)
     index_t::Dimension # time index, currently 17 ReEDS timeslices
     index_h::Dimension # customer types
+    index_j::Dimension # green tariff technologies
 
     # Parameters
     omega::ParamVector # number of hours per timeslice
+    year::ParamVector
+    hour::ParamVector
+    year_start::ParamScalar
 end
 
-function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
+function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-1)
+    # simulation year index
+    index_y = read_set(
+        input_filename,
+        "index_y",
+        "index_y",
+        prose_name = "simulation year index y",
+        description = "simulation years",
+    )
+
+    # new resource depreciation year index
+    index_s = read_set(
+        input_filename,
+        "index_s",
+        "index_s",
+        prose_name = "new resource depreciation year index s",
+        description = "new resource depreciation years",
+    )
+
     # 17 timeslices (from ReEDS)
     index_t = read_set(
         input_filename,
@@ -24,10 +49,32 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "ReEDS 17 timeslices representation",
     )
 
+    # customer group types
+    index_h = read_set(
+        input_filename,
+        "index_h",
+        "index_h",
+        prose_name = "customer group index h",
+        description = "customer groups",
+    )
+
+    # customer group types
+    index_j = read_set(
+        input_filename,
+        "index_j",
+        "index_j",
+        prose_name = "green technologies index j",
+        description = "green tariff technologies",
+    )
+
     return HEMData(
         ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
+        index_y,
+        index_y,
+        index_s,
         index_t,
-        read_set(input_filename, "index_h", "index_h", prose_name = "customer types h"),
+        index_h,
+        index_j,
         read_param(
             "omega",
             input_filename,
@@ -35,6 +82,9 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
             index_t,
             description = "number of hours per timeslice",
         ),
+        read_param("year", input_filename, "Year", index_y, description = "Year"),
+        read_param("hour", input_filename, "Hour", index_t, description = "Hour"),
+        ParamScalar("year_start", 2018, description = "simulation start year"),
     )
 end
 
@@ -44,7 +94,8 @@ struct VerticallyIntegratedUtility <: MarketStructure end
 struct WholesaleMarket <: MarketStructure end
 
 struct HEMOptions{T <: MarketStructure}
-    solver::HEMSolver
+    MIP_solver::HEMSolver
+    NLP_solver::HEMSolver
     market_structure::T
 end
 
@@ -156,88 +207,157 @@ function solve_equilibrium_problem!(
     file_prefix::AbstractString,
 )
     store = AgentStore(agents_and_opts)
-    max_iter = 10
-    diff = 100.0
+    max_iter = 100
+    window_length = 1
 
-    i = 0
-    for i in 1:max_iter
-        diff = 0.0
+    for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+        model_data.index_y.elements =
+            model_data.index_y_fix.elements[w:(w + window_length - 1)]
+        i = 0
+        for i in 1:max_iter
+            diff = 0.0
 
-        for (agent, options) in iter_agents_and_options(store)
-            @info "$(typeof(agent)), iteration $i"
-            diff += solve_agent_problem!(agent, options, model_data, hem_opts, store)
+            for (agent, options) in iter_agents_and_options(store)
+                @info "$(typeof(agent)), iteration $i"
+                diff += solve_agent_problem!(agent, options, model_data, hem_opts, store, w)
+            end
+            @info "Iteration $i value: $diff"
+
+            if diff < model_data.epsilon
+                break
+            end
         end
-        @info "Iteration $i value: $diff"
 
-        if diff < model_data.epsilon
-            break
-        end
+        # save_welfare(welfare, export_file_path, file_prefix)
+        i >= max_iter && error("Reached max iterations $max_iter with no solution")
+        @info "Problem solved!"
     end
 
-    welfare = []
     for (agent, options) in iter_agents_and_options(store)
         # push!(welfare, welfare_calculation(agent, options, model_data, hem_opts, other_agents))
         save_results(agent, options, hem_opts, export_file_path, file_prefix)
     end
 
-    # save_welfare(welfare, export_file_path, file_prefix)
-    i >= max_iter && error("Reached max iterations $max_iter with no solution")
-    @info "Problem solved!"
+    if hem_opts.market_structure == VerticallyIntegratedUtility()
+        x = store.data[Utility]["default"]
+        Welfare_supply =
+            welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
+        y = store.data[CustomerGroup]["default"]
+        Welfare_demand =
+            welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
+    elseif hem_opts.market_structure == WholesaleMarket()
+        x = store.data[IPPGroup]["default"]
+        Welfare_supply =
+            welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
+        y = store.data[CustomerGroup]["default"]
+        Welfare_demand =
+            welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
+    end
+
+    save_welfare!(Welfare_supply, Welfare_demand, export_file_path, file_prefix)
 end
 
 # TODO: Write the welfare calculation and saving more generally
-function save_welfare(
+function save_welfare!(
     Supply::Any,
     Demand::Any,
-    export_file_path::AbstractString,
-    file_prefix::AbstractString,
+    exportfilepath::AbstractString,
+    fileprefix::AbstractString,
 )
     save_param(
-        Demand[1],
-        [:CustomerType, :DERTech],
+        Demand[1].values,
+        [:Year, :CustomerType, :DERTech],
         :PVNetCS_dollar,
-        joinpath(
-            export_file_path,
-            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVNetCS.csv",
-        ),
+        joinpath(exportfilepath, "$(fileprefix)_PVNetCS.csv"),
     )
     save_param(
         Demand[2],
-        [:CustomerType, :DERTech],
+        [:Year, :CustomerType, :DERTech],
         :PVEnergySaving_dollar,
-        joinpath(
-            export_file_path,
-            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_PVSaving.csv",
-        ),
+        joinpath(exportfilepath, "$(fileprefix)_PVSaving.csv"),
     )
     save_param(
         Demand[3],
-        [:CustomerType, :DERTech],
+        [:Year, :CustomerType, :DERTech],
         :EnergyCost_dollar,
-        joinpath(
-            export_file_path,
-            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_EnergyCost.csv",
-        ),
+        joinpath(exportfilepath, "$(fileprefix)_EnergyCost.csv"),
     )
     save_param(
         Demand[4],
-        [:CustomerType, :DERTech],
+        [:Year, :CustomerType, :DERTech],
         :NetCS_dollar,
-        joinpath(
-            export_file_path,
-            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_NetCS.csv",
-        ),
+        joinpath(exportfilepath, "$(fileprefix)_NetCS.csv"),
     )
-    SocialWelfare = DataFrame(
-        SupplierRevenue = Supply[1],
-        SupplierCost = Supply[2],
-        TotalNetCS = Demand[5],
+    save_param(
+        Demand[5],
+        [:Year],
+        :TotalNetCS_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_TotalNetCS.csv"),
     )
-    CSV.write(
-        joinpath(
-            export_file_path,
-            "$(file_prefix)_$(marketstructure)_$(retailrate)_$(dernetmetering)_socialwelfare.csv",
-        ),
-        SocialWelfare,
+    save_param(
+        Demand[6],
+        [:Year, :CustomerType, :DERTech],
+        :NetCS_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_NetCS_per_customer.csv"),
+    )
+    save_param(
+        Demand[7],
+        [:Year, :CustomerType],
+        :dollar,
+        joinpath(exportfilepath, "$(fileprefix)_annual_bill_per_customer.csv"),
+    )
+    save_param(
+        Demand[8],
+        [:Year, :CustomerType],
+        :dollar,
+        joinpath(exportfilepath, "$(fileprefix)_average_bill_per_customer.csv"),
+    )
+    save_param(
+        Supply[1],
+        [:Year],
+        :SupplierRevenue_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_SupplierRevenue.csv"),
+    )
+    save_param(
+        Supply[2],
+        [:Year],
+        :SupplierCost_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_SupplierCost.csv"),
+    )
+    save_param(
+        Supply[3],
+        [:Year],
+        :DebtInterest_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_DebtInterest.csv"),
+    )
+    save_param(
+        Supply[4],
+        [:Year],
+        :IncomeTax_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_IncomeTax.csv"),
+    )
+    save_param(
+        Supply[5],
+        [:Year],
+        :OperationalCost_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_OperationalCost.csv"),
+    )
+    save_param(
+        Supply[6],
+        [:Year],
+        :Depreciation_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_Depreciation.csv"),
+    )
+    save_param(
+        Supply[7],
+        [:Year],
+        :Depreciation_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_Tax_Depreciation.csv"),
+    )
+    save_param(
+        Supply[8],
+        [:Year],
+        :Metric_ton,
+        joinpath(exportfilepath, "$(fileprefix)_Total_Emission.csv"),
     )
 end

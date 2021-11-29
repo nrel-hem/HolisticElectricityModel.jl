@@ -34,7 +34,7 @@ const DimensionKey{N} = NTuple{N, Symbol}
 """
 Behaves like a Vector of Symbols with additional metadata fields.
 """
-struct Dimension <: AbstractDimension
+mutable struct Dimension <: AbstractDimension
     name::String
     prose_name::String
     description::String
@@ -74,22 +74,32 @@ abstract type HEMParameter <: AbstractData end
 """
 Behaves like a number with additional metadata fields.
 """
-struct ParamScalar{T <: Number} <: HEMParameter
+mutable struct ParamScalar{T <: Number} <: HEMParameter
     name::String
     prose_name::String
     description::String
-    value::Ref{T}
+    value::T
 end
 
 function ParamScalar(name::AbstractString, value::Number; prose_name = "", description = "")
-    return ParamScalar(name, prose_name, description, Ref(value))
+    return ParamScalar(name, prose_name, description, value)
 end
 
 @forward ParamScalar.value Base.isless, Base.isgreater, Base.:+, Base.:*, Base.:-, Base.:/
 
-Base.:+(x::Number, y::ParamScalar) = x + y.value[]
-Base.:*(x::Number, y::ParamScalar) = x * y.value[]
-Base.isless(x::Number, y::ParamScalar) = isless(x, y.value[])
+Base.:+(x::Number, y::ParamScalar) = x + y.value
+# Base.:+(x::Ref{Float64}, y::Number) = x[] + y
+Base.:-(x::Number, y::ParamScalar) = x - y.value
+Base.:*(x::Number, y::ParamScalar) = x * y.value
+Base.:*(x::ParamScalar, y::ParamScalar) = x.value * y.value
+# Base.:*(x::Ref{Float64}, y::ParamScalar) = x[] * y.value
+# Base.:*(x::Ref{Float64}, y::Number) = x[] * y
+# Base.:*(x::Ref{Int64}, y::JuMP.VariableRef) = x[] * y
+Base.:/(x::Number, y::ParamScalar) = x / y.value
+Base.:/(x::ParamScalar, y::ParamScalar) = x.value / y.value
+# Base.:/(x::Ref{Float64}, y::Number) = x[] / y
+Base.isless(x::Number, y::ParamScalar) = isless(x, y.value)
+# Base.zero(x::ParamScalar) = zero(x.value[])
 
 ParamScalar(param::ParamScalar) =
     ParamScalar(param.name, param.prose_name, param.description, param.value)
@@ -103,7 +113,7 @@ function ParamScalar(
     return ParamScalar(name, prose_name, description, copy(param.value))
 end
 
-update!(param::ParamScalar, value) = param.value[] = value
+update!(param::ParamScalar, value) = param.value = value
 
 """
 Behaves like a dictionary with one Dimension and additional metadata fields.
@@ -152,7 +162,7 @@ function ParamVector(
     return ParamVector(name, prose_name, description, dim, vals)
 end
 
-@forward ParamVector.values Base.getindex, Base.setindex!, Base.keys
+@forward ParamVector.values Base.getindex, Base.setindex!, Base.keys, Base.findmax
 
 ParamVector(param::ParamVector) = ParamVector(
     param.name,
@@ -278,4 +288,12 @@ end
 
 function get_new_jump_model(hem_solver::GurobiSolver)
     return Model(() -> hem_solver.solver.Optimizer(hem_solver.env))
+end
+
+struct Ipopt_Solver <: HEMSolver
+    solver::Any
+end
+
+function get_new_jump_model(hem_solver::Ipopt_Solver)
+    return Model(hem_solver.solver.Optimizer)
 end
