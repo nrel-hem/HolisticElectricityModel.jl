@@ -933,7 +933,9 @@ function solve_agent_problem!(
         0
     )
 
-    optimize!(VIUDER_Utility)
+    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 1" begin
+        optimize!(VIUDER_Utility)
+    end
 
     # record current primary variable values
     for y in model_data.index_y, k in utility.index_k_existing, t in model_data.index_t
@@ -1394,7 +1396,9 @@ function solve_agent_problem_decomposition_by_year(
         0
     )
 
-    optimize!(VIUDER_Utility)
+    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 2" begin
+        optimize!(VIUDER_Utility)
+    end
 
     for y_inv_ret in model_data.year[first(model_data.index_y)]:model_data.year[year],
         k in utility.index_k_existing
@@ -1774,7 +1778,9 @@ function solve_agent_problem_decomposition_by_year_feasible(
         0
     )
 
-    optimize!(VIUDER_Utility)
+    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 3" begin
+        optimize!(VIUDER_Utility)
+    end
 
     for k in utility.index_k_existing
         utility.x_R_feasible[year, k] = value.(x_R[year, k])
@@ -1934,7 +1940,9 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
         0
     )
 
-    optimize!(VIUDER_Utility_feasible)
+    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility_feasible" begin
+        optimize!(VIUDER_Utility_feasible)
+    end
 
     update!(utility.obj_feasible, objective_value(VIUDER_Utility_feasible))
 end

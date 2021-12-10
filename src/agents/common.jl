@@ -1,6 +1,7 @@
 # This module defines inputs that are held in common across all agents
 
 const DEFAULT_ID = "default"
+const HEM_TIMER = TimerOutputs.TimerOutput()
 
 struct HEMData
     # Configuration
@@ -209,28 +210,33 @@ function solve_equilibrium_problem!(
     store = AgentStore(agents_and_opts)
     max_iter = 100
     window_length = 1
+    TimerOutputs.reset_timer!(HEM_TIMER)
 
-    for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
-        model_data.index_y.elements =
-            model_data.index_y_fix.elements[w:(w + window_length - 1)]
-        i = 0
-        for i in 1:max_iter
-            diff = 0.0
+    TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
+        for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+            model_data.index_y.elements =
+                model_data.index_y_fix.elements[w:(w + window_length - 1)]
+            i = 0
+            for i in 1:max_iter
+                diff = 0.0
 
-            for (agent, options) in iter_agents_and_options(store)
-                @info "$(typeof(agent)), iteration $i"
-                diff += solve_agent_problem!(agent, options, model_data, hem_opts, store, w)
+                for (agent, options) in iter_agents_and_options(store)
+                    TimerOutputs.@timeit HEM_TIMER "solve_agent_problem!" begin
+                        @info "$(typeof(agent)), iteration $i"
+                        diff += solve_agent_problem!(agent, options, model_data, hem_opts, store, w)
+                    end
+                end
+                @info "Iteration $i value: $diff"
+
+                if diff < model_data.epsilon
+                    break
+                end
             end
-            @info "Iteration $i value: $diff"
 
-            if diff < model_data.epsilon
-                break
-            end
+            # save_welfare(welfare, export_file_path, file_prefix)
+            i >= max_iter && error("Reached max iterations $max_iter with no solution")
+            @info "Problem solved!"
         end
-
-        # save_welfare(welfare, export_file_path, file_prefix)
-        i >= max_iter && error("Reached max iterations $max_iter with no solution")
-        @info "Problem solved!"
     end
 
     for (agent, options) in iter_agents_and_options(store)
@@ -255,6 +261,8 @@ function solve_equilibrium_problem!(
     end
 
     save_welfare!(Welfare_supply, Welfare_demand, export_file_path, file_prefix)
+
+    @info "\n$(HEM_TIMER)\n"
 end
 
 # TODO: Write the welfare calculation and saving more generally

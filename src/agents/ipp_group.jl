@@ -850,7 +850,9 @@ function Lagrange_Sub_Investment_Retirement_Cap(
         planning_reserves(y, t) >= 0
     )
 
-    optimize!(WMDER_IPP)
+    TimerOutputs.@timeit HEM_TIMER "optimize! Lagrange_Sub_Investment_Retirement_Cap" begin
+        optimize!(WMDER_IPP)
+    end
 
     for y in model_data.index_y, k in ipp.index_k_existing
         ipp.x_R_my_st1[y, k] = value.(x_R[y, k])
@@ -1496,7 +1498,9 @@ function Lagrange_Sub_Dispatch_Cap(
         sum(model_data.omega[t] * ipp.Net_Load_my[y, t] for t in model_data.index_t) >= 0
     )
 
-    optimize!(WMDER_IPP)
+    TimerOutputs.@timeit HEM_TIMER "optimize! Lagrange_Sub_Investment_Retirement_Cap" begin
+        optimize!(WMDER_IPP)
+    end
 
     # return MOI.get(WMDER_IPP, MOI.TerminationStatus())
 
@@ -1983,7 +1987,9 @@ function Lagrange_Feasible_Cap(
         sum(model_data.omega[t] * ipp.Net_Load_my[y, t] for t in model_data.index_t) >= 0
     )
 
-    optimize!(WMDER_IPP)
+    TimerOutputs.@timeit HEM_TIMER "optimize! Lagrange_Feasible_Cap" begin
+        optimize!(WMDER_IPP)
+    end
 
     UCAP_p_star = Dict(
         y =>
@@ -3035,7 +3041,9 @@ function solve_agent_problem_ipp_cap(
         sum(model_data.omega[t] * ipp.Net_Load_my[y, t] for t in model_data.index_t) >= 0
     )
 
-    optimize!(WMDER_IPP)
+    TimerOutputs.@timeit HEM_TIMER "optimize! Lagrange_Sub_Dispatch_Cap" begin
+        optimize!(WMDER_IPP)
+    end
 
     for y in model_data.index_y, k in ipp.index_k_existing
         ipp.x_R_my[y, p_star, k] = value.(x_R[y, k])
@@ -3101,15 +3109,17 @@ function solve_agent_problem!(
     diff = 0.0
 
     for p in ipp.index_p
-        diff += solve_agent_problem_ipp_cap(
-            ipp,
-            ipp_opts,
-            p,
-            model_data,
-            hem_opts,
-            agent_store,
-            w_iter,
-        )
+        TimerOutputs.@timeit HEM_TIMER "solve_agent_problem_ipp_cap" begin
+            diff += solve_agent_problem_ipp_cap(
+                ipp,
+                ipp_opts,
+                p,
+                model_data,
+                hem_opts,
+                agent_store,
+                w_iter,
+            )
+        end
     end
 
     # report change in key variables from previous iteration to this one
