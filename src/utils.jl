@@ -65,40 +65,6 @@ Returns the data loaded into a Dict. The Dict keys are tuples of
 length(row_indices) + 1, and with values taken from each of the row_indices in
 turn, plus a column_index value.
 """
-#function read_param(
-#    name::AbstractString,
-#    filename::AbstractString,
-#    sheetname::AbstractString,
-#    column_index::Dimension,
-#    row_indices::Vector{Dimension};
-#    prose_name::AbstractString = "",
-#    description::AbstractString = "",
-#)
-#    table = read_record_file(DataFrame, filename, sheetname)
-#
-#    n = length(row_indices)
-#    dims = Tuple(push!(copy(row_indices), column_index))
-#    vals = Dict{DimensionKey{n + 1}, Float64}()
-#
-#    for row in eachrow(table)
-#        # the Dict key starts with the first n values in row
-#        preamble = Symbol.(Array(row[1:n]))
-#        # check that the key values are expected
-#        for (i, rindex) in enumerate(row_indices)
-#            @assert preamble[i] in rindex "Entry $i $(preamble[i]) not in $rindex"
-#        end
-#        # now register all of the values in this row
-#        for i in column_index
-#            key = Tuple(push!(copy(preamble), i))
-#            push!(vals, key => row[i])
-#        end
-#    end
-#    result =
-#        ParamAxisArray(name, dims, vals, prose_name = prose_name, description = description)
-#    @debug "Loaded $sheetname" result
-#    return result
-#end
-
 function read_param(
     name::AbstractString,
     filename::AbstractString,
@@ -409,25 +375,9 @@ function initialize_param(
 end
 
 """
-Returns a Dict with all values set to value, and keys formed from
+Return an AxisArray with all values set to value, and indices formed from
 Iterators.product(indices...).
 """
-#function initialize_param(
-#    name::AbstractString,
-#    indices...;
-#    value = 0.0,
-#    prose_name = "",
-#    description = "",
-#)
-#    return ParamAxisArray(
-#        name,
-#        indices,
-#        Dict(t => value for t in Iterators.product(indices...)),
-#        prose_name = prose_name,
-#        description = description,
-#    )
-#end
-
 function initialize_param(
     name::AbstractString,
     indices...;
