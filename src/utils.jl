@@ -336,25 +336,8 @@ function configure_logging(;
 end
 
 """
-Returns a Dict with all values set to value, and keys formed from 
-indices. Each key is a Symbol.
+Returns a ParamAxisArray with all values set to value.
 """
-#function initialize_param(
-#    name::AbstractString,
-#    indices::Dimension;
-#    value = 0.0,
-#    prose_name = "",
-#    description = "",
-#)
-#    return ParamAxisArray(
-#        name,
-#        indices,
-#        Dict(t => value for t in indices),
-#        prose_name = prose_name,
-#        description = description,
-#    )
-#end
-
 function initialize_param(
     name::AbstractString,
     index::Dimension;
