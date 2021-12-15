@@ -3,27 +3,32 @@
 DER_factor = 1.0    # A scaling factor applied to existing DER penetration level
 
 mutable struct PVAdoptionModel
-    Shape::ParamArray
-    MeanPayback::ParamArray
-    Bass_p::ParamVector
-    Bass_q::ParamVector
-
-    Rate::ParamArray
+    Shape::ParamAxisArray
+    MeanPayback::ParamAxisArray
+    Bass_p::ParamAxisArray
+    Bass_q::ParamAxisArray
+    Rate::ParamAxisArray
 end
 
 """
 Constructs a PVAdoptionModel by computing Rate from the other parameters.
 """
 function PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
+    @assert_op length(Shape) == length(MeanPayback)
+    vals = deepcopy(Shape.values)
+    for i in 1:length(vals)
+        vals[i] = Shape[i] / MeanPayback[i]
+    end
+
     return PVAdoptionModel(
         Shape,
         MeanPayback,
         Bass_p,
         Bass_q,
-        ParamArray(
+        ParamAxisArray(
             "Rate",
             Shape.dims,
-            Dict(key => Shape[key] / MeanPayback[key] for key in keys(Shape)),
+            vals,
         ), # Rate
     )
 end
@@ -48,51 +53,51 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
 
     # Parameters
     "number of customers of type h"
-    gamma::ParamVector
+    gamma::ParamAxisArray
     "demand (MWh per representative agent per hour)"
-    d::ParamArray
+    d::ParamAxisArray
     "multi-year demand (MWh per representative agent per hour)"
-    d_my::ParamArray
-    x_DG_E::ParamArray
+    d_my::ParamAxisArray
+    x_DG_E::ParamAxisArray
     "Existing DER at year y. This is a cumulative number but without x_DG_new_my built by this module"
-    x_DG_E_my::ParamArray
-    Opti_DG::ParamArray
-    Opti_DG_E::ParamArray
-    Opti_DG_my::ParamArray
+    x_DG_E_my::ParamAxisArray
+    Opti_DG::ParamAxisArray
+    Opti_DG_E::ParamAxisArray
+    Opti_DG_my::ParamAxisArray
     # "DER generation by a representative customer h and DER technology m"
-    # DERGen::ParamArray
-    CapEx_DG::ParamArray
-    CapEx_DG_my::ParamArray
-    FOM_DG::ParamArray
-    FOM_DG_my::ParamArray
-    rho_DG::ParamArray
+    # DERGen::ParamAxisArray
+    CapEx_DG::ParamAxisArray
+    CapEx_DG_my::ParamAxisArray
+    FOM_DG::ParamAxisArray
+    FOM_DG_my::ParamAxisArray
+    rho_DG::ParamAxisArray
     "Annualization factor for net consumer surplus of PV installation"
     delta::ParamScalar
-    PeakLoad::ParamVector
-    PeakLoad_my::ParamArray
+    PeakLoad::ParamAxisArray
+    PeakLoad_my::ParamAxisArray
 
     # Primal Variables
-    x_DG_new::ParamArray
-    x_DG_new_my::ParamArray    # Annual new DER build (not cumulative)
-    x_green_sub::ParamArray
+    x_DG_new::ParamAxisArray
+    x_DG_new_my::ParamAxisArray    # Annual new DER build (not cumulative)
+    x_green_sub::ParamAxisArray
 
     # Auxiliary Variables
-    Payback::ParamArray
-    MarketShare::ParamArray
-    MaxDG::ParamArray
-    F::ParamArray
-    year::ParamArray
-    A::ParamArray
-    ConPVNetSurplus::ParamArray
-    ConPVNetSurplus_my::ParamArray
+    Payback::ParamAxisArray
+    MarketShare::ParamAxisArray
+    MaxDG::ParamAxisArray
+    F::ParamAxisArray
+    year::ParamAxisArray
+    A::ParamAxisArray
+    ConPVNetSurplus::ParamAxisArray
+    ConPVNetSurplus_my::ParamAxisArray
 
-    GreenTechIntercept::ParamArray
-    GreenTechSlope::ParamArray
+    GreenTechIntercept::ParamAxisArray
+    GreenTechSlope::ParamAxisArray
     pv_adoption_model::PVAdoptionModel
 
     pvf::Any
     rooftop::Any
-    MaxDG_my::ParamArray
+    MaxDG_my::ParamAxisArray
 end
 
 function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
@@ -163,30 +168,29 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     #     end
     # end
     # Calculate maximum demand for each customer type
-    MaxLoad = Dict(
-        h => gamma[h] * findmax(Dict(t => demand[h, t] for t in model_data.index_t))[1]
-        for h in model_data.index_h
+    MaxLoad = AxisArray(
+        [gamma[h] * findmax(Dict(t => demand[h, t] for t in model_data.index_t))[1]
+         for h in model_data.index_h],
+        model_data.index_h.elements,
     )
-    MaxLoad_my = Dict(
-        (y, h) =>
-            gamma[h] *
-            findmax(Dict(t => demand_my[y, h, t] for t in model_data.index_t))[1] for
-        y in model_data.index_y, h in model_data.index_h
-    )
+    MaxLoad_my = make_axis_array(model_data.index_y, model_data.index_h)
+    for y in model_data.index_y, h in model_data.index_h
+        MaxLoad_my[y, h] = gamma[h] * findmax(Dict(t => demand_my[y, h, t] for t in model_data.index_t))[1]
+    end
 
     pv_adoption_model = PVAdoptionModel(
         initialize_param("Shape", model_data.index_h, index_m, value = 1.7), # Shape
         initialize_param("MeanPayback", model_data.index_h, index_m, value = 8.8), # MeanPayback
-        ParamVector(
+        ParamAxisArray(
             "Bass_p",
-            model_data.index_h,
-            Dict(:Residential => 7.7E-07, :Commercial => 6.0E-04, :Industrial => 6.0E-04),
-        ), # Bass_p
-        ParamVector(
+            (model_data.index_h,),
+            AxisArray([7.7E-07, 6.0E-04, 6.0E-04], [:Residential, :Commercial, :Industrial])
+        ),
+        ParamAxisArray(
             "Bass_q",
-            model_data.index_h,
-            Dict(:Residential => 0.663, :Commercial => 0.133, :Industrial => 0.133),
-        ), # Bass_q
+            (model_data.index_h,),
+            AxisArray([0.663, 0.133, 0.133], [:Residential, :Commercial, :Industrial])
+        ),
     )
 
     # Customer financing
@@ -197,16 +201,17 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     cost_of_equity =
         read_param("cost_of_equity", input_filename, "CustomerCOE", model_data.index_h)
     tax_rate = read_param("tax_rate", input_filename, "CustomerTax", model_data.index_h)
-    atwacc = Dict(
-        h =>
-            debt_ratio[h] * cost_of_debt[h] * (1 - tax_rate[h]) +
-            (1 - debt_ratio[h]) * cost_of_equity[h] for h in model_data.index_h
+    atwacc = AxisArray(
+            [debt_ratio[h] * cost_of_debt[h] * (1 - tax_rate[h]) +
+             (1 - debt_ratio[h]) * cost_of_equity[h] for h in model_data.index_h],
+            model_data.index_h.elements
     )
-    CRF = Dict(
-        h => atwacc[h] * (1 + atwacc[h])^20 / ((1 + atwacc[h])^20 - 1) for
-        h in model_data.index_h
+    CRF = AxisArray(
+        [atwacc[h] * (1 + atwacc[h])^20 / ((1 + atwacc[h])^20 - 1) for
+         h in model_data.index_h],
+        model_data.index_h.elements
     )
-    pvf = Dict(h => 1 / CRF[h] for h in model_data.index_h)
+    pvf = AxisArray([1 / CRF[h] for h in model_data.index_h], model_data.index_h.elements)
 
     return CustomerGroup(
         id,
@@ -238,8 +243,8 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ),
         rho_DG,
         ParamScalar("delta", 0.05),
-        ParamVector("PeakLoad", model_data.index_h, MaxLoad),
-        ParamArray(
+        ParamAxisArray("PeakLoad", (model_data.index_h,), MaxLoad),
+        ParamAxisArray(
             "PeakLoad_my",
             Tuple(push!(copy([model_data.index_y]), model_data.index_h)),
             MaxLoad_my,
@@ -296,15 +301,11 @@ function solve_agent_problem!(
     reg_year = model_data.year[first(model_data.index_y)]
     reg_year_index = Symbol(Int(reg_year))
 
-    x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
-    empty!(x_DG_before)
-    merge!(
-        x_DG_before,
-        Dict(
-            (h, m) => customers.x_DG_new_my[reg_year_index, h, m] for
-            h in model_data.index_h, m in customers.index_m
-        ),
-    )
+    x_DG_before = ParamAxisArray(customers.x_DG_new, "x_DG_before")
+    fill!(x_DG_before, NaN)
+    for h in model_data.index_h, m in customers.index_m
+        x_DG_before[h, m] = customers.x_DG_new_my[reg_year_index, h, m]
+    end
 
     adopt_model = customers.pv_adoption_model
 
@@ -333,9 +334,10 @@ function solve_agent_problem!(
 
     # Calculate payback period of DER
     # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
-    NetProfit = Dict(
-        (h, m) =>
+    NetProfit = make_axis_array(model_data.index_h, customers.index_m)
+    for h in model_data.index_h, m in customers.index_m
         # value of distributed generation (offset load)
+        NetProfit[h, m] = 
             sum(
                 model_data.omega[t] *
                 regulator.p[h, t] *
@@ -355,9 +357,8 @@ function solve_agent_problem!(
                 ) for t in model_data.index_t
             ) -
             # cost of distributed generation 
-            customers.FOM_DG[h, m] * customers.Opti_DG[h, m] for
-        h in model_data.index_h, m in customers.index_m
-    )
+            customers.FOM_DG[h, m] * customers.Opti_DG[h, m]
+        end
 
     for h in model_data.index_h, m in customers.index_m
         if NetProfit[h, m] >= 0.0
@@ -464,8 +465,9 @@ function welfare_calculation!(
     """
 
     # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
-    NetProfit = Dict(
-        (y, h, m) =>
+    NetProfit = make_axis_array(model_data.index_y_fix, model_data.index_h, customers.index_m)
+    for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
+        NetProfit[y, h, m] =
         # value of distributed generation (offset load)
             sum(
                 model_data.omega[t] *
@@ -486,9 +488,8 @@ function welfare_calculation!(
                 ) for t in model_data.index_t
             ) -
             # cost of distributed generation 
-            customers.FOM_DG_my[y, h, m] * customers.Opti_DG_my[y, h, m] for
-        y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
-    )
+            customers.FOM_DG_my[y, h, m] * customers.Opti_DG_my[y, h, m]
+        end
 
     ######## Note that this Consumer PV Net Surplus (ConPVNetSurplus_my) only calculates the surplus for year y's new PV installer (annualized)
     for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
@@ -535,8 +536,9 @@ function welfare_calculation!(
             for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
     )
     =#
-    EnergySaving = Dict(
-        (y, h, m) => sum(
+    EnergySaving = make_axis_array(model_data.index_y_fix, model_data.index_h, customers.index_m)
+    for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
+        EnergySaving[y, h, m] = sum(
             sum(
                 model_data.omega[t] *
                 regulator.p_my[y, h, t] *
@@ -547,13 +549,13 @@ function welfare_calculation!(
                 ) for t in model_data.index_t
             ) * customers.x_DG_new_my[Symbol(Int(y_star)), h, m] /
             customers.Opti_DG_my[Symbol(Int(y_star)), h, m] for y_star in
-                model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
-        ) for y in model_data.index_y_fix, h in model_data.index_h,
-        m in customers.index_m
-    )
+            model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+        )
+    end
     # Calculate out-of-pocket energy costs associated with new and existing DER (including previously installed new DER) for a certain year (assume Opti_DG_my is the same across years)         
-    EnergyCost = Dict(
-        (y, h, m) => sum(
+    EnergyCost = make_axis_array(model_data.index_y_fix, model_data.index_h, customers.index_m)
+    for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
+        EnergyCost[y, h, m] = sum(
             model_data.omega[t] *
             regulator.p_my[y, h, t] *
             (
@@ -566,7 +568,7 @@ function welfare_calculation!(
                         customers.Opti_DG_my[Symbol(Int(y_star)), h, m],
                     ) * customers.x_DG_new_my[Symbol(Int(y_star)), h, m] /
                     customers.Opti_DG_my[Symbol(Int(y_star)), h, m] for y_star in
-                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                 )
                 #= We may not need this part for existing units, because we did not remove double-counting in "EnergySaving" calculation.
                 # also minus savings from existing DER here (note that surplus associated with existing DER is not available)
@@ -574,55 +576,56 @@ function welfare_calculation!(
                 customers.x_DG_E_my[y,h,m] / customers.Opti_DG_E[h,m]
                 =#
             ) for t in model_data.index_t
-        ) for y in model_data.index_y_fix, h in model_data.index_h,
-        m in customers.index_m
-    )
+        )
+    end
 
     # Calculate energy costs related to export
-    EnergyCost_eximport = Dict(
-        y => sum(
+    EnergyCost_eximport = AxisArray([sum(
             model_data.omega[t] * regulator.p_eximport_my[y, t] * utility.eximport_my[y, t] for t in model_data.index_t
-        ) for y in model_data.index_y_fix
+           ) for y in model_data.index_y_fix],
+                                    model_data.index_y_fix.elements
     )
 
     # Finally, calculate Net Consumer Surplus
-    ConNetSurplus = Dict(
-        (y, h, m) =>
+    ConNetSurplus = make_axis_array(model_data.index_y_fix, model_data.index_h, customers.index_m)
+    for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
+        ConNetSurplus[y, h, m] =
             sum(
                 customers.ConPVNetSurplus_my[Symbol(Int(y_star)), h, m] for y_star in
-                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
-            ) - EnergySaving[y, h, m] - EnergyCost[y, h, m] for
-        y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
-    )
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+            ) - EnergySaving[y, h, m] - EnergyCost[y, h, m]
+    end
     # Sum of Net Consumer Surplus across customer tpye and DER technology
-    TotalConNetSurplus = Dict(
-        y =>
-            sum(
+    TotalConNetSurplus = AxisArray(
+            [sum(
                 ConNetSurplus[y, h, m] for h in model_data.index_h, m in customers.index_m
-            ) - EnergyCost_eximport[y] for y in model_data.index_y_fix
+               ) - EnergyCost_eximport[y] for y in model_data.index_y_fix],
+            model_data.index_y_fix.elements
     )
 
-    ConPVNetSurplus_PerCustomer_my = Dict(
-        (y, h, m) =>
-            customers.ConPVNetSurplus_my[y, h, m] /
-            (customers.x_DG_new_my[y, h, m] / customers.Opti_DG_my[y, h, m]) for
-        y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
-    )
-    AnnualBill_PerCustomer_my = Dict(
-        (y, h) => sum(
+    ConPVNetSurplus_PerCustomer_my = make_axis_array(model_data.index_y_fix, model_data.index_h, customers.index_m)
+    for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
+        ConPVNetSurplus_PerCustomer_my[y, h, m] =
+                customers.ConPVNetSurplus_my[y, h, m] /
+                (customers.x_DG_new_my[y, h, m] / customers.Opti_DG_my[y, h, m])
+    end
+    AnnualBill_PerCustomer_my = make_axis_array(model_data.index_y_fix, model_data.index_h)
+    for y in model_data.index_y_fix, h in model_data.index_h
+        AnnualBill_PerCustomer_my[y, h] => sum(
             model_data.omega[t] *
             regulator.p_my[y, h, t] *
             customers.d_my[y, h, t] *
             (1 - utility.loss_dist) for t in model_data.index_t
-        ) for y in model_data.index_y_fix, h in model_data.index_h
-    )
-    AverageBill_PerCustomer_my = Dict(
-        (y, h) =>
-            AnnualBill_PerCustomer_my[y, h] / sum(
-                model_data.omega[t] * customers.d_my[y, h, t] * (1 - utility.loss_dist)
-                for t in model_data.index_t
-            ) for y in model_data.index_y_fix, h in model_data.index_h
-    )
+        )
+    end
+    AverageBill_PerCustomer_my = make_axis_array(model_data.index_y_fix, model_data.index_h)
+    for y in model_data.index_y_fix, h in model_data.index_h
+        AverageBill_PerCustomer_my[y, h] =
+                AnnualBill_PerCustomer_my[y, h] / sum(
+                    model_data.omega[t] * customers.d_my[y, h, t] * (1 - utility.loss_dist)
+                    for t in model_data.index_t
+                )
+    end
 
     return customers.ConPVNetSurplus_my,
     EnergySaving,

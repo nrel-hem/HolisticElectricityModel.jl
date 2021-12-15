@@ -16,9 +16,9 @@ struct HEMData
     index_j::Dimension # green tariff technologies
 
     # Parameters
-    omega::ParamVector # number of hours per timeslice
-    year::ParamVector
-    hour::ParamVector
+    omega::ParamAxisArray # number of hours per timeslice
+    year::ParamAxisArray
+    hour::ParamAxisArray
     year_start::ParamScalar
 end
 
@@ -223,7 +223,14 @@ function solve_equilibrium_problem!(
                 for (agent, options) in iter_agents_and_options(store)
                     TimerOutputs.@timeit HEM_TIMER "solve_agent_problem!" begin
                         @info "$(typeof(agent)), iteration $i"
-                        diff += solve_agent_problem!(agent, options, model_data, hem_opts, store, w)
+                        diff += solve_agent_problem!(
+                            agent,
+                            options,
+                            model_data,
+                            hem_opts,
+                            store,
+                            w,
+                        )
                     end
                 end
                 @info "Iteration $i value: $diff"

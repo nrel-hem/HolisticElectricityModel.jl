@@ -65,9 +65,12 @@ using Logging
 using JuMP
 using XLSX
 using Lazy: @forward
-import InfrastructureSystems
-import Distributions
+import AxisArrays
+import AxisArrays: AxisArray
 import CSV
+import Distributions
+import InfrastructureSystems
+import InfrastructureSystems: @assert_op
 import QuadGK
 import TimerOutputs
 

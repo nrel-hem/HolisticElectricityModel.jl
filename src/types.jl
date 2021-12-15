@@ -29,7 +29,7 @@ get_description(data::AbstractData) = data.description
 
 abstract type AbstractDimension <: AbstractData end
 
-const DimensionKey{N} = NTuple{N, Symbol}
+const DimensionKey{N} = NTuple{N,Symbol}
 
 """
 Behaves like a Vector of Symbols with additional metadata fields.
@@ -74,7 +74,7 @@ abstract type HEMParameter <: AbstractData end
 """
 Behaves like a number with additional metadata fields.
 """
-mutable struct ParamScalar{T <: Number} <: HEMParameter
+mutable struct ParamScalar{T<:Number} <: HEMParameter
     name::String
     prose_name::String
     description::String
@@ -115,127 +115,15 @@ end
 
 update!(param::ParamScalar, value) = param.value = value
 
-"""
-Behaves like a dictionary with one Dimension and additional metadata fields.
-"""
-struct ParamVector <: HEMParameter
+mutable struct ParamAxisArray{N} <: HEMParameter
     name::String
     prose_name::String
     description::String
-    dim::Dimension
-    values::Dict{Symbol, Float64}
-
-    function ParamVector(
-        name::AbstractString,
-        prose_name::AbstractString,
-        description::AbstractString,
-        dim::Dimension,
-        vals::Dict{Symbol, Float64},
-    )
-        # Check that values are defined over dim
-        set_symbols = Set([sym for sym in dim])
-        value_symbols = Set(keys(vals))
-        invalid_symbols = setdiff(value_symbols, set_symbols)
-        if !isempty(invalid_symbols)
-            error(
-                "Attempted ParamVector definition of $name over $name(dim) is invalid. " *
-                "Values provided for symbols $invalid_symbols that are not in $dim.",
-            )
-        end
-        missing_symbols = setdiff(set_symbols, value_symbols)
-        if !isempty(missing_symbols)
-            @warn "ParamVector definition of $name over $(get_name(dim)) is missing " *
-                  "values for $missing_symbols"
-        end
-
-        new(name, prose_name, description, dim, vals)
-    end
+    dims::NTuple{N,Dimension}
+    values::AxisArray
 end
 
-function ParamVector(
-    name::AbstractString,
-    dim::Dimension,
-    vals::Dict{Symbol, Float64};
-    prose_name = "",
-    description = "",
-)
-    return ParamVector(name, prose_name, description, dim, vals)
-end
-
-@forward ParamVector.values Base.getindex, Base.setindex!, Base.keys, Base.findmax
-
-ParamVector(param::ParamVector) = ParamVector(
-    param.name,
-    param.prose_name,
-    param.description,
-    param.dim, # sets are fully static, unlike parameters; therefore reuse them
-    copy(param.values),
-)
-
-function ParamVector(
-    param::ParamVector,
-    name::AbstractString;
-    prose_name::AbstractString = "",
-    description::AbstractString = "",
-)
-    return ParamVector(name, prose_name, description, param.dim, copy(param.values))
-end
-
-Base.empty!(x::ParamVector) = empty!(x.values)
-Base.merge!(x::ParamVector, vals::Dict{Symbol}) = merge!(x.values, vals)
-
-# TODO: We currently can't make this immutable because of how it's used in regulator.jl.
-"""
-Behaves like a dictionary with N Dimensions and additional metadata fields.
-"""
-mutable struct ParamArray{N} <: HEMParameter
-    name::String
-    prose_name::String
-    description::String
-    dims::NTuple{N, Dimension}
-    values::Dict{DimensionKey{N}, Float64}
-
-    function ParamArray(
-        name::AbstractString,
-        prose_name::AbstractString,
-        description::AbstractString,
-        dims::NTuple{N, Dimension},
-        vals::Dict{DimensionKey{N}, Float64},
-    ) where {N}
-        for (index, dim) in enumerate(dims)
-            # Check that vals are defined over dim
-            set_symbols = Set(dim)
-            value_symbols = Set((k[index] for k in keys(vals)))
-            invalid_symbols = setdiff(value_symbols, set_symbols)
-            if !isempty(invalid_symbols)
-                error(
-                    "Attempted ParamArray definition of $name, but definition " *
-                    "over dim $index, $(get_name(dim)), is invalid. " *
-                    "Values provided for symbols $invalid_symbols that are not in $dim.",
-                )
-            end
-            missing_symbols = setdiff(set_symbols, value_symbols)
-            if !isempty(missing_symbols)
-                @warn "ParamArray definition of $name is missing " *
-                      "values for some of $(get_name(dim))'s elements: " *
-                      "$missing_symbols"
-            end
-        end
-
-        # Check for expected number of combinations
-        n_expected = reduce(*, map(length, dims))
-        n_actual = length(vals)
-        @assert n_actual <= n_expected "There are at most $n_expected combinations of $dims, but $n_actual parameter values were passed"
-        if n_actual < n_expected
-            @warn "ParamArray definition of $name has not defined values for all" *
-                  "$n_expected possible combinations of $dims"
-        end
-
-        new{N}(name, prose_name, description, dims, vals)
-    end
-end
-
-ParamArray(param::ParamArray) = ParamArray(
+ParamAxisArray(param::ParamAxisArray) = ParamAxisArray(
     param.name,
     param.prose_name,
     param.description,
@@ -243,29 +131,66 @@ ParamArray(param::ParamArray) = ParamArray(
     copy(param.values),
 )
 
-function ParamArray(
-    param::ParamArray,
+function ParamAxisArray(
+    param::ParamAxisArray,
     name::AbstractString;
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
-    return ParamArray(name, prose_name, description, param.dims, copy(param.values))
+    return ParamAxisArray(name, prose_name, description, param.dims, copy(param.values))
 end
 
-function ParamArray(
+function ParamAxisArray(
     name::AbstractString,
-    dims::NTuple{N, Dimension},
-    vals::Dict{DimensionKey{N}, Float64};
+    dims::NTuple{N,Dimension},
+    vals::AxisArray;
     prose_name = "",
     description = "",
 ) where {N}
-    return ParamArray(name, prose_name, description, dims, vals)
+    return ParamAxisArray(name, prose_name, description, dims, vals)
 end
 
-@forward ParamArray.values Base.getindex, Base.keys, Base.setindex!
+@forward ParamAxisArray.values Base.getindex,
+Base.setindex!,
+Base.findmax,
+Base.fill!,
+Base.length,
+AxisArrays.axes
 
-Base.empty!(x::ParamArray) = empty!(x.values)
-Base.merge!(x::ParamArray, vals) = merge!(x.values, vals)
+# TODO PERF: turn off fill_nan when we are confident in code.
+function make_axis_array(index::Dimension, fill_nan = true)
+    array = AxisArray(Vector{Float64}(undef, length(index), index.elements))
+    fill_nan && fill!(array.data, NaN)
+    return array
+end
+
+# TODO PERF: turn off fill_nan when we are confident in code.
+function make_axis_array(index1::Dimension, index2::Dimension, fill_nan = true)
+    array = AxisArray(
+        Matrix{Float64}(undef, length(index1), length(index2)),
+        index1.elements,
+        index2.elements,
+    )
+    fill_nan && fill!(array.data, NaN)
+    return array
+end
+
+# TODO PERF: turn off fill_nan when we are confident in code.
+function make_axis_array(
+    index1::Dimension,
+    index2::Dimension,
+    index3::Dimension,
+    fill_nan = true,
+)
+    array = AxisArray(
+        Array{Float64,3}(undef, length(index1), length(index2), length(index3)),
+        index1.elements,
+        index2.elements,
+        index3.elements,
+    )
+    fill_nan && fill!(array.data, NaN)
+    return array
+end
 
 # ------------------------------------------------------------------------------
 # Optimization Solvers

@@ -34,37 +34,37 @@ mutable struct Regulator <: AbstractRegulator
 
     # Primal Variables
     "retail price"
-    p::ParamArray
+    p::ParamAxisArray
     "DER excess generation rate"
-    p_ex::ParamArray
+    p_ex::ParamAxisArray
     "retail price of import/export"
-    p_eximport::ParamVector
+    p_eximport::ParamAxisArray
     "green tariff rate"
-    p_green::ParamArray
+    p_green::ParamAxisArray
     "revenue (requirement) of utility company"
     revenue_req::ParamScalar
     "cost of utility company (without return on equity)"
     cost::ParamScalar
     "multi-year retail price"
-    p_my::ParamArray
+    p_my::ParamAxisArray
     "multi-year DER excess generation rate"
-    p_ex_my::ParamArray
+    p_ex_my::ParamAxisArray
     "multi-year retail price of import/export"
-    p_eximport_my::ParamArray
+    p_eximport_my::ParamAxisArray
     "revenue (requirement) of utility company by year"
-    revenue_req_my::ParamVector
+    revenue_req_my::ParamAxisArray
     "cost of utility company (without return on equity) by year"
-    cost_my::ParamVector
+    cost_my::ParamAxisArray
     "debt interest by year"
-    debt_interest_my::ParamVector
+    debt_interest_my::ParamAxisArray
     "income tax by year"
-    income_tax_my::ParamVector
+    income_tax_my::ParamAxisArray
     "operational cost by year"
-    operational_cost_my::ParamVector
+    operational_cost_my::ParamAxisArray
     "accounting depreciation by year"
-    depreciation_my::ParamVector
+    depreciation_my::ParamAxisArray
     "tax depreciation by year"
-    depreciation_tax_my::ParamVector
+    depreciation_tax_my::ParamAxisArray
 end
 
 function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
@@ -200,11 +200,12 @@ function solve_agent_problem!(
     reg_year = model_data.year[first(model_data.index_y)]
     reg_year_index = Symbol(Int(reg_year))
     # retirement up to the rate case year
-    reg_retirement = Dict(
-        k => sum(
+    reg_retirement = AxisArray(
+        [sum(
             utility.x_R_my[Symbol(Int(y_symbol)), k] for
             y_symbol in model_data.year[first(model_data.index_y_fix)]:reg_year
-        ) for k in utility.index_k_existing
+           ) for k in utility.index_k_existing],
+        utility.index_k_existing.elements
     )
 
     # pure volumetric rate
@@ -232,8 +233,8 @@ function solve_agent_problem!(
     working_capital = utility.DaysofWC / 365 * operational_cost
 
     # calculate ADIT and rate base (no working capital) for new builds, "reg_year-y+1" represents the number of years since the new investment is made
-    ADITNew = Dict(
-        k => sum(
+    ADITNew = AxisArray(
+        [sum(
             utility.CapEx_my[Symbol(Int(y)), k] *
             utility.x_C_my[Symbol(Int(y)), k] *
             (
@@ -246,16 +247,17 @@ function solve_agent_problem!(
             utility.x_C_my[Symbol(Int(y)), k] *
             (1 - utility.CumuITCAmort_new_my[Symbol(Int(reg_year - y + 1)), k]) for
             y in model_data.year[first(model_data.index_y_fix)]:reg_year
-        ) for k in utility.index_k_new
+           ) for k in utility.index_k_new],
+        utility.index_k_new.elements
     )
-    RateBaseNoWC_new = Dict(
-        k =>
-            sum(
+    RateBaseNoWC_new = AxisArray(
+            [sum(
                 utility.CapEx_my[Symbol(Int(y)), k] *
                 utility.x_C_my[Symbol(Int(y)), k] *
                 (1 - utility.CumuAccoutDepre_new_my[Symbol(Int(reg_year - y + 1)), k])
                 for y in model_data.year[first(model_data.index_y_fix)]:reg_year
-            ) - ADITNew[k] for k in utility.index_k_new
+               ) - ADITNew[k] for k in utility.index_k_new],
+            utility.index_k_new.elements
     )
 
     # calculate total rate base for the year of rate making
@@ -377,8 +379,8 @@ function solve_agent_problem!(
     # In the presence of distribution loss, multiply load (including distribution loss) by (1 - loss factor),
     # DER generation above this value shall be compansated for DER excess credits
     # e.g. DER generation is 100 MW, load (without loss) is 95 MW, receive 5 MW excess credits
-    der_excess_cost_h = Dict(
-        h => sum(
+    der_excess_cost_h = AxisArray(
+        [sum(
             model_data.omega[t] *
             regulator.p_ex[h, t] *
             (
@@ -398,13 +400,13 @@ function solve_agent_problem!(
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 )
             ) for t in model_data.index_t, m in customers.index_m
-        ) for h in model_data.index_h
+           ) for h in model_data.index_h],
+        model_data.index_h.elements
     )
 
-    net_demand_h_w_loss = Dict(
-        h =>
+    net_demand_h_w_loss = AxisArray(
         # demand
-            sum(
+            [sum(
                 customers.gamma[h] * model_data.omega[t] * customers.d[h, t] for
                 t in model_data.index_t
             ) -
@@ -418,13 +420,13 @@ function solve_agent_problem!(
                         y in model_data.year[first(model_data.index_y_fix)]:reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
-            ) for h in model_data.index_h
+               ) for h in model_data.index_h],
+            model_data.index_h.elements
     )
 
-    net_demand_h_wo_loss = Dict(
-        h =>
+    net_demand_h_wo_loss = AxisArray(
         # demand
-            sum(
+            [sum(
                 customers.gamma[h] *
                 model_data.omega[t] *
                 customers.d[h, t] *
@@ -451,26 +453,26 @@ function solve_agent_problem!(
                         y in model_data.year[first(model_data.index_y_fix)]:reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
-            ) for h in model_data.index_h
+               ) for h in model_data.index_h],
+            model_data.index_h.elements
     )
 
     #=
     energy_cost_t = Dict(t => sum(utility.v_E[k,t]*utility.y_E[k,t] for k in utility.index_k_existing) +
         sum(utility.v_C[k,t]*utility.y_C[k,t] for k in utility.index_k_new) for t in model_data.index_t)
     =#
-    energy_cost_t = Dict(
-        t =>
-            sum(
+    energy_cost_t = AxisArray(
+            [sum(
                 utility.v_E_my[reg_year_index, k, t] * utility.y_E_my[reg_year_index, k, t] for k in utility.index_k_existing
             ) + sum(
                 utility.v_C_my[reg_year_index, k, t] * utility.y_C_my[reg_year_index, k, t] for k in utility.index_k_new
-            ) for t in model_data.index_t
+               ) for t in model_data.index_t],
+            model_data.index_t.elements
     )
 
-    net_demand_t_w_loss = Dict(
-        t =>
+    net_demand_t_w_loss = AxisArray(
         # demand
-            sum(customers.gamma[h] * customers.d[h, t] for h in model_data.index_h) +
+            [sum(customers.gamma[h] * customers.d[h, t] for h in model_data.index_h) +
             # export
             utility.eximport_my[reg_year_index, t] -
             # DG
@@ -480,11 +482,13 @@ function solve_agent_problem!(
                     customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 ) for h in model_data.index_h, m in customers.index_m
-            ) for t in model_data.index_t
+            ) for t in model_data.index_t],
+            model_data.index_t.elements
     )
 
-    der_excess_cost_h_t = Dict(
-        (h, t) => sum(
+    der_excess_cost_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    for h in model_data.index_h, t in model_data.index_t
+        der_excess_cost_h_t[h, t] = sum(
             regulator.p_ex[h, t] * (
                 max(
                     0,
@@ -502,11 +506,12 @@ function solve_agent_problem!(
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 )
             ) for m in customers.index_m
-        ) for h in model_data.index_h, t in model_data.index_t
-    )
+        )
+    end
 
-    net_demand_h_t_w_loss = Dict(
-        (h, t) =>
+    net_demand_h_t_w_loss = make_axis_array(model_data.index_h, model_data.index_t)
+    for h in model_data.index_h, t in model_data.index_t
+        net_demand_h_t_w_loss[h, t] =
         # demand
             customers.gamma[h] * customers.d[h, t] -
             # DG
@@ -516,11 +521,12 @@ function solve_agent_problem!(
                     customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 ) for m in customers.index_m
-            ) for h in model_data.index_h, t in model_data.index_t
-    )
+            )
+    end
 
-    net_demand_h_t_wo_loss = Dict(
-        (h, t) =>
+    net_demand_h_t_wo_loss = make_axis_array(model_data.index_h, model_data.index_t)
+    for h in model_data.index_h, t in model_data.index_t
+        net_demand_h_t_wo_loss[h, t] =
         # demand
             customers.gamma[h] * customers.d[h, t] * (1 - utility.loss_dist) -
             # DG
@@ -538,29 +544,31 @@ function solve_agent_problem!(
                     customers.Opti_DG_my[Symbol(Int(y)), h, m] for
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 ) for m in customers.index_m
-            ) for h in model_data.index_h, t in model_data.index_t
-    )
+            )
+    end
 
     # for the purpose of calculating net peak load, use load including distribution loss
-    net_demand_for_peak_h_t = Dict(
-        (h, t) =>
+    net_demand_for_peak_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    for h in model_data.index_h, t in model_data.index_t
+        net_demand_for_peak_h_t[h, t] =
             customers.gamma[h] * customers.d[h, t] - sum(
                 customers.rho_DG[h, m, t] *
                 customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
                     customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 ) for m in customers.index_m
-            ) for h in model_data.index_h, t in model_data.index_t
-    )
+            )
+    end
 
-    net_peak_load_h = Dict(
-        h => findmax(Dict(t => net_demand_for_peak_h_t[h, t] for t in model_data.index_t))[1] for h in model_data.index_h
+    net_peak_load_h = AxisArray(
+        [findmax(Dict(t => net_demand_for_peak_h_t[h, t] for t in model_data.index_t))[1] for h in model_data.index_h],
+        model_data.index_h.elements
     )
 
     # Cost Classification/Allocation
-    energy_cost_allocation_h = Dict(
-        h =>
-            energy_cost * net_demand_h_w_loss[h] / net_demand_w_loss + der_excess_cost_h[h] for h in model_data.index_h
+    energy_cost_allocation_h = AxisArray(
+        [energy_cost * net_demand_h_w_loss[h] / net_demand_w_loss + der_excess_cost_h[h] for h in model_data.index_h],
+        model_data.index_h.elements
     )
     energy_cost_allocation_eximport =
         energy_cost * sum(
@@ -568,12 +576,12 @@ function solve_agent_problem!(
             t in model_data.index_t
         ) / net_demand_w_loss
 
-    demand_cost_allocation_h = Dict(
-        h =>
-            (revenue_requirement - energy_cost + regulator.othercost) * net_peak_load_h[h] / (
+    demand_cost_allocation_h = AxisArray(
+            [(revenue_requirement - energy_cost + regulator.othercost) * net_peak_load_h[h] / (
                 sum(net_peak_load_h[h] for h in model_data.index_h) +
                 utility.Peak_eximport_my[reg_year_index]
-            ) for h in model_data.index_h
+             ) for h in model_data.index_h],
+            model_data.index_h.elements
     )
     demand_cost_allocation_eximport =
         (revenue_requirement - energy_cost + regulator.othercost) *
@@ -582,108 +590,79 @@ function solve_agent_problem!(
             utility.Peak_eximport_my[reg_year_index]
         )
 
-    energy_cost_allocation_h_t = Dict(
-        (h, t) =>
+    energy_cost_allocation_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    for h in model_data.index_h, t in model_data.index_t
+        energy_cost_allocation_h_t[h, t] =
             energy_cost_t[t] * net_demand_h_t_w_loss[h, t] / net_demand_t_w_loss[t] +
-            der_excess_cost_h_t[h, t] for h in model_data.index_h,
-        t in model_data.index_t
-    )
-    energy_cost_allocation_eximport_t = Dict(
-        t =>
-            energy_cost_t[t] * utility.eximport_my[reg_year_index, t] /
-            net_demand_t_w_loss[t] for t in model_data.index_t
+            der_excess_cost_h_t[h, t]
+    end
+    energy_cost_allocation_eximport_t = AxisArray(
+            [energy_cost_t[t] * utility.eximport_my[reg_year_index, t] /
+             net_demand_t_w_loss[t] for t in model_data.index_t],
+            model_data.index_t.elements
     )
 
     # compute the retail price
-    p_before = ParamArray(regulator.p, "p_before")
-    p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
-    empty!(p_before)
-    merge!(
-        p_before,
-        Dict(
-            (h, t) => regulator.p_my[reg_year_index, h, t] for h in model_data.index_h,
-            t in model_data.index_t
-        ),
-    )
-    empty!(p_ex_before)
-    merge!(
-        p_ex_before,
-        Dict(
-            (h, t) => regulator.p_ex_my[reg_year_index, h, t] for h in model_data.index_h,
-            t in model_data.index_t
-        ),
-    )
+    p_before = ParamAxisArray(regulator.p, "p_before")
+    fill!(p_before, NaN)  # TODO DT: debug only
+    for h in model_data.index_h, t in model_data.index_t
+        p_before[h, t] = regulator.p_my[reg_year_index, h, t]
+    end
+
+    p_ex_before = ParamAxisArray(regulator.p_ex, "p_ex_before")
+    fill!(p_ex_before, NaN)
+    for h in model_data.index_h, t in model_data.index_t
+        p_ex_before[h, t] = regulator.p_ex_my[reg_year_index, h, t]
+    end
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
-        empty!(regulator.p)
-        merge!(
-            regulator.p,
-            Dict(
-                (h, t) =>
+        fill!(regulator.p, NaN)
+        for h in model_data.index_h, t in model_data.index_t
+            regulator.p[h, t] =
                     (energy_cost_allocation_h[h] + demand_cost_allocation_h[h]) /
-                    net_demand_h_wo_loss[h] for h in model_data.index_h,
-                t in model_data.index_t
-            ),
-        )
-        empty!(regulator.p_eximport)
-        merge!(
-            regulator.p_eximport,
-            Dict(
-                t =>
+                    net_demand_h_wo_loss[h]
+        end
+        fill!(regulator.p_eximport, NaN)
+        for t in model_data.index_t
+            regulator.p_eximport[t] = 
                     (energy_cost_allocation_eximport + demand_cost_allocation_eximport) /
                     sum(
                         model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
                         t in model_data.index_t
-                    ) for t in model_data.index_t
-            ),
-        )
+                    )
+            
+        end
     elseif regulator_opts.rate_design isa TOU
-        empty!(regulator.p)
-        merge!(
-            regulator.p,
-            Dict(
-                (h, t) =>
+        fill!(regulator.p, NaN)
+        for h in model_data.index_h, t in model_data.index_t
+            regulator.p[h, t] = 
                     energy_cost_allocation_h_t[h, t] / net_demand_h_t_wo_loss[h, t] +
-                    demand_cost_allocation_h[h] / net_demand_h_wo_loss[h] for
-                h in model_data.index_h, t in model_data.index_t
-            ),
-        ),
-        empty!(regulator.p_eximport)
-        merge!(
-            regulator.p_eximport,
-            Dict(
-                t =>
+                    demand_cost_allocation_h[h] / net_demand_h_wo_loss[h]
+        end
+        fill!(regulator.p_eximport, NaN)
+        for t in model_data.index_t
+            regulator.p_eximport[t] = 
                     energy_cost_allocation_eximport_t[t] /
                     utility.eximport_my[reg_year_index, t] +
                     demand_cost_allocation_eximport / sum(
                         model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
                         t in model_data.index_t
-                    ) for t in model_data.index_t
-            ),
-        )
+                    )
+        end
     end
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
-        regulator.p_ex = ParamArray(regulator.p)
+        regulator.p_ex = ParamAxisArray(regulator.p)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-        empty!(regulator.p_ex)
-        merge!(
-            regulator.p_ex,
-            Dict(
-                (h, t) =>
-                    utility.miu_my[reg_year_index, t] /
-                    (model_data.omega[t] * utility.pvf_onm[reg_year_index]) for
-                h in model_data.index_h, t in model_data.index_t
-            ),
-        )
+        fill!(regulator.p_ex, NaN)
+        for h in model_data.index_h, t in model_data.index_t
+            regulator.p_ex[h, t] = utility.miu_my[reg_year_index, t] /
+                    (model_data.omega[t] * utility.pvf_onm[reg_year_index])
+        end
     elseif regulator_opts.net_metering_policy isa ExcessZero
-        empty!(regulator.p_ex)
-        merge!(
-            regulator.p_ex,
-            Dict((h, t) => 0.0 for h in model_data.index_h, t in model_data.index_t),
-        )
+        fill!(regulator.p_ex, 0.0)
     end
 
     for h in model_data.index_h, t in model_data.index_t
@@ -749,8 +728,8 @@ function solve_agent_problem!(
         )
     )
 
-    der_excess_cost_h = Dict(
-        h => sum(
+    der_excess_cost_h = AxisArray(
+        [sum(
             model_data.omega[t] *
             regulator.p_ex[h, t] *
             (
@@ -770,13 +749,13 @@ function solve_agent_problem!(
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 )
             ) for t in model_data.index_t, m in customers.index_m
-        ) for h in model_data.index_h
+           ) for h in model_data.index_h],
+        model_data.index_h.elements
     )
 
-    net_demand_h_w_loss = Dict(
-        h =>
+    net_demand_h_w_loss = AxisArray(
         # demand
-            sum(
+            [sum(
                 customers.gamma[h] * model_data.omega[t] * customers.d[h, t] for
                 t in model_data.index_t
             ) -
@@ -790,13 +769,13 @@ function solve_agent_problem!(
                         y in model_data.year[first(model_data.index_y_fix)]:reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
-            ) for h in model_data.index_h
+            ) for h in model_data.index_h],
+            model_data.index_h.elements
     )
 
-    net_demand_h_wo_loss = Dict(
-        h =>
+    net_demand_h_wo_loss = AxisArray(
         # demand
-            sum(
+            [sum(
                 customers.gamma[h] *
                 model_data.omega[t] *
                 customers.d[h, t] *
@@ -823,13 +802,13 @@ function solve_agent_problem!(
                         y in model_data.year[first(model_data.index_y_fix)]:reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
-            ) for h in model_data.index_h
+             ) for h in model_data.index_h],
+            model_data.index_h.elements
     )
 
-    net_demand_t_w_loss = Dict(
-        t =>
+    net_demand_t_w_loss = AxisArray(
         # demand
-            sum(customers.gamma[h] * customers.d[h, t] for h in model_data.index_h) +
+            [sum(customers.gamma[h] * customers.d[h, t] for h in model_data.index_h) +
             # export
             utility.eximport_my[reg_year_index, t] -
             # DG
@@ -839,11 +818,13 @@ function solve_agent_problem!(
                     customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 ) for h in model_data.index_h, m in customers.index_m
-            ) for t in model_data.index_t
+            ) for t in model_data.index_t],
+            model_data.index_t.elements
     )
 
-    der_excess_cost_h_t = Dict(
-        (h, t) => sum(
+    der_excess_cost_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    for h in model_data.index_h, t in model_data.index_t
+        der_excess_cost_h_t[h, t] = sum(
             regulator.p_ex[h, t] * (
                 max(
                     0,
@@ -861,11 +842,12 @@ function solve_agent_problem!(
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 )
             ) for m in customers.index_m
-        ) for h in model_data.index_h, t in model_data.index_t
-    )
+        )
+    end
 
-    net_demand_h_t_w_loss = Dict(
-        (h, t) =>
+    net_demand_h_t_w_loss = make_axis_array(model_data.index_h,  model_data.index_t)
+    for h in model_data.index_h, t in model_data.index_t
+        net_demand_h_t_w_loss[h, t] =
         # demand
             customers.gamma[h] * customers.d[h, t] -
             # DG
@@ -875,11 +857,12 @@ function solve_agent_problem!(
                     customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 ) for m in customers.index_m
-            ) for h in model_data.index_h, t in model_data.index_t
-    )
+            )
+    end
 
-    net_demand_h_t_wo_loss = Dict(
-        (h, t) =>
+    net_demand_h_t_wo_loss = make_axis_array(model_data.index_h, model_data.index_t)
+    for h in model_data.index_h, t in model_data.index_t
+        net_demand_h_t_wo_loss[h, t] =
         # demand
             customers.gamma[h] * customers.d[h, t] * (1 - utility.loss_dist) -
             # DG
@@ -897,23 +880,25 @@ function solve_agent_problem!(
                     customers.Opti_DG_my[Symbol(Int(y)), h, m] for
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 ) for m in customers.index_m
-            ) for h in model_data.index_h, t in model_data.index_t
-    )
+            )
+        end
 
     # for the purpose of calculating net peak load, use load including distribution loss
-    net_demand_for_peak_h_t = Dict(
-        (h, t) =>
+    net_demand_for_peak_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    for h in model_data.index_h, t in model_data.index_t
+        net_demand_for_peak_h_t[h, t] =
             customers.gamma[h] * customers.d[h, t] - sum(
                 customers.rho_DG[h, m, t] *
                 customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
                     customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
                     y in model_data.year[first(model_data.index_y_fix)]:reg_year
                 ) for m in customers.index_m
-            ) for h in model_data.index_h, t in model_data.index_t
-    )
+            )
+    end
 
-    net_peak_load_h = Dict(
-        h => findmax(Dict(t => net_demand_for_peak_h_t[h, t] for t in model_data.index_t))[1] for h in model_data.index_h
+    net_peak_load_h = AxisArray(
+        [findmax(Dict(t => net_demand_for_peak_h_t[h, t] for t in model_data.index_t))[1] for h in model_data.index_h],
+        model_data.index_h.elements
     )
 
     # Cost Classification/Allocation
@@ -943,9 +928,8 @@ function solve_agent_problem!(
                 )
             ) for t in model_data.index_t
         )
-    energy_purchase_cost_t = Dict(
-        t =>
-            ipp.miu_my[reg_year_index, t] / model_data.omega[t] * (
+    energy_purchase_cost_t = AxisArray(
+            [ipp.miu_my[reg_year_index, t] / model_data.omega[t] * (
                 sum(
                     ipp.y_E_my[reg_year_index, p, k, t] for k in ipp.index_k_existing,
                     p in ipp.index_p
@@ -963,7 +947,8 @@ function solve_agent_problem!(
                     ipp.y_C_my[reg_year_index, p, rps, t] for rps in ipp.index_rps,
                     p in ipp.index_p
                 )
-            ) for t in model_data.index_t
+            ) for t in model_data.index_t],
+            model_data.index_t.elements
     )
 
     capacity_purchase_cost = sum(
@@ -974,22 +959,24 @@ function solve_agent_problem!(
         ) for p in ipp.index_p
     )
 
-    energy_cost_allocation_h = Dict(
-        h =>
-            energy_purchase_cost * net_demand_h_w_loss[h] / net_demand_w_loss +
-            der_excess_cost_h[h] for h in model_data.index_h
+    energy_cost_allocation_h = AxisArray(
+            [energy_purchase_cost * net_demand_h_w_loss[h] / net_demand_w_loss +
+             der_excess_cost_h[h] for h in model_data.index_h],
+            model_data.index_h.elements
     )
     energy_cost_allocation_eximport =
         energy_purchase_cost * sum(
             model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
             t in model_data.index_t
         ) / net_demand_w_loss
-    demand_cost_allocation_h = Dict(
-        h =>
+    demand_cost_allocation_h = AxisArray(
+        [
             (regulator.othercost + capacity_purchase_cost) * net_peak_load_h[h] / (
                 sum(net_peak_load_h[h] for h in model_data.index_h) +
                 utility.Peak_eximport_my[reg_year_index]
             ) for h in model_data.index_h
+        ],
+        model_data.index_h.elements
     )
     demand_cost_allocation_eximport =
         (regulator.othercost + capacity_purchase_cost) *
@@ -997,105 +984,77 @@ function solve_agent_problem!(
             sum(net_peak_load_h[h] for h in model_data.index_h) +
             utility.Peak_eximport_my[reg_year_index]
         )
-    energy_cost_allocation_h_t = Dict(
-        (h, t) =>
-            energy_purchase_cost_t[t] * net_demand_h_t_w_loss[h, t] /
-            net_demand_t_w_loss[t] + der_excess_cost_h_t[h, t] for
-        h in model_data.index_h, t in model_data.index_t
-    )
-    energy_cost_allocation_eximport_t = Dict(
-        t =>
+        energy_cost_allocation_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+        for h in model_data.index_h, t in model_data.index_t
+            energy_cost_allocation_h_t[h, t] =
+                energy_purchase_cost_t[t] * net_demand_h_t_w_loss[h, t] /
+                net_demand_t_w_loss[t] + der_excess_cost_h_t[h, t]
+        end
+
+    energy_cost_allocation_eximport_t = AxisArray(
+        [
             energy_purchase_cost_t[t] * utility.eximport_my[reg_year_index, t] /
             net_demand_t_w_loss[t] for t in model_data.index_t
+        ],
+        model_data.index_t.elements
     )
 
-    p_before = ParamArray(regulator.p, "p_before")
-    p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
-    empty!(p_before)
-    merge!(
-        p_before,
-        Dict(
-            (h, t) => regulator.p_my[reg_year_index, h, t] for h in model_data.index_h,
-            t in model_data.index_t
-        ),
-    )
-    empty!(p_ex_before)
-    merge!(
-        p_ex_before,
-        Dict(
-            (h, t) => regulator.p_ex_my[reg_year_index, h, t] for h in model_data.index_h,
-            t in model_data.index_t
-        ),
-    )
+    p_before = ParamAxisArray(regulator.p, "p_before")
+    fill!(p_before, NaN)
+    for h in model_data.index_h, t in model_data.index_t
+        p_before[h, t] = regulator.p_my[reg_year_index, h, t]
+    end
+    p_ex_before = ParamAxisArray(regulator.p_ex, "p_ex_before")
+    fill!(p_ex_before, NaN)
+    for h in model_data.index_h, t in model_data.index_t
+        p_ex_before[h, t] = regulator.p_ex_my[reg_year_index, h, t]
+    end
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
-        empty!(regulator.p)
-        merge!(
-            regulator.p,
-            Dict(
-                (h, t) =>
+        fill!(regulator.p, NaN)
+        for h in model_data.index_h, t in model_data.index_t
+            regulator.p[h, t] = 
                     (energy_cost_allocation_h[h] + demand_cost_allocation_h[h]) /
-                    net_demand_h_wo_loss[h] for h in model_data.index_h,
-                t in model_data.index_t
-            ),
-        )
-        empty!(regulator.p_eximport)
-        merge!(
-            regulator.p_eximport,
-            Dict(
-                t =>
-                    (energy_cost_allocation_eximport + demand_cost_allocation_eximport) /
+                    net_demand_h_wo_loss[h]
+        end
+        fill!(regulator.p_eximport, NaN)
+        for t in model_data.index_t
+            regulator.p_eximport[t] = (energy_cost_allocation_eximport + demand_cost_allocation_eximport) /
                     sum(
                         model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
                         t in model_data.index_t
-                    ) for t in model_data.index_t
-            ),
-        )
+                    )
+        end
     elseif regulator_opts.rate_design isa TOU
-        empty!(regulator.p)
-        merge!(
-            regulator.p,
-            Dict(
-                (h, t) =>
+        fill!(regulator.p, NaN)
+        for h in model_data.index_h, t in model_data.index_t
+            regulator.p[h, t] = 
                     energy_cost_allocation_h_t[h, t] / net_demand_h_t_wo_loss[h, t] +
-                    demand_cost_allocation_h[h] / net_demand_h_wo_loss[h] for
-                h in model_data.index_h, t in model_data.index_t
-            ),
-        )
-        empty!(regulator.p_eximport)
-        merge!(
-            regulator.p_eximport,
-            Dict(
-                t =>
+                    demand_cost_allocation_h[h] / net_demand_h_wo_loss[h]
+        end
+        fill!(regulator.p_eximport, NaN)
+        for t in model_data.index_t
+            regulator.p_eximport[t] = 
                     energy_cost_allocation_eximport_t[t] /
                     utility.eximport_my[reg_year_index, t] +
                     demand_cost_allocation_eximport / sum(
                         model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
                         t in model_data.index_t
-                    ) for t in model_data.index_t
-            ),
-        )
+                    )
+        end
     end
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
-        regulator.p_ex = ParamArray(regulator.p)
+        regulator.p_ex = ParamAxisArray(regulator.p)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-        empty!(regulator.p_ex)
-        merge!(
-            regulator.p_ex,
-            Dict(
-                (h, t) => ipp.miu_my[reg_year_index, t] / model_data.omega[t] for
-                h in model_data.index_h, t in model_data.index_t
-            ),
-        )
+        fill!(regulator.p_ex, NaN)
+        for h in model_data.index_h, t in model_data.index_t
+            regulator.p_ex[h, t] = ipp.miu_my[reg_year_index, t] / model_data.omega[t]
+        end
     elseif regulator_opts.net_metering_policy isa ExcessZero
-        empty!(regulator.p_ex)
-        merge!(
-            regulator.p_ex,
-            Dict((h, t) => 0.0 for h in model_data.index_h, t in model_data.index_t),
-        )
+        fill!(regulator.p_ex, 0.0)
     end
 
     for h in model_data.index_h, t in model_data.index_t
