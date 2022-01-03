@@ -638,7 +638,7 @@ function solve_agent_problem!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -649,12 +649,13 @@ function solve_agent_problem!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
+    green_developer = get_agent(GreenDeveloper, agent_store)
 
     VIUDER_Utility = get_new_jump_model(hem_opts.MIP_solver)
 
@@ -802,6 +803,12 @@ function solve_agent_problem!(
                     customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
                         model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                 ) for h in model_data.index_h, m in customers.index_m
+            ) +
+            # green technology subscription at time t
+            sum(
+                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, h in model_data.index_h
             )
         end
 
@@ -869,6 +876,12 @@ function solve_agent_problem!(
                             model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) + utility.x_C_cumu[k]
                 ) for k in utility.index_k_new
+            ) +
+            # green technology subscription
+            sum(
+                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, h in model_data.index_h
             ) -
             # net_load plus planning reserve
             (1 + regulator.r) * (
@@ -910,6 +923,12 @@ function solve_agent_problem!(
                             model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) + utility.x_C_cumu[k]
                 ) for k in utility.index_k_new
+            ) +
+            # green technology subscription
+            sum(
+                utility.capacity_credit_C_my[y, j] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, h in model_data.index_h
             ) -
             # net_load plus planning reserve
             utility.Reserve_req_my[y]
@@ -975,7 +994,7 @@ end
 function save_results(
     utility::Utility,
     utility_opts::AgentOptions,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
@@ -1010,7 +1029,7 @@ function welfare_calculation!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
     agent_store::AgentStore,
 )
     regulator = get_agent(Regulator, agent_store)

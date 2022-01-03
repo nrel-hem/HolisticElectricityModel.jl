@@ -477,7 +477,7 @@ function solve_agent_problem!(
     ipps::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -2254,7 +2254,7 @@ function solve_agent_problem_ipp_cap(
     ipp_opts::IPPOptions{MIQP},
     p_star,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -2263,6 +2263,7 @@ function solve_agent_problem_ipp_cap(
 
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
+    green_developer = get_agent(GreenDeveloper, agent_store)
 
     WMDER_IPP = get_new_jump_model(hem_opts.MIP_solver)
     # set_optimizer_attribute(WMDER_IPP, "OUTPUTLOG", 0)
@@ -2438,11 +2439,23 @@ function solve_agent_problem_ipp_cap(
                         ) + ipp.x_C_cumu[p, k]
                     ) for k in ipp.index_k_new,
                     p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                ) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my[y, j] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                    for j in model_data.index_j, h in model_data.index_h
                 )
             end
     else
         UCAP_total = y -> begin
-            UCAP_p_star(y)
+            UCAP_p_star(y) +
+            # green technology subscription
+            sum(
+                ipp.capacity_credit_C_my[y, j] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, h in model_data.index_h
+            )
         end
     end
 
@@ -2499,6 +2512,12 @@ function solve_agent_problem_ipp_cap(
                                 y_symbol in
                                     model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                             ) for h in model_data.index_h, m in customers.index_m
+                        ) -
+                        # green technology subscription at time t
+                        sum(
+                            utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                            model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                            for j in model_data.index_j, h in model_data.index_h
                         )
                     ) for t in model_data.index_t
                 ) - (
@@ -2676,6 +2695,12 @@ function solve_agent_problem_ipp_cap(
                     customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
                         model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                 ) for h in model_data.index_h, m in customers.index_m
+            ) +
+            # green technology subscription at time t
+            sum(
+                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, h in model_data.index_h
             )
         end
 
@@ -2892,6 +2917,12 @@ function solve_agent_problem_ipp_cap(
                         ) + ipp.x_C_cumu[p, k]
                     ) for k in ipp.index_k_new,
                     p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                ) +
+                # green technology subscription
+                sum(
+                    utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                    for j in model_data.index_j, h in model_data.index_h
                 ) -
                 # net_load plus planning reserve
                 (1 + regulator.r) * (
@@ -2928,6 +2959,12 @@ function solve_agent_problem_ipp_cap(
                                 model_data.year[first(model_data.index_y)]:model_data.year[y]
                         ) + ipp.x_C_cumu[p_star, k]
                     ) for k in ipp.index_k_new
+                ) +
+                # green technology subscription
+                sum(
+                    utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                    for j in model_data.index_j, h in model_data.index_h
                 ) -
                 # net_load plus planning reserve
                 (1 + regulator.r) * (
@@ -2990,6 +3027,12 @@ function solve_agent_problem_ipp_cap(
                         ) + ipp.x_C_cumu[p, k]
                     ) for k in ipp.index_k_new,
                     p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                ) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my[y, j] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                    for j in model_data.index_j, h in model_data.index_h
                 ) -
                 # net_load plus planning reserve
                 ipp.Reserve_req_my[y]
@@ -3012,6 +3055,12 @@ function solve_agent_problem_ipp_cap(
                                 model_data.year[first(model_data.index_y)]:model_data.year[y]
                         ) + ipp.x_C_cumu[p_star, k]
                     ) for k in ipp.index_k_new
+                ) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my[y, j] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                    for j in model_data.index_j, h in model_data.index_h
                 ) -
                 # net_load plus planning reserve
                 ipp.Reserve_req_my[y]
@@ -3079,7 +3128,7 @@ function solve_agent_problem_ipp_cap(
     ###### running MIQP ######
     for y in model_data.index_y
         ipp.capacity_price[y] =
-            ipp.Capacity_intercept_my[y] + ipp.Capacity_slope_my[y] * UCAP_p_star[y]
+            ipp.Capacity_intercept_my[y] + ipp.Capacity_slope_my[y] * UCAP_total[y]
         ipp.ucap[y, p_star] = UCAP_p_star[y]
     end
 
@@ -3094,7 +3143,7 @@ function solve_agent_problem!(
     ipp::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -3119,7 +3168,7 @@ end
 function save_results(
     ipps::IPPGroup,
     ipp_opts::AgentOptions,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
@@ -3160,7 +3209,7 @@ function welfare_calculation!(
     ipp::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
     agent_store::AgentStore,
 )
     regulator = get_agent(Regulator, agent_store)
