@@ -71,6 +71,7 @@ import InfrastructureSystems
 import Distributions
 import CSV
 import QuadGK
+import Ipopt
 
 const IS = InfrastructureSystems
 
