@@ -11,7 +11,7 @@ NLP_solver = Ipopt_Solver(Ipopt)
 
 # using Gurobi
 # const GRB_ENV = Gurobi.Env()
-# MIP_solver = GurobiSolver(Gurobi, GRB_ENV)
+# MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
 # ------------------------------------------------------------------------------
 
 # Define the model run ---------------------------------------------------------
