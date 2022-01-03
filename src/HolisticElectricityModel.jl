@@ -8,7 +8,7 @@ module HolisticElectricityModel
 # Meta
 export HEMSolver
 export XpressSolver
-export GurobiSolver
+export Gurobi_Solver
 export Ipopt_Solver
 export HEMData
 export HEMOptions

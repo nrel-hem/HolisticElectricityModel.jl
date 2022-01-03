@@ -3126,6 +3126,65 @@ function solve_agent_problem_ipp_cap(
     # total_profit = Dict(y => capacity_profit[y] + objective_value(WMDER_IPP) for y in model_data.index_y)
 
     ###### running MIQP ######
+    UCAP_p_star = Dict(
+        y =>
+            sum(
+                ipp.capacity_credit_E_my[y, k] * (
+                    ipp.x_E_my[p_star, k] - sum(
+                        ipp.x_R_my[Symbol(Int(y_symbol)), p_star, k] for y_symbol in
+                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                    ) - ipp.x_R_cumu[p_star, k]
+                ) for k in ipp.index_k_existing
+            ) + sum(
+                ipp.capacity_credit_C_my[y, k] * (
+                    sum(
+                        ipp.x_C_my[Symbol(Int(y_symbol)), p_star, k] for y_symbol in
+                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                    ) + ipp.x_C_cumu[p_star, k]
+                ) for k in ipp.index_k_new
+            ) for y in model_data.index_y
+    )
+
+    if length(ipp.index_p) >= 2
+        UCAP_total = Dict(
+            y =>
+                UCAP_p_star[y] +
+                sum(
+                    ipp.capacity_credit_E_my[y, k] * (
+                        ipp.x_E_my[p, k] - sum(
+                            ipp.x_R_my[Symbol(Int(y_symbol)), p, k] for y_symbol in
+                                model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        ) - ipp.x_R_cumu[p, k]
+                    ) for k in ipp.index_k_existing,
+                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                ) +
+                sum(
+                    ipp.capacity_credit_C_my[y, k] * (
+                        sum(
+                            ipp.x_C_my[Symbol(Int(y_symbol)), p, k] for y_symbol in
+                                model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        ) + ipp.x_C_cumu[p, k]
+                    ) for k in ipp.index_k_new,
+                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                ) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my[y, j] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                    for j in model_data.index_j, h in model_data.index_h
+                )
+                for y in model_data.index_y
+        )
+    else
+        UCAP_total = Dict(y => UCAP_p_star[y] +
+        # green technology subscription
+        sum(
+            ipp.capacity_credit_C_my[y, j] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+            model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+            for j in model_data.index_j, h in model_data.index_h
+        ) for y in model_data.index_y)
+    end
+
     for y in model_data.index_y
         ipp.capacity_price[y] =
             ipp.Capacity_intercept_my[y] + ipp.Capacity_slope_my[y] * UCAP_total[y]
@@ -3135,8 +3194,7 @@ function solve_agent_problem_ipp_cap(
     return compute_difference_one_norm([
         (x_R_before, ipp.x_R_my),
         (x_C_before, ipp.x_C_my),
-    ]),
-    total_profit
+    ])
 end
 
 function solve_agent_problem!(
