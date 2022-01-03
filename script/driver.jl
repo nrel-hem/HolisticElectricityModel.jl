@@ -4,14 +4,14 @@ using HolisticElectricityModel
 # This is the driver script
 
 # Define the solver ------------------------------------------------------------
-using Xpress
-MIP_solver = XpressSolver(Xpress)
+# using Xpress
+# MIP_solver = XpressSolver(Xpress)
 using Ipopt
 NLP_solver = Ipopt_Solver(Ipopt)
 
-# using Gurobi
-# const GRB_ENV = Gurobi.Env()
-# MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
+using Gurobi
+const GRB_ENV = Gurobi.Env()
+MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
 # ------------------------------------------------------------------------------
 
 # Define the model run ---------------------------------------------------------
