@@ -33,8 +33,8 @@ logger = configure_logging(
 hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
     NLP_solver,
-    VerticallyIntegratedUtility(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
-    DERSupplyChoiceUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
+    WholesaleMarket(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
+    SupplyChoiceUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
 )
 
 regulator_opts = RegulatorOptions(

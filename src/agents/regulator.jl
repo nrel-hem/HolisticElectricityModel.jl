@@ -871,6 +871,7 @@ function solve_agent_problem!(
     customers = get_agent(CustomerGroup, agent_store)
     ipp = get_agent(IPPGroup, agent_store)
     utility = get_agent(Utility, agent_store)
+    green_developer = get_agent(GreenDeveloper, agent_store)
 
     # the year regulator is making a rate case
     reg_year = model_data.year[first(model_data.index_y)]
