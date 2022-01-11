@@ -29,7 +29,7 @@ get_description(data::AbstractData) = data.description
 
 abstract type AbstractDimension <: AbstractData end
 
-const DimensionKey{N} = NTuple{N,Symbol}
+const DimensionKey{N} = NTuple{N, Symbol}
 
 """
 Behaves like a Vector of Symbols with additional metadata fields.
@@ -74,7 +74,7 @@ abstract type HEMParameter <: AbstractData end
 """
 Behaves like a number with additional metadata fields.
 """
-mutable struct ParamScalar{T<:Number} <: HEMParameter
+mutable struct ParamScalar{T <: Number} <: HEMParameter
     name::String
     prose_name::String
     description::String
@@ -119,7 +119,7 @@ mutable struct ParamAxisArray{N} <: HEMParameter
     name::String
     prose_name::String
     description::String
-    dims::NTuple{N,Dimension}
+    dims::NTuple{N, Dimension}
     values::AxisArray
 end
 
@@ -142,7 +142,7 @@ end
 
 function ParamAxisArray(
     name::AbstractString,
-    dims::NTuple{N,Dimension},
+    dims::NTuple{N, Dimension},
     vals::AxisArray;
     prose_name = "",
     description = "",

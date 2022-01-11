@@ -136,18 +136,17 @@ function read_axis_array(file::CSV.File, num_dims)
     end
 
     index_names = Vector{Vector{Symbol}}(undef, num_dims)
-    for i in 1:num_dims - 1
+    for i in 1:(num_dims - 1)
         index_names[i] = Symbol.(unique(file.columns[i]))
     end
     index_names[num_dims] = Symbol.(file.names[num_dims:end])
 
-    data = AxisArray(
-        Array{Float64,num_dims}(undef, length.(index_names)...),
-        index_names...
-    )
-    for i = 1:(file.rows)
-        indices = [Symbol(file.columns[j][i]) for j in 1:num_dims - 1]
-        data[indices...] = [file.columns[x+num_dims-1][i] for x in 1:length(index_names[end])]
+    data =
+        AxisArray(Array{Float64, num_dims}(undef, length.(index_names)...), index_names...)
+    for i in 1:(file.rows)
+        indices = [Symbol(file.columns[j][i]) for j in 1:(num_dims - 1)]
+        data[indices...] =
+            [file.columns[x + num_dims - 1][i] for x in 1:length(index_names[end])]
     end
 
     return data
@@ -270,7 +269,7 @@ close(logger)
 function configure_logging(;
     console_level = Logging.Error,
     file_level = Logging.Info,
-    filename::Union{Nothing,AbstractString} = "hem.log",
+    filename::Union{Nothing, AbstractString} = "hem.log",
 )
     return IS.configure_logging(
         console = true,
@@ -323,7 +322,7 @@ function initialize_param(
         name,
         indices,
         AxisArray(
-            fill!(Array{Float64,num_dims}(undef, (length(x) for x in indices)...), value),
+            fill!(Array{Float64, num_dims}(undef, (length(x) for x in indices)...), value),
             (x.elements for x in indices)...,
         ),
         prose_name = prose_name,
