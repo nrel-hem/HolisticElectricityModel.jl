@@ -157,36 +157,14 @@ Base.fill!,
 Base.length,
 AxisArrays.axes
 
-# TODO PERF: turn off fill_nan when we are confident in code.
-function make_axis_array(index::Dimension, fill_nan = true)
-    array = AxisArray(Vector{Float64}(undef, length(index), index.elements))
-    fill_nan && fill!(array.data, NaN)
-    return array
-end
-
-# TODO PERF: turn off fill_nan when we are confident in code.
-function make_axis_array(index1::Dimension, index2::Dimension, fill_nan = true)
+# TODO PERF: turn off fill_nan when we are confident in the code.
+"""
+Return an uninitialized AxisArray from any number of Dimension values.
+"""
+function make_axis_array(indices...; fill_nan = true)
     array = AxisArray(
-        Matrix{Float64}(undef, length(index1), length(index2)),
-        index1.elements,
-        index2.elements,
-    )
-    fill_nan && fill!(array.data, NaN)
-    return array
-end
-
-# TODO PERF: turn off fill_nan when we are confident in code.
-function make_axis_array(
-    index1::Dimension,
-    index2::Dimension,
-    index3::Dimension,
-    fill_nan = true,
-)
-    array = AxisArray(
-        Array{Float64,3}(undef, length(index1), length(index2), length(index3)),
-        index1.elements,
-        index2.elements,
-        index3.elements,
+        Array{Float64, length(indices)}(undef, length.(indices)...),
+        [getproperty(x, :elements) for x in indices]...,
     )
     fill_nan && fill!(array.data, NaN)
     return array

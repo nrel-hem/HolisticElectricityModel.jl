@@ -87,6 +87,7 @@ function read_param(
 
     for (i, ax) in enumerate(ar_axes)
         elements = dims[i].elements
+        # compare the sets TODO DT
         if ax.val != elements
             throw(
                 ArgumentError(
@@ -95,12 +96,29 @@ function read_param(
             )
         end
     end
+    # TODO DT: make negative test to verify that conflicting inputs are rejected.
     result =
         ParamAxisArray(name, dims, vals, prose_name = prose_name, description = description)
     @debug "Loaded $sheetname" result
     return result
 end
 
+"""
+Return an AxisArray from an N-dimensional array flattened in a CSV file.
+
+If there is one dimension then the file must have a single row with dimension names.
+If there is more than one dimension then it must conform to the following format:
+
+The first N - 1 dimension variable names are listed in the first N - 1 header positions.
+These are for labeling purposes only and are ignored.
+Dimension N names are pivoted into the rest of the header.
+The first N - 1 dimension names are listed in the first N - 1 columns.
+The rest of the table contains values.
+3-dimension example:
+d1_variable_name,d2_variable_name,d3_name1,d3_name2,d3_name3
+d1_name1,d2_name1,1.0,1.0,1.0
+d1_name2,d2_name2,1.0,1.0,1.0
+"""
 function read_axis_array(filename::AbstractString, num_dims::Int)
     @debug "read_axis_array" filename num_dims
     file = open(filename) do io
@@ -108,104 +126,36 @@ function read_axis_array(filename::AbstractString, num_dims::Int)
     end
 
     isempty(file) && error("$filename is empty")
-    return _read_nd_axis_array(file, num_dims)
+    return read_axis_array(file, num_dims)
 end
 
-function _read_1d_axis_array(file::CSV.File)
-    data = [getproperty(file, x)[1] for x in file.names]
-    return AxisArray(data, file.names)
-end
-
-function _read_2d_axis_array(file::CSV.File)
-    num_rows = length(file)
-    num_columns = length(file.columns) - 1
-    row_names = Symbol.(file.columns[1])
-    column_names = file.names[2:end]
-
-    # TODO DT: There is no place to store this. Do we need it?
-    row_variable_name = file.names[1]
-
-    data = Array{Float64,2}(undef, num_rows, num_columns)
-    for (i, column) in enumerate(file.columns[2:end])
-        data[1:end, i] = column
+function read_axis_array(file::CSV.File, num_dims)
+    if num_dims == 1
+        data = [getproperty(file, x)[1] for x in file.names]
+        return AxisArray(data, file.names)
     end
 
-    return AxisArray(data, row_names, column_names)
-end
-
-function _read_3d_axis_array(file::CSV.File)
-    i_names = Symbol.(unique(file.columns[1]))
-    j_names = Symbol.(unique(file.columns[2]))
-    k_names = Symbol.(file.names[3:end])
-
-    num_i = length(i_names)
-    num_j = length(j_names)
-    num_k = length(file.columns) - 2
-
-    data =
-        AxisArray(Array{Float64,3}(undef, num_i, num_j, num_k), i_names, j_names, k_names)
-    for i = 1:(file.rows)
-        i_val = Symbol(file.columns[1][i])
-        j_val = Symbol(file.columns[2][i])
-        k_vals = [file.columns[x+2][i] for x = 1:num_k]
-        data[i_val, j_val] = k_vals
+    index_names = Vector{Vector{Symbol}}(undef, num_dims)
+    for i in 1:num_dims - 1
+        index_names[i] = Symbol.(unique(file.columns[i]))
     end
-
-    # TODO DT: There is no place to store this. Do we need it?
-    #row_variable_name = file.names[1]
-
-    return data
-end
-
-function _read_4d_axis_array(file::CSV.File)
-    i_names = Symbol.(unique(file.columns[1]))
-    j_names = Symbol.(unique(file.columns[2]))
-    k_names = Symbol.(unique(file.columns[3]))
-    m_names = Symbol.(file.names[4:end])
-
-    num_i = length(i_names)
-    num_j = length(j_names)
-    num_k = length(k_names)
-    num_m = length(file.columns) - 3
+    index_names[num_dims] = Symbol.(file.names[num_dims:end])
 
     data = AxisArray(
-        Array{Float64,4}(undef, num_i, num_j, num_k, num_m),
-        i_names,
-        j_names,
-        k_names,
-        m_names,
+        Array{Float64,num_dims}(undef, length.(index_names)...),
+        index_names...
     )
     for i = 1:(file.rows)
-        i_val = Symbol(file.columns[1][i])
-        j_val = Symbol(file.columns[2][i])
-        k_val = Symbol(file.columns[3][i])
-        m_vals = [file.columns[x+3][i] for x = 1:num_m]
-        data[i_val, j_val, k_val] = m_vals
+        indices = [Symbol(file.columns[j][i]) for j in 1:num_dims - 1]
+        data[indices...] = [file.columns[x+num_dims-1][i] for x in 1:length(index_names[end])]
     end
-
-    # TODO DT: There is no place to store this. Do we need it?
-    #row_variable_name = file.names[1]
 
     return data
-end
-
-function _read_nd_axis_array(file::CSV.File, num_dims::Int)
-    if num_dims == 1
-        return _read_1d_axis_array(file)
-    elseif num_dims == 2
-        return _read_2d_axis_array(file)
-    elseif num_dims == 3
-        return _read_3d_axis_array(file)
-    elseif num_dims == 4
-        return _read_4d_axis_array(file)
-    else
-        error("read_axis_array does not support $num_dims dimensions")
-    end
 end
 
 function read_record_file(::Type{DataFrame}, filename, sheetname)
-    # TODO DT
-    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs", "workbooks")
+    # TODO: Remove when all .xlsx files have been converted.
+    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
     workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
     record_file = joinpath(workbook_dir, sheetname * ".csv")
     if !isfile(record_file)
@@ -219,7 +169,7 @@ function read_record_file(::Type{DataFrame}, filename, sheetname)
 end
 
 function read_record_file(::Type{AxisArray}, filename, sheetname, num_dims)
-    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs", "workbooks")
+    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
     workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
     record_file = joinpath(workbook_dir, sheetname * ".csv")
     if !isfile(record_file)
