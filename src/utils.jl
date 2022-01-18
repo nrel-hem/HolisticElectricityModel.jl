@@ -109,12 +109,15 @@ Return an AxisArray from an N-dimensional array flattened in a CSV file.
 If there is one dimension then the file must have a single row with dimension names.
 If there is more than one dimension then it must conform to the following format:
 
-The first N - 1 dimension variable names are listed in the first N - 1 header positions.
-These are for labeling purposes only and are ignored.
-Dimension N names are pivoted into the rest of the header.
-The first N - 1 dimension names are listed in the first N - 1 columns.
-The rest of the table contains values.
+The header row consists of dimension names for the first N-1 dimensions followed by the last
+dimension's element ids pivoted out to form data column headers.
+
+The data rows contain dimension element ids in the first N-1 columns followed by parameter
+values in the remaining columns. Each value maps to the dimension element ids listed in the
+row's first N-1 columns plus the dimension element id found in that value's column.
+
 3-dimension example:
+
 d1_variable_name,d2_variable_name,d3_name1,d3_name2,d3_name3
 d1_name1,d2_name1,1.0,1.0,1.0
 d1_name2,d2_name2,1.0,1.0,1.0

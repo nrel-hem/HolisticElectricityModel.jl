@@ -115,6 +115,12 @@ end
 
 update!(param::ParamScalar, value) = param.value = value
 
+# There is debate in the Julia community on which package to use for arrays with named
+# dimensions. Refer to https://github.com/JuliaCollections/AxisArraysFuture/issues/1.
+# That thread discusses how AxisArrays.jl may be supplanted by a new package that combines
+# AxisKeys.jl and NamedDims.jl. AxisKeys.jl is almost a drop-in replacement for AxisArrays.
+# Indexing works like A(:a, :b) instead of A[:a, :b].
+
 mutable struct ParamAxisArray{N} <: HEMParameter
     name::String
     prose_name::String
