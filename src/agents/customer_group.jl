@@ -98,6 +98,7 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     x_DG_new_my::ParamArray    # Annual new DER build (not cumulative)
     x_green_sub::ParamVector
     x_green_sub_my::ParamArray
+    x_green_sub_incremental_my::ParamArray
 
     # Auxiliary Variables
     Payback::ParamArray
@@ -120,6 +121,10 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
 
     RetailCompetition::ParamVector
     WTP_green_power::ParamVector
+
+    ConGreenPowerNetSurplus_pre_proportion_my::ParamArray
+    ConGreenPowerNetSurplus_post_proportion_my::ParamArray
+    ConGreenPowerNetSurplus_cumu_my::ParamArray
 end
 
 function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
@@ -320,6 +325,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("x_DG_new_my", model_data.index_y, model_data.index_h, index_m),
         initialize_param("x_green_sub", model_data.index_h, value = 10.0),
         initialize_param("x_green_sub_my", model_data.index_y, model_data.index_h, value = 100.0),
+        initialize_param("x_green_sub_incremental_my", model_data.index_y, model_data.index_h, value = 0.0),
         initialize_param("Payback", model_data.index_h, index_m),
         initialize_param("MarketShare", model_data.index_h, index_m),
         initialize_param("MaxDG", model_data.index_h, index_m),
@@ -352,6 +358,21 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("MaxDG_my", model_data.index_y, model_data.index_h, index_m),
         read_param("RetailCompetition", input_filename, "RetailCompetition", model_data.index_y),
         read_param("WTP_green_power", input_filename, "WTP", model_data.index_y),
+        initialize_param(
+            "ConGreenPowerNetSurplus_pre_proportion_my",
+            model_data.index_y,
+            model_data.index_h,
+        ),
+        initialize_param(
+            "ConGreenPowerNetSurplus_post_proportion_my",
+            model_data.index_y,
+            model_data.index_h,
+        ),
+        initialize_param(
+            "ConGreenPowerNetSurplus_cumu_my",
+            model_data.index_y,
+            model_data.index_h,
+        ),
     )
 end
 
@@ -556,8 +577,10 @@ function solve_agent_problem!(
     for h in model_data.index_h
         if reg_year > model_data.year[first(model_data.index_y_fix)]
             customers.x_green_sub_my[reg_year_index, h] = max(GreenSubMWh[h], customers.x_green_sub_my[Symbol(Int(reg_year-1)), h])
+            customers.x_green_sub_incremental_my[reg_year_index, h] = customers.x_green_sub_my[reg_year_index, h] - customers.x_green_sub_my[Symbol(Int(reg_year-1)), h]
         else
             customers.x_green_sub_my[reg_year_index, h] = GreenSubMWh[h]
+            customers.x_green_sub_incremental_my[reg_year_index, h] = GreenSubMWh[h]
         end
     end
 
@@ -731,6 +754,7 @@ function solve_agent_problem!(
 
     GreenSubPerc[:Residential] = 0.0
 
+    # shall we use net load here?
     GreenSubMWh = Dict(
         h => sum(GreenSubPerc[h] * customers.d[h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
         for h in model_data.index_h
@@ -742,8 +766,10 @@ function solve_agent_problem!(
     for h in model_data.index_h
         if reg_year > model_data.year[first(model_data.index_y_fix)]
             customers.x_green_sub_my[reg_year_index, h] = max(GreenSubMWh[h], customers.x_green_sub_my[Symbol(Int(reg_year-1)), h])
+            customers.x_green_sub_incremental_my[reg_year_index, h] = customers.x_green_sub_my[reg_year_index, h] - customers.x_green_sub_my[Symbol(Int(reg_year-1)), h]
         else
             customers.x_green_sub_my[reg_year_index, h] = GreenSubMWh[h]
+            customers.x_green_sub_incremental_my[reg_year_index, h] = GreenSubMWh[h]
         end
     end
 
@@ -818,7 +844,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions,
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -934,7 +960,7 @@ function welfare_calculation!(
         ) for y in model_data.index_y_fix, h in model_data.index_h,
         m in customers.index_m
     )
-    # Calculate out-of-pocket energy costs associated with new and existing DER (including previously installed new DER) for a certain year (assume Opti_DG_my is the same across years)         
+    # Calculate out-of-pocket energy costs associated with new DER (including previously installed new DER) for a certain year   
     EnergyCost = Dict(
         (y, h, m) => sum(
             model_data.omega[t] *
@@ -1017,4 +1043,449 @@ function welfare_calculation!(
     AverageBill_PerCustomer_my
 end
 
+
+
+
+
 # TODO: welfare for consumer's green tech subscription
+function welfare_calculation!(
+    customers::CustomerGroup,
+    customers_opts::AgentOptions,
+    model_data::HEMData,
+    hem_opts::HEMOptions{<:MarketStructure, SupplyChoiceUseCase},
+    agent_store::AgentStore,
+)
+    adopt_model = customers.pv_adoption_model
+    green_sub_model = customers.green_sub_model
+
+    regulator = get_agent(Regulator, agent_store)
+    utility = get_agent(Utility, agent_store)
+    green_developer = get_agent(GreenDeveloper, agent_store)
+
+    """
+    Net Consumer Surplus Calculation:
+
+    + Annualized Net Consumer Surplus of Green Power Subscription
+
+    - Cost of Energy Purchase of all other customers
+
+    - T&D cost shared by Green Power Subscriber
+
+    """
+
+    # note: may need to consider distribution loss
+    max_sub = Dict(
+        (y, h) => sum(customers.d_my[y, h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    price_at_max_sub = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+
+    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, SupplyChoiceUseCase}
+        WholesaleMarketPerc = 0.000001
+    else
+        WholesaleMarketPerc = 1.0
+    end
+
+    GreenSubConstant = Dict(
+        (y, h) => 
+            green_sub_model.Constant[h] + 
+            green_sub_model.EnergyRate_coefficient[h] * log(regulator.p_my_regression[y, h]) + 
+            green_sub_model.WholesaleMarket_coefficient[h] * log(WholesaleMarketPerc) + 
+            green_sub_model.RetailCompetition_coefficient[h] * log(customers.RetailCompetition[y]) + 
+            green_sub_model.RPS_coefficient[h] * log(utility.RPS[y]) + 
+            green_sub_model.WTP_coefficient[h] * log(customers.WTP_green_power[y])
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    gross_surplus_rectangle = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    gross_surplus_integral = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    gross_surplus_sum = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    net_surplus = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+
+    ######## Calculate annual incremental consumer surplus associated with green power subscription. This value needs to be accumulated for all previous years.
+    for y in model_data.index_y_fix, h in model_data.index_h
+        if customers.x_green_sub_incremental_my[y, h] > 0.0
+            # price_at_max_sub[y, h] = 
+            #     exp(-GreenSubConstant[y, h]/green_sub_model.GreenPowerPrice_coefficient[h])
+            # gross_surplus_rectangle[y, h] = price_at_max_sub[y, h] * max_sub[y, h]
+            # check to see if price_at_max_sub[y, h] is less than green_developer.ppa_my[y, h]
+            gross_surplus_integral[y, h] = QuadGK.quadgk(
+                x ->
+                    exp(GreenSubConstant[y, h] + log(max_sub[y, h]) + 
+                    green_sub_model.GreenPowerPrice_coefficient[h] * log(x)),
+                green_developer.ppa_my[y, h],
+                100 * green_developer.ppa_my[y, h],
+                rtol = 1e-8,
+            )[1]
+            net_surplus[y, h] = gross_surplus_integral[y, h]
+            customers.ConGreenPowerNetSurplus_pre_proportion_my[y, h] = net_surplus[y, h]
+            customers.ConGreenPowerNetSurplus_post_proportion_my[y, h] = 
+                net_surplus[y, h] * customers.x_green_sub_incremental_my[y, h] / customers.x_green_sub_my[y, h]
+        else
+            customers.ConGreenPowerNetSurplus_pre_proportion_my[y, h] = 0.0
+            customers.ConGreenPowerNetSurplus_post_proportion_my[y, h] = 0.0
+        end
+    end
+
+    # calculate actual annual consumer surplus associated with green power subscription by accumulating the net CS from previous years
+    for y in model_data.index_y_fix, h in model_data.index_h
+        customers.ConGreenPowerNetSurplus_cumu_my[y, h] = 
+            sum(customers.ConGreenPowerNetSurplus_post_proportion_my[Symbol(Int(y_star)), h] for 
+            y_star in model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+    end
+
+    # Calculate energy costs of all other customers, as well as green subscribers' share of T&D cost       
+    EnergyCost = Dict(
+        (y, h) => sum(
+            model_data.omega[t] *
+            regulator.p_my[y, h, t] *
+            (
+                customers.gamma[h] * customers.d_my[y, h, t] * (1 - utility.loss_dist) -
+                # green power subscribers are not paying the retail rates
+                sum(
+                    utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                    for j in model_data.index_j
+                )
+            ) for t in model_data.index_t
+        ) for y in model_data.index_y_fix, h in model_data.index_h
+    )
+
+    # Calculate energy costs related to export
+    EnergyCost_eximport = Dict(
+        y => sum(
+            model_data.omega[t] * regulator.p_eximport_my[y, t] * utility.eximport_my[y, t] for t in model_data.index_t
+        ) for y in model_data.index_y_fix
+    )
+
+    # Calculate green power subscribers' T&D cost
+    Green_sub_TD_charge = Dict(
+        (y, h) => 
+            regulator.p_my_td[y, h] * 
+            sum(
+                model_data.omega[t] *utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, t in model_data.index_t
+            )
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+
+    # Finally, calculate Net Consumer Surplus
+    ConNetSurplus = Dict(
+        (y, h) =>
+            customers.ConGreenPowerNetSurplus_cumu_my[y, h] - EnergyCost[y, h] - Green_sub_TD_charge[y, h] for
+            y in model_data.index_y_fix, h in model_data.index_h
+    )
+    # Sum of Net Consumer Surplus across customer tpye and DER technology
+    TotalConNetSurplus = Dict(
+        y =>
+            sum(
+                ConNetSurplus[y, h] for h in model_data.index_h
+            ) - EnergyCost_eximport[y] for y in model_data.index_y_fix
+    )
+
+    # ConPVNetSurplus_PerCustomer_my = Dict(
+    #     (y, h, m) =>
+    #         customers.ConPVNetSurplus_my[y, h, m] /
+    #         (customers.x_DG_new_my[y, h, m] / customers.Opti_DG_my[y, h, m]) for
+    #     y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
+    # )
+    # AnnualBill_PerCustomer_my = Dict(
+    #     (y, h) => sum(
+    #         model_data.omega[t] *
+    #         regulator.p_my[y, h, t] *
+    #         customers.d_my[y, h, t] *
+    #         (1 - utility.loss_dist) for t in model_data.index_t
+    #     ) for y in model_data.index_y_fix, h in model_data.index_h
+    # )
+    # AverageBill_PerCustomer_my = Dict(
+    #     (y, h) =>
+    #         AnnualBill_PerCustomer_my[y, h] / sum(
+    #             model_data.omega[t] * customers.d_my[y, h, t] * (1 - utility.loss_dist)
+    #             for t in model_data.index_t
+    #         ) for y in model_data.index_y_fix, h in model_data.index_h
+    # )
+
+    return customers.ConGreenPowerNetSurplus_cumu_my,
+    EnergyCost,
+    ConNetSurplus,
+    TotalConNetSurplus
+    # ConPVNetSurplus_PerCustomer_my,
+    # AnnualBill_PerCustomer_my,
+    # AverageBill_PerCustomer_my
+end
+
+
+function welfare_calculation!(
+    customers::CustomerGroup,
+    customers_opts::AgentOptions,
+    model_data::HEMData,
+    hem_opts::HEMOptions{<:MarketStructure, DERSupplyChoiceUseCase},
+    agent_store::AgentStore,
+)
+    adopt_model = customers.pv_adoption_model
+    green_sub_model = customers.green_sub_model
+
+    regulator = get_agent(Regulator, agent_store)
+    utility = get_agent(Utility, agent_store)
+    green_developer = get_agent(GreenDeveloper, agent_store)
+
+    """
+    Net Consumer Surplus Calculation:
+
+    + Annualized Net Consumer Surplus of New DER installation (including Energy Savings and DER Excess Credits associated with New DERs)
+
+    + Annualized Net Consumer Surplus of Existing PV installation (including Energy Savings and DER Excess Credits associated with Existing DERs)
+    (Note: this term is assumed to be a constant carried over from previous years and not quantified)
+
+    + Gross Surplus and energy consumption
+    (Note: this term is assumed to be a constant and not quantified (demand is inelastic))
+
+    - Cost of Energy Purchase
+    (Note: this is the out-of-pocket payment for purchasing energy from the utility company, therefore, this term double-counted the energy savings already accounted for in the Annualized Net Consumer Surplus)
+
+    - Energy Savings associaed with both new and existing DERs
+    (Note: this term is to remove the double-counted energy savings from the terms above)
+
+    Also note that DER Excess Credits are not listed here because they're implictly accounted for in the Annualized Net Consumer Surplus.
+
+    """
+
+    # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
+    NetProfit = Dict(
+        (y, h, m) =>
+        # value of distributed generation (offset load)
+            sum(
+                model_data.omega[t] *
+                regulator.p_my[y, h, t] *
+                min(
+                    customers.d_my[y, h, t] * (1 - utility.loss_dist),
+                    customers.rho_DG[h, m, t] * customers.Opti_DG_my[y, h, m],
+                ) for t in model_data.index_t
+            ) +
+            # value of distributed generation (excess generation)
+            sum(
+                model_data.omega[t] *
+                regulator.p_ex_my[y, h, t] *
+                max(
+                    0,
+                    customers.rho_DG[h, m, t] * customers.Opti_DG_my[y, h, m] -
+                    customers.d_my[y, h, t] * (1 - utility.loss_dist),
+                ) for t in model_data.index_t
+            ) -
+            # cost of distributed generation 
+            customers.FOM_DG_my[y, h, m] * customers.Opti_DG_my[y, h, m] for
+        y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
+    )
+
+    ######## Note that this Consumer PV Net Surplus (ConPVNetSurplus_my) only calculates the surplus for year y's new PV installer (annualized)
+    for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
+        if NetProfit[y, h, m] >= 0.0
+            # Calculate total Net Consumer Surplus of PV installation
+            Integral = Dict(
+                (y, h, m) => QuadGK.quadgk(
+                    x ->
+                        customers.gamma[h] *
+                        customers.Opti_DG_my[y, h, m] *
+                        (
+                            1 - Distributions.cdf(
+                                Distributions.Gamma(
+                                    adopt_model.Shape[h, m],
+                                    1 / adopt_model.Rate[h, m] * NetProfit[y, h, m] /
+                                    customers.Opti_DG_my[y, h, m],
+                                ),
+                                x,
+                            )
+                        ),
+                    customers.CapEx_DG_my[y, h, m],
+                    100 * customers.CapEx_DG_my[y, h, m],
+                    rtol = 1e-8,
+                ),
+            )
+            # Calculate annualized Net Consumer Surplus of PV installation
+            if customers.MaxDG_my[y, h, m] == 0.0
+                customers.ConPVNetSurplus_my[y, h, m] = 0.0
+            else
+                customers.ConPVNetSurplus_my[y, h, m] =
+                    customers.delta * customers.x_DG_new_my[y, h, m] /
+                    customers.MaxDG_my[y, h, m] * Integral[y, h, m][1]
+            end
+        else
+            customers.ConPVNetSurplus_my[y, h, m] = 0.0
+        end
+    end
+
+    # note: may need to consider distribution loss
+    max_sub = Dict(
+        (y, h) => sum(customers.d_my[y, h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    price_at_max_sub = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+
+    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, SupplyChoiceUseCase}
+        WholesaleMarketPerc = 0.000001
+    else
+        WholesaleMarketPerc = 1.0
+    end
+
+    GreenSubConstant = Dict(
+        (y, h) => 
+            green_sub_model.Constant[h] + 
+            green_sub_model.EnergyRate_coefficient[h] * log(regulator.p_my_regression[y, h]) + 
+            green_sub_model.WholesaleMarket_coefficient[h] * log(WholesaleMarketPerc) + 
+            green_sub_model.RetailCompetition_coefficient[h] * log(customers.RetailCompetition[y]) + 
+            green_sub_model.RPS_coefficient[h] * log(utility.RPS[y]) + 
+            green_sub_model.WTP_coefficient[h] * log(customers.WTP_green_power[y])
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    gross_surplus_rectangle = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    gross_surplus_integral = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    gross_surplus_sum = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+    net_surplus = Dict(
+        (y, h) => 0.0
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+
+    ######## Calculate annual incremental consumer surplus associated with green power subscription. This value needs to be accumulated for all previous years.
+    for y in model_data.index_y_fix, h in model_data.index_h
+        if customers.x_green_sub_incremental_my[y, h] > 0.0
+            # price_at_max_sub[y, h] = 
+            #     exp(-GreenSubConstant[y, h]/green_sub_model.GreenPowerPrice_coefficient[h])
+            # gross_surplus_rectangle[y, h] = price_at_max_sub[y, h] * max_sub[y, h]
+            # check to see if price_at_max_sub[y, h] is less than green_developer.ppa_my[y, h]
+            gross_surplus_integral[y, h] = QuadGK.quadgk(
+                x ->
+                    exp(GreenSubConstant[y, h] + log(max_sub[y, h]) + 
+                    green_sub_model.GreenPowerPrice_coefficient[h] * log(x)),
+                green_developer.ppa_my[y, h],
+                100 * green_developer.ppa_my[y, h],
+                rtol = 1e-8,
+            )[1]
+            net_surplus[y, h] = gross_surplus_integral[y, h]
+            customers.ConGreenPowerNetSurplus_pre_proportion_my[y, h] = net_surplus[y, h]
+            customers.ConGreenPowerNetSurplus_post_proportion_my[y, h] = 
+                net_surplus[y, h] * customers.x_green_sub_incremental_my[y, h] / customers.x_green_sub_my[y, h]
+        else
+            customers.ConGreenPowerNetSurplus_pre_proportion_my[y, h] = 0.0
+            customers.ConGreenPowerNetSurplus_post_proportion_my[y, h] = 0.0
+        end
+    end
+
+    # calculate actual annual consumer surplus associated with green power subscription by accumulating the net CS from previous years
+    for y in model_data.index_y_fix, h in model_data.index_h
+        customers.ConGreenPowerNetSurplus_cumu_my[y, h] = 
+            sum(customers.ConGreenPowerNetSurplus_post_proportion_my[Symbol(Int(y_star)), h] for 
+            y_star in model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+    end
+
+    # Calculate energy costs of all other customers, as well as green subscribers' share of T&D cost       
+    EnergyCost = Dict(
+        (y, h) => sum(
+            model_data.omega[t] *
+            regulator.p_my[y, h, t] *
+            (
+                customers.gamma[h] * customers.d_my[y, h, t] * (1 - utility.loss_dist) -
+                # green power subscribers are not paying the retail rates
+                sum(
+                    utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                    for j in model_data.index_j
+                )
+            ) for t in model_data.index_t
+        ) for y in model_data.index_y_fix, h in model_data.index_h
+    )
+
+    # Calculate energy costs related to export
+    EnergyCost_eximport = Dict(
+        y => sum(
+            model_data.omega[t] * regulator.p_eximport_my[y, t] * utility.eximport_my[y, t] for t in model_data.index_t
+        ) for y in model_data.index_y_fix
+    )
+
+    # Calculate green power subscribers' T&D cost
+    Green_sub_TD_charge = Dict(
+        (y, h) => 
+            regulator.p_my_td[y, h] * 
+            sum(
+                model_data.omega[t] *utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, t in model_data.index_t
+            )
+        for y in model_data.index_y_fix, h in model_data.index_h
+    )
+
+    # Finally, calculate Net Consumer Surplus
+    ConNetSurplus = Dict(
+        (y, h) => sum(
+                customers.ConPVNetSurplus_my[Symbol(Int(y_star)), h, m] for y_star in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y], m in customers.index_m
+            ) +
+            customers.ConGreenPowerNetSurplus_cumu_my[y, h] - EnergyCost[y, h] - Green_sub_TD_charge[y, h] for
+            y in model_data.index_y_fix, h in model_data.index_h
+    )
+    # Sum of Net Consumer Surplus across customer tpye and DER technology
+    TotalConNetSurplus = Dict(
+        y =>
+            sum(
+                ConNetSurplus[y, h] for h in model_data.index_h
+            ) - EnergyCost_eximport[y] for y in model_data.index_y_fix
+    )
+
+    # ConPVNetSurplus_PerCustomer_my = Dict(
+    #     (y, h, m) =>
+    #         customers.ConPVNetSurplus_my[y, h, m] /
+    #         (customers.x_DG_new_my[y, h, m] / customers.Opti_DG_my[y, h, m]) for
+    #     y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
+    # )
+    # AnnualBill_PerCustomer_my = Dict(
+    #     (y, h) => sum(
+    #         model_data.omega[t] *
+    #         regulator.p_my[y, h, t] *
+    #         customers.d_my[y, h, t] *
+    #         (1 - utility.loss_dist) for t in model_data.index_t
+    #     ) for y in model_data.index_y_fix, h in model_data.index_h
+    # )
+    # AverageBill_PerCustomer_my = Dict(
+    #     (y, h) =>
+    #         AnnualBill_PerCustomer_my[y, h] / sum(
+    #             model_data.omega[t] * customers.d_my[y, h, t] * (1 - utility.loss_dist)
+    #             for t in model_data.index_t
+    #         ) for y in model_data.index_y_fix, h in model_data.index_h
+    # )
+
+    return 
+    customers.ConPVNetSurplus_my
+    customers.ConGreenPowerNetSurplus_cumu_my,
+    EnergyCost,
+    ConNetSurplus,
+    TotalConNetSurplus
+    # ConPVNetSurplus_PerCustomer_my,
+    # AnnualBill_PerCustomer_my,
+    # AverageBill_PerCustomer_my
+end

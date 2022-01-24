@@ -68,6 +68,8 @@ mutable struct Regulator <: AbstractRegulator
 
     p_regression::ParamVector
     p_my_regression::ParamArray
+    p_td::ParamVector
+    p_my_td::ParamArray
 end
 
 function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
@@ -187,7 +189,20 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             model_data.index_y,
             model_data.index_h,
             value = 10.0,
-            description = "retail price for regression (no T&D cost)",
+            description = "multi-year retail price for regression (no T&D cost)",
+        ),
+        initialize_param(
+            "p_td",
+            model_data.index_h,
+            value = 0.0,
+            description = "T&D component charge",
+        ),
+        initialize_param(
+            "p_my_td",
+            model_data.index_y,
+            model_data.index_h,
+            value = 0.0,
+            description = "multi-year T&D component charge",
         ),
     )
 end
@@ -817,6 +832,16 @@ function solve_agent_problem!(
         ),
     )
 
+    empty!(regulator.p_td)
+    merge!(
+        regulator.p_td,
+        Dict(
+            h =>
+                demand_cost_allocation_othercost_h[h] / net_demand_wo_green_tech_h_wo_loss[h]
+                for h in model_data.index_h
+        ),
+    )
+
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
         regulator.p_ex = ParamArray(regulator.p)
@@ -847,6 +872,7 @@ function solve_agent_problem!(
 
     for h in model_data.index_h
         regulator.p_my_regression[reg_year_index, h] = regulator.p_regression[h]
+        regulator.p_my_td[reg_year_index, h] = regulator.p_td[h]
     end
 
     @info "Original retail price" p_before
@@ -1374,6 +1400,16 @@ function solve_agent_problem!(
         ),
     )
 
+    empty!(regulator.p_td)
+    merge!(
+        regulator.p_td,
+        Dict(
+            h =>
+                demand_cost_allocation_othercost_h[h] / net_demand_wo_green_tech_h_wo_loss[h]
+                for h in model_data.index_h
+        ),
+    )
+
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
         regulator.p_ex = ParamArray(regulator.p)
@@ -1402,6 +1438,7 @@ function solve_agent_problem!(
 
     for h in model_data.index_h
         regulator.p_my_regression[reg_year_index, h] = regulator.p_regression[h]
+        regulator.p_my_td[reg_year_index, h] = regulator.p_td[h]
     end
 
     @info "Original retail price" p_before

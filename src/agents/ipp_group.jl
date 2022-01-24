@@ -2261,6 +2261,7 @@ function solve_agent_problem_ipp_cap(
     x_R_before = ParamArray(ipp.x_R_my)
     x_C_before = ParamArray(ipp.x_C_my)
 
+    utility = get_agent(Utility, agent_store)
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
@@ -3366,8 +3367,8 @@ function welfare_calculation!(
     RateBaseNoWC_new = Dict(
         (y, p, k) =>
             sum(
-                ipp.CapEx_my[Symbol(y), p, k] *
-                ipp.x_C_my[Symbol(y), p, k] *
+                ipp.CapEx_my[Symbol(Int(y_symbol)), p, k] *
+                ipp.x_C_my[Symbol(Int(y_symbol)), p, k] *
                 (
                     1 - utility.CumuAccoutDepre_new_my[
                         Symbol(Int(model_data.year[y] - y_symbol + 1)),

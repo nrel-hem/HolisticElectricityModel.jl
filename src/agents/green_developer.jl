@@ -97,9 +97,9 @@ function solve_agent_problem!(
         if sum(green_developer.green_tech_buildout_my[reg_year_index, j, h] for j in model_data.index_j) > 0.0
             green_developer.ppa_my[reg_year_index, h] = (sum(sum(utility.fom_C_my[reg_year_index, j] * green_developer.green_tech_buildout_my[reg_year_index, j, h] for j in model_data.index_j) / (1+green_developer.irr)^n for n in 1:20) +
             sum(utility.CapEx_my[reg_year_index, j] * green_developer.green_tech_buildout_my[reg_year_index, j, h] for j in model_data.index_j)) /
-            (sum(sum(model_data.omega[t] * utility.rho_C_my[j, t] * green_developer.green_tech_buildout_my[reg_year_index, j, h] for j in model_data.index_j, t in model_data.index_t) / ((1+green_developer.irr)^n) for n in 1:20))
+            (sum(customers.x_green_sub_incremental_my[reg_year_index, h] / ((1+green_developer.irr)^n) for n in 1:20))
         else
-            green_developer.ppa_my[reg_year_index, h] = 9999.0
+            green_developer.ppa_my[reg_year_index, h] = 0.0
         end
     end
 
@@ -145,4 +145,144 @@ function save_results(
 end
 
 # TODO: welfare for green developer
+function welfare_calculation!(
+    green_developer::GreenDeveloper,
+    green_developer_opts::AgentOptions,
+    model_data::HEMData,
+    hem_opts::HEMOptions{<:MarketStructure, <:Union{DERSupplyChoiceUseCase, SupplyChoiceUseCase}},
+    agent_store::AgentStore,
+)
+    utility = get_agent(Utility, agent_store)
+    customers = get_agent(CustomerGroup, agent_store)
 
+    green_developer_Revenue = Dict(
+        y =>
+        sum(green_developer.ppa_my[Symbol(Int(y_symbol)), h] * customers.x_green_sub_incremental_my[Symbol(Int(y_symbol)), h]
+        for y_symbol in model_data.year[first(model_data.index_y_fix)]:model_data.year[y], h in model_data.index_h)
+        for y in model_data.index_y_fix
+    )
+
+    energy_cost = Dict(
+        y => 0.0
+        for y in model_data.index_y_fix
+    )
+    fixed_om = Dict(
+        y =>
+        sum(utility.fom_C_my[Symbol(Int(y_symbol)), j] * green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h]
+        for y_symbol in model_data.year[first(model_data.index_y_fix)]:model_data.year[y], h in model_data.index_h, j in model_data.index_j)
+        for y in model_data.index_y_fix
+    )
+    operational_cost = Dict(
+        y => energy_cost[y] + fixed_om[y] for y in model_data.index_y_fix
+    )
+    working_capital = Dict(
+        y => utility.DaysofWC / 365 * operational_cost[y] for
+        y in model_data.index_y_fix
+    )
+
+    # assume the green developer's new depreciation schedule is the same as utility's
+    ADITNew = Dict(
+        (y, j) => sum(
+            utility.CapEx_my[Symbol(Int(y_symbol)), j] *
+            sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
+            (
+                utility.CumuTaxDepre_new_my[
+                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                    j,
+                ] - utility.CumuAccoutDepre_new_my[
+                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                    j,
+                ]
+            ) *
+            utility.Tax +
+            utility.ITC_new_my[Symbol(Int(y_symbol)), j] *
+            utility.CapEx_my[Symbol(Int(y_symbol)), j] *
+            sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
+            (
+                1 - utility.CumuITCAmort_new_my[
+                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                    j,
+                ]
+            ) for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+        ) for y in model_data.index_y_fix, j in model_data.index_j
+    )
+    RateBaseNoWC_new = Dict(
+        (y, j) =>
+            sum(
+                utility.CapEx_my[Symbol(Int(y_symbol)), j] *
+                sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
+                (
+                    1 - utility.CumuAccoutDepre_new_my[
+                        Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                        k,
+                    ]
+                ) for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+            ) - ADITNew[y, j] for y in model_data.index_y_fix, j in model_data.index_j
+    )
+    rate_base = Dict(
+        y =>
+            sum(RateBaseNoWC_new[y, j] for j in model_data.index_j) +
+            working_capital[y] for y in model_data.index_y_fix
+    )
+    debt_interest = Dict(
+        y => rate_base[y] * utility.DebtRatio * utility.COD for
+        y in model_data.index_y_fix
+    )
+
+    depreciation = Dict(
+        y =>
+            sum(
+                utility.CapEx_my[Symbol(Int(y_symbol)), j] *
+                sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
+                utility.AnnualAccoutDepre_new_my[
+                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                    j,
+                ] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y],
+                    j in model_data.index_j
+            ) for y in model_data.index_y_fix
+    )
+
+    depreciation_tax = Dict(
+        y =>
+            sum(
+                utility.CapEx_my[Symbol(Int(y_symbol)), j] *
+                sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
+                utility.AnnualTaxDepre_new_my[
+                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                    j,
+                ] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y],
+                    j in model_data.index_j
+            ) for y in model_data.index_y_fix
+    )
+
+    income_tax = Dict(
+        y =>
+            (
+                green_developer_Revenue[y] - debt_interest[y] - operational_cost[y] -
+                depreciation_tax[y]
+            ) * utility.Tax - sum(
+                utility.CapEx_my[y, j] * sum(green_developer.green_tech_buildout_my[y, j, h] for h in model_data.index_h) * utility.ITC_new[j] for
+                j in model_data.index_j
+            ) for y in model_data.index_y_fix
+    )
+
+    green_developer_Cost = Dict(
+        y =>
+            debt_interest[y] +
+            income_tax[y] +
+            operational_cost[y] +
+            depreciation[y] for y in model_data.index_y_fix
+    )
+
+    return green_developer_Revenue,
+    green_developer_Cost,
+    debt_interest,
+    income_tax,
+    operational_cost,
+    depreciation,
+    depreciation_tax
+end

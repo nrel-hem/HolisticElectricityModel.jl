@@ -280,7 +280,7 @@ function solve_equilibrium_problem!(
             welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
     end
 
-    save_welfare!(Welfare_supply, Welfare_demand, export_file_path, file_prefix)
+    # save_welfare!(Welfare_supply, Welfare_demand, export_file_path, file_prefix)
 end
 
 # TODO: Write the welfare calculation and saving more generally
