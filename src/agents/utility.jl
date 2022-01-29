@@ -697,7 +697,7 @@ function solve_agent_problem!(
         end
     end
 
-    fill!(utility.Net_Load_my, Nan)
+    fill!(utility.Net_Load_my, NaN)
     for y in model_data.index_y, t in model_data.index_t
         utility.Net_Load_my[y, t] =
             sum(customers.gamma[h] * customers.d_my[y, h, t] for h in model_data.index_h) +
@@ -712,10 +712,10 @@ function solve_agent_problem!(
             )
     end
 
-    fill!(utility.Max_Net_Load_my, Nan)
+    fill!(utility.Max_Net_Load_my, NaN)
     for y in model_data.index_y
         utility.Max_Net_Load_my[y] =
-            findmax((t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
+            findmax(Dict(t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
     end
 
     Max_Net_Load_my_index = Dict(

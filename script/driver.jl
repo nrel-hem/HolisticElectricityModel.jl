@@ -33,7 +33,7 @@ logger = configure_logging(
 hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
     NLP_solver,
-    VerticallyIntegratedUtility(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
+    WholesaleMarket(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERSupplyChoiceUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
 )
 
@@ -43,7 +43,7 @@ regulator_opts = RegulatorOptions(
 )
 
 ipp_opts = IPPOptions(
-    MIQP(),              # LagrangeDecomposition, MIQP
+    LagrangeDecomposition(),              # LagrangeDecomposition, MIQP
 )
 
 # Load sets and parameters, define functions -----------------------------------

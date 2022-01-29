@@ -39,17 +39,17 @@ function PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
     )
 end
 
-function GreenSubModel(Constant, GreenPowerPrice_coefficient, EnergyRate_coefficient, WholesaleMarket_coefficient, RetailCompetition_coefficient, RPS_coefficient, WTP_coefficient)
-    return GreenSubModel(
-        Constant,
-        GreenPowerPrice_coefficient,
-        EnergyRate_coefficient,
-        WholesaleMarket_coefficient,
-        RetailCompetition_coefficient,
-        RPS_coefficient,
-        WTP_coefficient,
-    )
-end
+# function GreenSubModel(Constant, GreenPowerPrice_coefficient, EnergyRate_coefficient, WholesaleMarket_coefficient, RetailCompetition_coefficient, RPS_coefficient, WTP_coefficient)
+#     return GreenSubModel(
+#         Constant,
+#         GreenPowerPrice_coefficient,
+#         EnergyRate_coefficient,
+#         WholesaleMarket_coefficient,
+#         RetailCompetition_coefficient,
+#         RPS_coefficient,
+#         WTP_coefficient,
+#     )
+# end
 
 # # declare customer decision
 # abstract type ConsumerModel end
@@ -260,13 +260,13 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ),
         ParamAxisArray(
             "RPS_coefficient",
-            (model_data.index_h,)
+            (model_data.index_h,),
             AxisArray([0.0, 0.42, 0.42], [:Residential, :Commercial, :Industrial]),
             description = "RPS percentage requirement in 2019 (regression parameter)",
         ),
         ParamAxisArray(
             "WTP_coefficient",
-            (model_data.index_h,)
+            (model_data.index_h,),
             AxisArray([0.0, 0.0, 0.0], [:Residential, :Commercial, :Industrial]),
             description = "% of customers willing to pay for renewable energy at the state level (regression parameter)",
         ),
@@ -761,7 +761,7 @@ function solve_agent_problem!(
             sum(GreenSubPerc[h] * customers.d[h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
             for h in model_data.index_h
         ],
-        model_data.index_h.elementsm,
+        model_data.index_h.elements,
     )
 
     # customers.x_green_sub_my is an annual number (per the regression), however, this number cannot decrease.
@@ -1035,7 +1035,7 @@ function welfare_calculation!(
     end
     AnnualBill_PerCustomer_my = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
-        AnnualBill_PerCustomer_my[y, h] => sum(
+        AnnualBill_PerCustomer_my[y, h] = sum(
             model_data.omega[t] *
             regulator.p_my[y, h, t] *
             customers.d_my[y, h, t] *
@@ -1052,13 +1052,14 @@ function welfare_calculation!(
     end
 
     return customers.ConPVNetSurplus_my,
-    EnergySaving,
-    EnergyCost,
-    ConNetSurplus,
-    TotalConNetSurplus,
-    ConPVNetSurplus_PerCustomer_my,
-    AnnualBill_PerCustomer_my,
-    AverageBill_PerCustomer_my
+    customers.ConGreenPowerNetSurplus_cumu_my,
+    # EnergySaving,
+    # EnergyCost,
+    # ConNetSurplus,
+    TotalConNetSurplus
+    # ConPVNetSurplus_PerCustomer_my,
+    # AnnualBill_PerCustomer_my,
+    # AverageBill_PerCustomer_my
 end
 
 
@@ -1240,9 +1241,10 @@ function welfare_calculation!(
     #         ) for y in model_data.index_y_fix, h in model_data.index_h
     # )
 
-    return customers.ConGreenPowerNetSurplus_cumu_my,
-    EnergyCost,
-    ConNetSurplus,
+    return customers.ConPVNetSurplus_my
+    customers.ConGreenPowerNetSurplus_cumu_my,
+    # EnergyCost,
+    # ConNetSurplus,
     TotalConNetSurplus
     # ConPVNetSurplus_PerCustomer_my,
     # AnnualBill_PerCustomer_my,
@@ -1498,11 +1500,10 @@ function welfare_calculation!(
     #         ) for y in model_data.index_y_fix, h in model_data.index_h
     # )
 
-    return 
-    customers.ConPVNetSurplus_my
+    return customers.ConPVNetSurplus_my,
     customers.ConGreenPowerNetSurplus_cumu_my,
-    EnergyCost,
-    ConNetSurplus,
+    # EnergyCost,
+    # ConNetSurplus,
     TotalConNetSurplus
     # ConPVNetSurplus_PerCustomer_my,
     # AnnualBill_PerCustomer_my,
