@@ -14,51 +14,51 @@ mutable struct Utility <: AbstractUtility
 
     # Parameters
     "existing capacity (MW)"
-    x_E::ParamVector
+    x_E::ParamAxisArray
     "fixed cost of existing capacity (\$/MW-yr)"
-    f_E::ParamVector
+    f_E::ParamAxisArray
     "fixed cost of new capacity (\$/MW-yr)"
-    f_C::ParamVector
+    f_C::ParamAxisArray
     "variable cost of existing capacity (\$/MWh)"
-    v_E::ParamArray
+    v_E::ParamAxisArray
     "variable cost of new capacity (\$/MWh)"
-    v_C::ParamArray
+    v_C::ParamAxisArray
     "availability of existing capacity (fraction)"
-    rho_E::ParamArray
+    rho_E::ParamAxisArray
     "availability of new capacity (fraction)"
-    rho_C::ParamArray
+    rho_C::ParamAxisArray
     "net export (MWh)"
-    eximport::ParamVector
+    eximport::ParamAxisArray
     "peak export"
     Peak_eximport::ParamScalar
 
     # Primal Variables
-    y_E::ParamArray
-    y_C::ParamArray
-    x_R::ParamVector
-    x_C::ParamVector
+    y_E::ParamAxisArray
+    y_C::ParamAxisArray
+    x_R::ParamAxisArray
+    x_C::ParamAxisArray
     # Dual Variables
-    miu::ParamVector
+    miu::ParamAxisArray
 
     # Finance Related Parameters
-    CapEx_existing::ParamVector # capital cost of existing capacity ($/MW)
-    CumuTaxDepre_existing::ParamVector # cumulative tax depreciation of existing capacity (%)
-    CumuAccoutDepre_existing::ParamVector # cumulative accounting depreciation of existing capacity (%)
-    AnnualAccoutDepre_existing::ParamVector # annual accounting depreciation of existing capacity (%)
-    ITC_existing::ParamVector # ITC of existing capacity (%)
-    CumuITCAmort_existing::ParamVector # ITC amortization of existing capacity (%)
-    ADIT_existing::ParamVector # accumulated deferred income taxes ($/MW)
-    RateBaseNoWC_existing::ParamVector # rate base (excluding working capital) ($/MW)
+    CapEx_existing::ParamAxisArray # capital cost of existing capacity ($/MW)
+    CumuTaxDepre_existing::ParamAxisArray # cumulative tax depreciation of existing capacity (%)
+    CumuAccoutDepre_existing::ParamAxisArray # cumulative accounting depreciation of existing capacity (%)
+    AnnualAccoutDepre_existing::ParamAxisArray # annual accounting depreciation of existing capacity (%)
+    ITC_existing::ParamAxisArray # ITC of existing capacity (%)
+    CumuITCAmort_existing::ParamAxisArray # ITC amortization of existing capacity (%)
+    ADIT_existing::ParamAxisArray # accumulated deferred income taxes ($/MW)
+    RateBaseNoWC_existing::ParamAxisArray # rate base (excluding working capital) ($/MW)
 
-    CapEx_new::ParamVector # capital cost of new capacity ($/MW)
-    CumuTaxDepre_new::ParamVector # cumulative tax depreciation of new capacity (%)
-    CumuAccoutDepre_new::ParamVector # cumulative accounting depreciation of new capacity (%)
-    ITC_new::ParamVector # ITC of new capacity (%)
-    CumuITCAmort_new::ParamVector # ITC amortization of new capacity (%)
-    ADIT_new::ParamVector # accumulated deferred income taxes ($/MW)
-    FOM_new::ParamVector # fixed O&M of new capacity ($/MW-yr)
-    Lifetime_new::ParamVector # lifetime of new capacity (yrs)
-    RateBaseNoWC_new::ParamVector # rate base (excluding working capital) ($/MW)
+    CapEx_new::ParamAxisArray # capital cost of new capacity ($/MW)
+    CumuTaxDepre_new::ParamAxisArray # cumulative tax depreciation of new capacity (%)
+    CumuAccoutDepre_new::ParamAxisArray # cumulative accounting depreciation of new capacity (%)
+    ITC_new::ParamAxisArray # ITC of new capacity (%)
+    CumuITCAmort_new::ParamAxisArray # ITC amortization of new capacity (%)
+    ADIT_new::ParamAxisArray # accumulated deferred income taxes ($/MW)
+    FOM_new::ParamAxisArray # fixed O&M of new capacity ($/MW-yr)
+    Lifetime_new::ParamAxisArray # lifetime of new capacity (yrs)
+    RateBaseNoWC_new::ParamAxisArray # rate base (excluding working capital) ($/MW)
 
     DebtRatio::ParamScalar
     COD::ParamScalar
@@ -67,79 +67,79 @@ mutable struct Utility <: AbstractUtility
     DaysofWC::ParamScalar
 
     # Parameters (multi-year)
-    x_E_my::ParamVector # existing capacity (MW)
-    fom_E_my::ParamArray # fixed O&M of existing capacity ($/MW-yr)
-    fom_C_my::ParamArray # fixed O&M of new capacity ($/MW-yr)
-    CapEx_my::ParamArray # capital expense of new capacity ($/MW)
-    v_E_my::ParamArray # variable cost of existing capacity ($/MWh)
-    v_C_my::ParamArray # variable cost of new capacity ($/MWh)
-    rho_E_my::ParamArray # availability of existing capacity (fraction)
-    rho_C_my::ParamArray # availability of new capacity (fraction)
-    eximport_my::ParamArray # net export (MWh)
-    pvf_cap::ParamVector # present value factor of capital expenses
-    pvf_onm::ParamVector # present value factor of o&m expenses
+    x_E_my::ParamAxisArray # existing capacity (MW)
+    fom_E_my::ParamAxisArray # fixed O&M of existing capacity ($/MW-yr)
+    fom_C_my::ParamAxisArray # fixed O&M of new capacity ($/MW-yr)
+    CapEx_my::ParamAxisArray # capital expense of new capacity ($/MW)
+    v_E_my::ParamAxisArray # variable cost of existing capacity ($/MWh)
+    v_C_my::ParamAxisArray # variable cost of new capacity ($/MWh)
+    rho_E_my::ParamAxisArray # availability of existing capacity (fraction)
+    rho_C_my::ParamAxisArray # availability of new capacity (fraction)
+    eximport_my::ParamAxisArray # net export (MWh)
+    pvf_cap::ParamAxisArray # present value factor of capital expenses
+    pvf_onm::ParamAxisArray # present value factor of o&m expenses
     CRF_default::ParamScalar
-    Peak_eximport_my::ParamVector
+    Peak_eximport_my::ParamAxisArray
 
     # Primal Variables (multi-year)
-    y_E_my::ParamArray
-    y_C_my::ParamArray
-    x_R_my::ParamArray
-    x_C_my::ParamArray
+    y_E_my::ParamAxisArray
+    y_C_my::ParamAxisArray
+    x_R_my::ParamAxisArray
+    x_C_my::ParamAxisArray
     # Dual Variables (multi-year)
-    miu_my::ParamArray
+    miu_my::ParamAxisArray
 
     # Finance Related Parameters (multi-year)
-    CapEx_existing_my::ParamVector # capital cost of existing capacity ($/MW)
-    CumuTaxDepre_existing_my::ParamArray # cumulative tax depreciation of existing capacity (%)
-    CumuAccoutDepre_existing_my::ParamArray # cumulative accounting depreciation of existing capacity (%)
-    AnnualAccoutDepre_existing_my::ParamArray # annual accounting depreciation of existing capacity (%)
-    AnnualTaxDepre_existing_my::ParamArray # annual tax depreciation of existing capacity (%)
-    ITC_existing_my::ParamVector # ITC of existing capacity (%)
-    CumuITCAmort_existing_my::ParamArray # ITC amortization of existing capacity (%)
-    ADIT_existing_my::ParamArray # accumulated deferred income taxes ($/MW)
-    RateBaseNoWC_existing_my::ParamArray # rate base (excluding working capital) ($/MW)
+    CapEx_existing_my::ParamAxisArray # capital cost of existing capacity ($/MW)
+    CumuTaxDepre_existing_my::ParamAxisArray # cumulative tax depreciation of existing capacity (%)
+    CumuAccoutDepre_existing_my::ParamAxisArray # cumulative accounting depreciation of existing capacity (%)
+    AnnualAccoutDepre_existing_my::ParamAxisArray # annual accounting depreciation of existing capacity (%)
+    AnnualTaxDepre_existing_my::ParamAxisArray # annual tax depreciation of existing capacity (%)
+    ITC_existing_my::ParamAxisArray # ITC of existing capacity (%)
+    CumuITCAmort_existing_my::ParamAxisArray # ITC amortization of existing capacity (%)
+    ADIT_existing_my::ParamAxisArray # accumulated deferred income taxes ($/MW)
+    RateBaseNoWC_existing_my::ParamAxisArray # rate base (excluding working capital) ($/MW)
 
-    CumuTaxDepre_new_my::ParamArray # cumulative tax depreciation of new capacity (%)
-    CumuAccoutDepre_new_my::ParamArray # cumulative accounting depreciation of new capacity (%)
-    ITC_new_my::ParamArray # ITC of new capacity (%)
-    CumuITCAmort_new_my::ParamArray # ITC amortization of new capacity (%)
-    AnnualAccoutDepre_new_my::ParamArray # annual accounting depreciation of new capacity (%)
-    AnnualTaxDepre_new_my::ParamArray # annual tax depreciation of new capacity (%) 
+    CumuTaxDepre_new_my::ParamAxisArray # cumulative tax depreciation of new capacity (%)
+    CumuAccoutDepre_new_my::ParamAxisArray # cumulative accounting depreciation of new capacity (%)
+    ITC_new_my::ParamAxisArray # ITC of new capacity (%)
+    CumuITCAmort_new_my::ParamAxisArray # ITC amortization of new capacity (%)
+    AnnualAccoutDepre_new_my::ParamAxisArray # annual accounting depreciation of new capacity (%)
+    AnnualTaxDepre_new_my::ParamAxisArray # annual tax depreciation of new capacity (%) 
 
-    x_R_cumu::ParamVector
-    x_C_cumu::ParamVector
+    x_R_cumu::ParamAxisArray
+    x_C_cumu::ParamAxisArray
 
     # capacity
-    capacity_credit_E_my::ParamArray # capacity credit of existing resources
-    capacity_credit_C_my::ParamArray # capacity credit of new resources
-    Net_Load_my::ParamArray
-    Max_Net_Load_my::ParamVector
-    Reserve_req_my::ParamVector
+    capacity_credit_E_my::ParamAxisArray # capacity credit of existing resources
+    capacity_credit_C_my::ParamAxisArray # capacity credit of new resources
+    Net_Load_my::ParamAxisArray
+    Max_Net_Load_my::ParamAxisArray
+    Reserve_req_my::ParamAxisArray
 
     # RPS
-    RPS::ParamVector
-    rec_my::ParamVector
+    RPS::ParamAxisArray
+    rec_my::ParamAxisArray
 
     # distribution loss
     loss_dist::ParamScalar
 
     # emission rate
-    emission_rate_E_my::ParamArray
-    emission_rate_C_my::ParamArray
+    emission_rate_E_my::ParamAxisArray
+    emission_rate_C_my::ParamAxisArray
 
     # Lagrange decomposition
-    x_R_feasible::ParamArray
-    x_C_feasible::ParamArray
+    x_R_feasible::ParamAxisArray
+    x_C_feasible::ParamAxisArray
     obj_feasible::ParamScalar
     obj_upper_bound::ParamScalar
     obj_lower_bound::ParamScalar
-    L_R_my::ParamArray
-    L_C_my::ParamArray
-    x_R_my_decomp::ParamArray
-    x_C_my_decomp::ParamArray
-    obj_my::ParamVector
-    obj_my_feasible::ParamVector
+    L_R_my::ParamAxisArray
+    L_C_my::ParamAxisArray
+    x_R_my_decomp::ParamAxisArray
+    x_C_my_decomp::ParamAxisArray
+    obj_my::ParamAxisArray
+    obj_my_feasible::ParamAxisArray
 end
 
 function Utility(
@@ -192,7 +192,10 @@ function Utility(
         k => atwacc * (1 + atwacc)^LifetimeNew[k] / ((1 + atwacc)^LifetimeNew[k] - 1)
         for k in index_k_new
     )
-    FixedCostNew = Dict(k => FOMNew[k] + CapExNew[k] * CRF[k] for k in index_k_new)
+    FixedCostNew = AxisArray(
+        [FOMNew[k] + CapExNew[k] * CRF[k] for k in index_k_new],
+        index_k_new.elements,
+    )
 
     CapExOld = read_param("CapEx_existing", input_filename, "CapExOld", index_k_existing)
     CumuTaxDepreOld = read_param(
@@ -220,14 +223,16 @@ function Utility(
         "CumuITCAmortOld",
         index_k_existing,
     )
-    ADITOld = Dict(
-        k =>
+    ADITOld = AxisArray(
+        [
             CapExOld[k] * (CumuTaxDepreOld[k] - CumuAccoutDepreOld[k]) * tax_rate +
             ITCOld[k] * CapExOld[k] * (1 - CumuITCAmortOld[k]) for k in index_k_existing
+        ],
+        index_k_existing.elements,
     )
-    RateBaseNoWCOld = Dict(
-        k => CapExOld[k] * (1 - CumuAccoutDepreOld[k]) - ADITOld[k] for
-        k in index_k_existing
+    RateBaseNoWCOld = AxisArray(
+        [CapExOld[k] * (1 - CumuAccoutDepreOld[k]) - ADITOld[k] for k in index_k_existing],
+        index_k_existing.elements,
     )
 
     CumuTaxDepreNew =
@@ -237,13 +242,16 @@ function Utility(
     ITCNew = read_param("ITC_new", input_filename, "ITCNew", index_k_new)
     CumuITCAmortNew =
         read_param("CumuITCAmort_new", input_filename, "CumuITCAmortNew", index_k_new)
-    ADITNew = Dict(
-        k =>
+    ADITNew = AxisArray(
+        [
             CapExNew[k] * (CumuTaxDepreNew[k] - CumuAccoutDepreNew[k]) * tax_rate +
             ITCNew[k] * CapExNew[k] * (1 - CumuITCAmortNew[k]) for k in index_k_new
+        ],
+        index_k_new.elements,
     )
-    RateBaseNoWCNew = Dict(
-        k => CapExNew[k] * (1 - CumuAccoutDepreNew[k]) - ADITNew[k] for k in index_k_new
+    RateBaseNoWCNew = AxisArray(
+        [CapExNew[k] * (1 - CumuAccoutDepreNew[k]) - ADITNew[k] for k in index_k_new],
+        index_k_new.elements,
     )
 
     eximport_my = read_param(
@@ -260,20 +268,29 @@ function Utility(
             Int(model_data.hour[t]),
         ] = eximport_my[y, t]
     end
-    peak_eximport_my = Dict(
-        y => findmax(array_eximport_my, dims = 2)[1][Int(
-            model_data.year[y] - model_data.year[first(model_data.index_y)] + 1,
-        )] for y in model_data.index_y
+    peak_eximport_my = AxisArray(
+        [
+            findmax(array_eximport_my, dims = 2)[1][Int(
+                model_data.year[y] - model_data.year[first(model_data.index_y)] + 1,
+            )] for y in model_data.index_y
+        ],
+        model_data.index_y.elements,
     )
 
     CRF_default = atwacc * (1 + atwacc)^20 / ((1 + atwacc)^20 - 1)
-    pvf_cap = Dict(
-        y => 1 / (1 + atwacc)^(model_data.year[y] - model_data.year_start) for
-        y in model_data.index_y
+    pvf_cap = AxisArray(
+        [
+            1 / (1 + atwacc)^(model_data.year[y] - model_data.year_start) for
+            y in model_data.index_y
+        ],
+        model_data.index_y.elements,
     )
-    pvf_onm = Dict(
-        y => 1 / (1 + atwacc)^(model_data.year[y] - model_data.year_start) for
-        y in model_data.index_y
+    pvf_onm = AxisArray(
+        [
+            1 / (1 + atwacc)^(model_data.year[y] - model_data.year_start) for
+            y in model_data.index_y
+        ],
+        model_data.index_y.elements,
     )
 
     # capital expense of existing units ($/MW)
@@ -322,18 +339,19 @@ function Utility(
         [model_data.index_y],
     )
     # accumulative deferred income tax of existing units ($/MW)
-    ADITOld_my = Dict(
-        (y, k) =>
+    ADITOld_my = make_axis_array(model_data.index_y, index_k_existing)
+    for y in model_data.index_y, k in index_k_existing
+        ADITOld_my[y, k] =
             CapExOld_my[k] *
             (CumuTaxDepreOld_my[y, k] - CumuAccoutDepreOld_my[y, k]) *
             tax_rate + ITCOld_my[k] * CapExOld_my[k] * (1 - CumuITCAmortOld_my[y, k])
-        for y in model_data.index_y, k in index_k_existing
-    )
+    end
     # rate base (without working capital) ($/MW)
-    RateBaseNoWCOld_my = Dict(
-        (y, k) => CapExOld_my[k] * (1 - CumuAccoutDepreOld_my[y, k]) - ADITOld_my[y, k]
-        for y in model_data.index_y, k in index_k_existing
-    )
+    RateBaseNoWCOld_my = make_axis_array(model_data.index_y, index_k_existing)
+    for y in model_data.index_y, k in index_k_existing
+        RateBaseNoWCOld_my[y, k] =
+            CapExOld_my[k] * (1 - CumuAccoutDepreOld_my[y, k]) - ADITOld_my[y, k]
+    end
 
     # cumulative tax depreciation of new units (for each schedule year) (%)
     CumuTaxDepreNew_my = read_param(
@@ -403,7 +421,7 @@ function Utility(
             index_k_existing,
             description = "fixed cost of existing capacity (\$/MW-yr)",
         ),
-        ParamVector("f_C", index_k_new, FixedCostNew),
+        ParamAxisArray("f_C", (index_k_new,), FixedCostNew),
         read_param(
             "v_E",
             input_filename,
@@ -459,17 +477,17 @@ function Utility(
         AnnualAccoutDepreOld,
         ITCOld,
         CumuITCAmortOld,
-        ParamVector("ADIT_existing", index_k_existing, ADITOld),
-        ParamVector("RateBaseNoWC_existing", index_k_existing, RateBaseNoWCOld),
+        ParamAxisArray("ADIT_existing", (index_k_existing,), ADITOld),
+        ParamAxisArray("RateBaseNoWC_existing", (index_k_existing,), RateBaseNoWCOld),
         CapExNew,
         CumuTaxDepreNew,
         CumuAccoutDepreNew,
         ITCNew,
         CumuITCAmortNew,
-        ParamVector("ADIT_new", index_k_existing, ADITNew),
+        ParamAxisArray("ADIT_new", (index_k_existing,), ADITNew),
         FOMNew,
         LifetimeNew,
-        ParamVector("RateBaseNoWC_new", index_k_existing, RateBaseNoWCNew),
+        ParamAxisArray("RateBaseNoWC_new", (index_k_existing,), RateBaseNoWCNew),
         debt_ratio,
         cost_of_debt,
         cost_of_equity,
@@ -526,10 +544,10 @@ function Utility(
             [index_k_new],
         ),
         eximport_my,
-        ParamVector("pvf_cap", model_data.index_y, pvf_cap),
-        ParamVector("pvf_onm", model_data.index_y, pvf_onm),
+        ParamAxisArray("pvf_cap", (model_data.index_y,), pvf_cap),
+        ParamAxisArray("pvf_onm", (model_data.index_y,), pvf_onm),
         ParamScalar("CRF_default", CRF_default, description = "capital recovery factor"),
-        ParamVector("Peak_eximport_my", model_data.index_y, peak_eximport_my),
+        ParamAxisArray("Peak_eximport_my", (model_data.index_y,), peak_eximport_my),
         initialize_param(
             "y_E_my",
             model_data.index_y,
@@ -547,12 +565,12 @@ function Utility(
         AnnualTaxDepreOld_my,
         ITCOld_my,
         CumuITCAmortOld_my,
-        ParamArray(
+        ParamAxisArray(
             "ADIT_existing_my",
             Tuple(push!(copy([model_data.index_y]), index_k_existing)),
             ADITOld_my,
         ),
-        ParamArray(
+        ParamAxisArray(
             "RateBaseNoWC_existing_my",
             Tuple(push!(copy([model_data.index_y]), index_k_existing)),
             RateBaseNoWCOld_my,
@@ -679,34 +697,26 @@ function solve_agent_problem!(
         end
     end
 
-    empty!(utility.Net_Load_my)
-    merge!(
-        utility.Net_Load_my,
-        Dict(
-            (y, t) =>
-                sum(
-                    customers.gamma[h] * customers.d_my[y, h, t] for h in model_data.index_h
-                ) + utility.eximport_my[y, t] - sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] for
-                    h in model_data.index_h, m in customers.index_m
-                ) - sum(
-                    customers.rho_DG[h, m, t] * sum(
-                        customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
-                            model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
-                    ) for h in model_data.index_h, m in customers.index_m
-                ) for y in model_data.index_y, t in model_data.index_t
-        ),
-    )
+    fill!(utility.Net_Load_my, NaN)
+    for y in model_data.index_y, t in model_data.index_t
+        utility.Net_Load_my[y, t] =
+            sum(customers.gamma[h] * customers.d_my[y, h, t] for h in model_data.index_h) +
+            utility.eximport_my[y, t] - sum(
+                customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] for
+                h in model_data.index_h, m in customers.index_m
+            ) - sum(
+                customers.rho_DG[h, m, t] * sum(
+                    customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                ) for h in model_data.index_h, m in customers.index_m
+            )
+    end
 
-    empty!(utility.Max_Net_Load_my)
-    merge!(
-        utility.Max_Net_Load_my,
-        Dict(
-            y =>
-                findmax(Dict(t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
-            for y in model_data.index_y
-        ),
-    )
+    fill!(utility.Max_Net_Load_my, NaN)
+    for y in model_data.index_y
+        utility.Max_Net_Load_my[y] =
+            findmax(Dict(t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
+    end
 
     Max_Net_Load_my_index = Dict(
         y =>
@@ -714,30 +724,19 @@ function solve_agent_problem!(
         for y in model_data.index_y
     )
 
-    empty!(utility.capacity_credit_E_my)
-    merge!(
-        utility.capacity_credit_E_my,
-        Dict(
-            (y, k) => utility.rho_E_my[k, Max_Net_Load_my_index[y]] for
-            y in model_data.index_y, k in utility.index_k_existing
-        ),
-    )
-    empty!(utility.capacity_credit_C_my)
-    merge!(
-        utility.capacity_credit_C_my,
-        Dict(
-            (y, k) => utility.rho_C_my[k, Max_Net_Load_my_index[y]] for
-            y in model_data.index_y, k in utility.index_k_new
-        ),
-    )
+    fill!(utility.capacity_credit_E_my, NaN)
+    for y in model_data.index_y, k in utility.index_k_existing
+        utility.capacity_credit_E_my[y, k] = utility.rho_E_my[k, Max_Net_Load_my_index[y]]
+    end
+    fill!(utility.capacity_credit_C_my, NaN)
+    for y in model_data.index_y, k in utility.index_k_new
+        utility.capacity_credit_C_my[y, k] = utility.rho_C_my[k, Max_Net_Load_my_index[y]]
+    end
 
-    empty!(utility.Reserve_req_my)
-    merge!(
-        utility.Reserve_req_my,
-        Dict(
-            y => (1 + regulator.r) * utility.Max_Net_Load_my[y] for y in model_data.index_y
-        ),
-    )
+    fill!(utility.Reserve_req_my, NaN)
+    for y in model_data.index_y
+        utility.Reserve_req_my[y] = (1 + regulator.r) * utility.Max_Net_Load_my[y]
+    end
 
     objective_function = begin
         sum(
@@ -759,7 +758,7 @@ function solve_agent_problem!(
                 utility.fom_E_my[y, k] * (
                     utility.x_E_my[k] - sum(
                         x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     )
                 ) for k in utility.index_k_existing
             ) +
@@ -769,9 +768,7 @@ function solve_agent_problem!(
                 x_C[y, k] *
                 sum(
                     utility.pvf_onm[Symbol(Int(y_symbol))] for y_symbol in
-                        model_data.year[y]:model_data.year[last(
-                            model_data.index_y.elements,
-                        )]
+                    model_data.year[y]:model_data.year[last(model_data.index_y.elements)]
                 ) for k in utility.index_k_new
             ) +
             # capital costs
@@ -801,7 +798,7 @@ function solve_agent_problem!(
             sum(
                 customers.rho_DG[h, m, t] * sum(
                     customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
-                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                 ) for h in model_data.index_h, m in customers.index_m
             ) +
             # green technology subscription at time t
@@ -866,14 +863,14 @@ function solve_agent_problem!(
                 utility.rho_E_my[k, t] * (
                     utility.x_E_my[k] - sum(
                         x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) - utility.x_R_cumu[k]
                 ) for k in utility.index_k_existing
             ) + sum(
                 utility.rho_C_my[k, t] * (
                     sum(
                         x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) + utility.x_C_cumu[k]
                 ) for k in utility.index_k_new
             ) +
@@ -895,7 +892,7 @@ function solve_agent_problem!(
                     customers.rho_DG[h, m, t] * sum(
                         customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for
                         y_symbol in
-                            model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                     ) for h in model_data.index_h, m in customers.index_m
                 )
             )
@@ -913,14 +910,14 @@ function solve_agent_problem!(
                 utility.capacity_credit_E_my[y, k] * (
                     utility.x_E_my[k] - sum(
                         x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) - utility.x_R_cumu[k]
                 ) for k in utility.index_k_existing
             ) + sum(
                 utility.capacity_credit_C_my[y, k] * (
                     sum(
                         x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) + utility.x_C_cumu[k]
                 ) for k in utility.index_k_new
             ) +
@@ -952,7 +949,9 @@ function solve_agent_problem!(
         0
     )
 
-    optimize!(VIUDER_Utility)
+    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 1" begin
+        optimize!(VIUDER_Utility)
+    end
 
     # record current primary variable values
     for y in model_data.index_y, k in utility.index_k_existing, t in model_data.index_t
@@ -963,8 +962,8 @@ function solve_agent_problem!(
         utility.y_C_my[y, k, t] = value.(y_C[y, k, t])
     end
 
-    x_R_before = ParamArray(utility.x_R_my)
-    x_C_before = ParamArray(utility.x_C_my)
+    x_R_before = ParamAxisArray(utility.x_R_my)
+    x_C_before = ParamAxisArray(utility.x_C_my)
     for y in model_data.index_y, k in utility.index_k_existing
         utility.x_R_my[y, k] = value.(x_R[y, k])
     end
@@ -1034,14 +1033,14 @@ function welfare_calculation!(
 )
     regulator = get_agent(Regulator, agent_store)
 
-    Utility_Revenue_my = Dict(y => 0.0 for y in model_data.index_y_fix)
-    Utility_Cost_my = Dict(y => 0.0 for y in model_data.index_y_fix)
-    Utility_debt_interest_my = Dict(y => 0.0 for y in model_data.index_y_fix)
-    Utility_income_tax_my = Dict(y => 0.0 for y in model_data.index_y_fix)
-    Utility_operational_cost_my = Dict(y => 0.0 for y in model_data.index_y_fix)
-    Utility_depreciation_my = Dict(y => 0.0 for y in model_data.index_y_fix)
-    Utility_depreciation_tax_my = Dict(y => 0.0 for y in model_data.index_y_fix)
-    Utility_total_emission_my = Dict(y => 0.0 for y in model_data.index_y_fix)
+    Utility_Revenue_my = make_axis_array(model_data.index_y_fix)
+    Utility_Cost_my = make_axis_array(model_data.index_y_fix)
+    Utility_debt_interest_my = make_axis_array(model_data.index_y_fix)
+    Utility_income_tax_my = make_axis_array(model_data.index_y_fix)
+    Utility_operational_cost_my = make_axis_array(model_data.index_y_fix)
+    Utility_depreciation_my = make_axis_array(model_data.index_y_fix)
+    Utility_depreciation_tax_my = make_axis_array(model_data.index_y_fix)
+    Utility_total_emission_my = make_axis_array(model_data.index_y_fix)
 
     for y in model_data.index_y_fix
         Utility_Revenue_my[y] = regulator.revenue_req_my[y] + regulator.othercost
@@ -1114,62 +1113,43 @@ function solve_agent_problem_decomposition_by_year(
         end
     end
 
-    empty!(utility.Net_Load_my)
-    merge!(
-        utility.Net_Load_my,
-        Dict(
-            (y, t) =>
-                sum(
-                    customers.gamma[h] * customers.d_my[y, h, t] for h in model_data.index_h
-                ) + utility.eximport_my[y, t] - sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] for
-                    h in model_data.index_h, m in customers.index_m
-                ) - sum(
-                    customers.rho_DG[h, m, t] * sum(
-                        customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
-                            model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
-                    ) for h in model_data.index_h, m in customers.index_m
-                ) for y in model_data.index_y, t in model_data.index_t
-        ),
-    )
-    empty!(utility.Max_Net_Load_my)
-    merge!(
-        utility.Max_Net_Load_my,
-        Dict(
-            y =>
-                findmax(Dict(t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
-            for y in model_data.index_y
-        ),
-    )
+    fill!(utility.Net_Load_my, NaN)
+    for y in model_data.index_y, t in model_data.index_t
+        utility.Net_Load_my[y, t] =
+            sum(customers.gamma[h] * customers.d_my[y, h, t] for h in model_data.index_h) +
+            utility.eximport_my[y, t] - sum(
+                customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] for
+                h in model_data.index_h, m in customers.index_m
+            ) - sum(
+                customers.rho_DG[h, m, t] * sum(
+                    customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                ) for h in model_data.index_h, m in customers.index_m
+            )
+    end
+    fill!(utility.Max_Net_Load_my, NaN)
+    for y in model_data.index_y
+        utility.Max_Net_Load_my[y] =
+            findmax((t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
+    end
 
     Max_Net_Load_my_index = Dict(
         y =>
             findmax(Dict(t => utility.Net_Load_my[y, t] for t in model_data.index_t))[2]
         for y in model_data.index_y
     )
-    empty!(utility.capacity_credit_E_my)
-    merge!(
-        utility.capacity_credit_E_my,
-        Dict(
-            (y, k) => utility.rho_E_my[k, Max_Net_Load_my_index[y]] for
-            y in model_data.index_y, k in utility.index_k_existing
-        ),
-    )
-    empty!(utility.capacity_credit_C_my)
-    merge!(
-        utility.capacity_credit_C_my,
-        Dict(
-            (y, k) => utility.rho_C_my[k, Max_Net_Load_my_index[y]] for
-            y in model_data.index_y, k in utility.index_k_new
-        ),
-    )
-    empty!(utility.Reserve_req_my)
-    merge!(
-        utility.Reserve_req_my,
-        Dict(
-            y => (1 + regulator.r) * utility.Max_Net_Load_my[y] for y in model_data.index_y
-        ),
-    )
+    fill!(utility.capacity_credit_E_my, NaN)
+    for y in model_data.index_y, k in utility.index_k_existing
+        utility.capacity_credit_E_my[y, k] = utility.rho_E_my[k, Max_Net_Load_my_index[y]]
+    end
+    fill!(utility.capacity_credit_C_my, NaN)
+    for y in model_data.index_y, k in utility.index_k_new
+        utility.capacity_credit_C_my[y, k] = utility.rho_C_my[k, Max_Net_Load_my_index[y]]
+    end
+    fill!(utility.Reserve_req_my, NaN)
+    for y in model_data.index_y
+        utility.Reserve_req_my[y] = (1 + regulator.r) * utility.Max_Net_Load_my[y]
+    end
 
     y = year
 
@@ -1258,7 +1238,7 @@ function solve_agent_problem_decomposition_by_year(
             utility.fom_E_my[y, k] * (
                 utility.x_E_my[k] - sum(
                     x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year[first(model_data.index_y)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y)]:model_data.year[y]
                 )
             ) for k in utility.index_k_existing
         ) +
@@ -1268,7 +1248,7 @@ function solve_agent_problem_decomposition_by_year(
             x_C[y, k] *
             sum(
                 utility.pvf_onm[Symbol(Int(y_symbol))] for y_symbol in
-                    model_data.year[y]:model_data.year[last(model_data.index_y.elements)]
+                model_data.year[y]:model_data.year[last(model_data.index_y.elements)]
             ) for k in utility.index_k_new
         ) +
         # capital costs
@@ -1297,7 +1277,7 @@ function solve_agent_problem_decomposition_by_year(
             sum(
                 customers.rho_DG[h, m, t] * sum(
                     customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
-                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                 ) for h in model_data.index_h, m in customers.index_m
             )
         end
@@ -1348,14 +1328,14 @@ function solve_agent_problem_decomposition_by_year(
                 utility.rho_E_my[k, t] * (
                     utility.x_E_my[k] - sum(
                         x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) - utility.x_R_cumu[k]
                 ) for k in utility.index_k_existing
             ) + sum(
                 utility.rho_C_my[k, t] * (
                     sum(
                         x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) + utility.x_C_cumu[k]
                 ) for k in utility.index_k_new
             ) -
@@ -1371,7 +1351,7 @@ function solve_agent_problem_decomposition_by_year(
                     customers.rho_DG[h, m, t] * sum(
                         customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for
                         y_symbol in
-                            model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                     ) for h in model_data.index_h, m in customers.index_m
                 )
             )
@@ -1384,14 +1364,14 @@ function solve_agent_problem_decomposition_by_year(
             utility.capacity_credit_E_my[y, k] * (
                 utility.x_E_my[k] - sum(
                     x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year[first(model_data.index_y)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y)]:model_data.year[y]
                 ) - utility.x_R_cumu[k]
             ) for k in utility.index_k_existing
         ) + sum(
             utility.capacity_credit_C_my[y, k] * (
                 sum(
                     x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year[first(model_data.index_y)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y)]:model_data.year[y]
                 ) + utility.x_C_cumu[k]
             ) for k in utility.index_k_new
         ) -
@@ -1413,7 +1393,9 @@ function solve_agent_problem_decomposition_by_year(
         0
     )
 
-    optimize!(VIUDER_Utility)
+    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 2" begin
+        optimize!(VIUDER_Utility)
+    end
 
     for y_inv_ret in model_data.year[first(model_data.index_y)]:model_data.year[year],
         k in utility.index_k_existing
@@ -1494,62 +1476,43 @@ function solve_agent_problem_decomposition_by_year_feasible(
         end
     end
 
-    empty!(utility.Net_Load_my)
-    merge!(
-        utility.Net_Load_my,
-        Dict(
-            (y, t) =>
-                sum(
-                    customers.gamma[h] * customers.d_my[y, h, t] for h in model_data.index_h
-                ) + utility.eximport_my[y, t] - sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] for
-                    h in model_data.index_h, m in customers.index_m
-                ) - sum(
-                    customers.rho_DG[h, m, t] * sum(
-                        customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
-                            model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
-                    ) for h in model_data.index_h, m in customers.index_m
-                ) for y in model_data.index_y, t in model_data.index_t
-        ),
-    )
-    empty!(utility.Max_Net_Load_my)
-    merge!(
-        utility.Max_Net_Load_my,
-        Dict(
-            y =>
-                findmax(Dict(t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
-            for y in model_data.index_y
-        ),
-    )
+    fill!(utility.Net_Load_my, NaN)
+    for y in model_data.index_y, t in model_data.index_t
+        utility.Net_Load_my[y, t] =
+            sum(customers.gamma[h] * customers.d_my[y, h, t] for h in model_data.index_h) +
+            utility.eximport_my[y, t] - sum(
+                customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] for
+                h in model_data.index_h, m in customers.index_m
+            ) - sum(
+                customers.rho_DG[h, m, t] * sum(
+                    customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                ) for h in model_data.index_h, m in customers.index_m
+            )
+    end
+    fill!(utility.Max_Net_Load_my, NaN)
+    for y in model_data.index_y
+        utility.Max_Net_Load_my[y] =
+            findmax((t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
+    end
 
     Max_Net_Load_my_index = Dict(
         y =>
             findmax(Dict(t => utility.Net_Load_my[y, t] for t in model_data.index_t))[2]
         for y in model_data.index_y
     )
-    empty!(utility.capacity_credit_E_my)
-    merge!(
-        utility.capacity_credit_E_my,
-        Dict(
-            (y, k) => utility.rho_E_my[k, Max_Net_Load_my_index[y]] for
-            y in model_data.index_y, k in utility.index_k_existing
-        ),
-    )
-    empty!(utility.capacity_credit_C_my)
-    merge!(
-        utility.capacity_credit_C_my,
-        Dict(
-            (y, k) => utility.rho_C_my[k, Max_Net_Load_my_index[y]] for
-            y in model_data.index_y, k in utility.index_k_new
-        ),
-    )
-    empty!(utility.Reserve_req_my)
-    merge!(
-        utility.Reserve_req_my,
-        Dict(
-            y => (1 + regulator.r) * utility.Max_Net_Load_my[y] for y in model_data.index_y
-        ),
-    )
+    fill!(utility.capacity_credit_E_my, NaN)
+    for y in model_data.index_y, k in utility.index_k_existing
+        utility.capacity_credit_E_my[y, k] = utility.rho_E_my[k, Max_Net_Load_my_index[y]]
+    end
+    fill!(utility.capacity_credit_C_my, NaN)
+    for y in model_data.index_y, k in utility.index_k_new
+        utility.capacity_credit_C_my[y, k] = utility.rho_C_my[k, Max_Net_Load_my_index[y]]
+    end
+    fill!(utility.Reserve_req_my, NaN)
+    for y in model_data.index_y
+        utility.Reserve_req_my[y] = (1 + regulator.r) * utility.Max_Net_Load_my[y]
+    end
 
     y = year
 
@@ -1638,7 +1601,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
             utility.fom_E_my[y, k] * (
                 utility.x_E_my[k] - sum(
                     x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year[first(model_data.index_y)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y)]:model_data.year[y]
                 )
             ) for k in utility.index_k_existing
         ) +
@@ -1648,7 +1611,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
             x_C[y, k] *
             sum(
                 utility.pvf_onm[Symbol(Int(y_symbol))] for y_symbol in
-                    model_data.year[y]:model_data.year[last(model_data.index_y.elements)]
+                model_data.year[y]:model_data.year[last(model_data.index_y.elements)]
             ) for k in utility.index_k_new
         ) +
         # capital costs
@@ -1677,7 +1640,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
             sum(
                 customers.rho_DG[h, m, t] * sum(
                     customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
-                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                 ) for h in model_data.index_h, m in customers.index_m
             )
         end
@@ -1728,14 +1691,14 @@ function solve_agent_problem_decomposition_by_year_feasible(
                 utility.rho_E_my[k, t] * (
                     utility.x_E_my[k] - sum(
                         x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) - utility.x_R_cumu[k]
                 ) for k in utility.index_k_existing
             ) + sum(
                 utility.rho_C_my[k, t] * (
                     sum(
                         x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) + utility.x_C_cumu[k]
                 ) for k in utility.index_k_new
             ) -
@@ -1751,7 +1714,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
                     customers.rho_DG[h, m, t] * sum(
                         customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for
                         y_symbol in
-                            model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                     ) for h in model_data.index_h, m in customers.index_m
                 )
             )
@@ -1764,14 +1727,14 @@ function solve_agent_problem_decomposition_by_year_feasible(
             utility.capacity_credit_E_my[y, k] * (
                 utility.x_E_my[k] - sum(
                     x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year[first(model_data.index_y)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y)]:model_data.year[y]
                 ) - utility.x_R_cumu[k]
             ) for k in utility.index_k_existing
         ) + sum(
             utility.capacity_credit_C_my[y, k] * (
                 sum(
                     x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year[first(model_data.index_y)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y)]:model_data.year[y]
                 ) + utility.x_C_cumu[k]
             ) for k in utility.index_k_new
         ) -
@@ -1793,7 +1756,9 @@ function solve_agent_problem_decomposition_by_year_feasible(
         0
     )
 
-    optimize!(VIUDER_Utility)
+    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 3" begin
+        optimize!(VIUDER_Utility)
+    end
 
     for k in utility.index_k_existing
         utility.x_R_feasible[year, k] = value.(x_R[year, k])
@@ -1853,7 +1818,7 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
                 utility.fom_E_my[y, k] * (
                     utility.x_E_my[k] - sum(
                         utility.x_R_feasible[Symbol(Int(y_symbol)), k] for y_symbol in
-                            model_data.year[first(model_data.index_y)]:model_data.year[y]
+                        model_data.year[first(model_data.index_y)]:model_data.year[y]
                     )
                 ) for k in utility.index_k_existing
             ) +
@@ -1863,9 +1828,7 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
                 utility.x_C_feasible[y, k] *
                 sum(
                     utility.pvf_onm[Symbol(Int(y_symbol))] for y_symbol in
-                        model_data.year[y]:model_data.year[last(
-                            model_data.index_y.elements,
-                        )]
+                    model_data.year[y]:model_data.year[last(model_data.index_y.elements)]
                 ) for k in utility.index_k_new
             ) +
             # capital costs
@@ -1897,7 +1860,7 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
             sum(
                 customers.rho_DG[h, m, t] * sum(
                     customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
-                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                 ) for h in model_data.index_h, m in customers.index_m
             )
         end
@@ -1953,7 +1916,9 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
         0
     )
 
-    optimize!(VIUDER_Utility_feasible)
+    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility_feasible" begin
+        optimize!(VIUDER_Utility_feasible)
+    end
 
     update!(utility.obj_feasible, objective_value(VIUDER_Utility_feasible))
 end

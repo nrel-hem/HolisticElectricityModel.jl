@@ -15,9 +15,10 @@ function read_set(
     prose_name = "",
     description = "",
 )
+    vals = read_record_file(DataFrame, filename, sheetname)
     result = Dimension(
         name,
-        Symbol.(names(DataFrame(XLSX.readtable(filename, sheetname)...))),
+        Symbol.(names(DataFrame(vals))),
         prose_name = prose_name,
         description = description,
     )
@@ -32,26 +33,19 @@ expressed in the column names.
 
 Returns the data loaded into a Dict with the Symbol values in column_index as its keys.
 """
+
 function read_param(
     name::AbstractString,
     filename::AbstractString,
     sheetname::AbstractString,
-    column_index::Dimension;
+    index::Dimension;
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
-    table = DataFrame(XLSX.readtable(filename, sheetname)...)
-    vals = Dict{Symbol, Float64}()
-
-    for row in eachrow(table)
-        # register all of the values in this row
-        for i in column_index
-            push!(vals, i => row[i])
-        end
-    end
-    result = ParamVector(
+    vals = read_record_file(AxisArray, filename, sheetname, 1)
+    result = ParamAxisArray(
         name,
-        column_index,
+        (index,),
         vals,
         prose_name = prose_name,
         description = description,
@@ -80,33 +74,118 @@ function read_param(
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
-    table = DataFrame(XLSX.readtable(filename, sheetname)...)
-
-    n = length(row_indices)
     dims = Tuple(push!(copy(row_indices), column_index))
-    vals = Dict{DimensionKey{n + 1}, Float64}()
+    vals = read_record_file(AxisArray, filename, sheetname, length(dims))
+    ar_axes = AxisArrays.axes(vals)
+    if length(ar_axes) != length(dims)
+        throw(
+            ArgumentError(
+                "dimension length of AxisArray ($(length(ar_axes))) does not match passed dimensions ($(length(dims)))",
+            ),
+        )
+    end
 
-    for row in eachrow(table)
-        # the Dict key starts with the first n values in row
-        preamble = Symbol.(Array(row[1:n]))
-        # check that the key values are expected
-        for (i, rindex) in enumerate(row_indices)
-            @assert preamble[i] in rindex "Entry $i $(preamble[i]) not in $rindex"
-        end
-        # now register all of the values in this row
-        for i in column_index
-            key = Tuple(push!(copy(preamble), i))
-            push!(vals, key => row[i])
+    for (i, ax) in enumerate(ar_axes)
+        elements = dims[i].elements
+        # compare the sets TODO DT
+        if ax.val != elements
+            throw(
+                ArgumentError(
+                    "dimension elements of AxisArray ($ax) does not match passed dimension ($elements)",
+                ),
+            )
         end
     end
+    # TODO DT: make negative test to verify that conflicting inputs are rejected.
     result =
-        ParamArray(name, dims, vals, prose_name = prose_name, description = description)
+        ParamAxisArray(name, dims, vals, prose_name = prose_name, description = description)
     @debug "Loaded $sheetname" result
     return result
 end
 
+"""
+Return an AxisArray from an N-dimensional array flattened in a CSV file.
+
+If there is one dimension then the file must have a single row with dimension names.
+If there is more than one dimension then it must conform to the following format:
+
+The header row consists of dimension names for the first N-1 dimensions followed by the last
+dimension's element ids pivoted out to form data column headers.
+
+The data rows contain dimension element ids in the first N-1 columns followed by parameter
+values in the remaining columns. Each value maps to the dimension element ids listed in the
+row's first N-1 columns plus the dimension element id found in that value's column.
+
+3-dimension example:
+
+d1_variable_name,d2_variable_name,d3_name1,d3_name2,d3_name3
+d1_name1,d2_name1,1.0,1.0,1.0
+d1_name2,d2_name2,1.0,1.0,1.0
+"""
+function read_axis_array(filename::AbstractString, num_dims::Int)
+    @debug "read_axis_array" filename num_dims
+    file = open(filename) do io
+        CSV.File(io)
+    end
+
+    isempty(file) && error("$filename is empty")
+    return read_axis_array(file, num_dims)
+end
+
+function read_axis_array(file::CSV.File, num_dims)
+    if num_dims == 1
+        data = [getproperty(file, x)[1] for x in file.names]
+        return AxisArray(data, file.names)
+    end
+
+    index_names = Vector{Vector{Symbol}}(undef, num_dims)
+    for i in 1:(num_dims - 1)
+        index_names[i] = Symbol.(unique(file.columns[i]))
+    end
+    index_names[num_dims] = Symbol.(file.names[num_dims:end])
+
+    data =
+        AxisArray(Array{Float64, num_dims}(undef, length.(index_names)...), index_names...)
+    for i in 1:(file.rows)
+        indices = [Symbol(file.columns[j][i]) for j in 1:(num_dims - 1)]
+        data[indices...] =
+            [file.columns[x + num_dims - 1][i] for x in 1:length(index_names[end])]
+    end
+
+    return data
+end
+
+function read_record_file(::Type{DataFrame}, filename, sheetname)
+    # TODO: Remove when all .xlsx files have been converted.
+    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
+    workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
+    record_file = joinpath(workbook_dir, sheetname * ".csv")
+    if !isfile(record_file)
+        df = DataFrame(XLSX.readtable(filename, sheetname)...)
+        mkpath(workbook_dir)
+        to_csv(df, record_file)
+        @info "Converted $filename $sheetname to $record_file"
+    end
+
+    return read_dataframe(record_file)
+end
+
+function read_record_file(::Type{AxisArray}, filename, sheetname, num_dims)
+    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
+    workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
+    record_file = joinpath(workbook_dir, sheetname * ".csv")
+    if !isfile(record_file)
+        df = DataFrame(XLSX.readtable(filename, sheetname)...)
+        mkpath(workbook_dir)
+        to_csv(df, record_file)
+        @info "Converted $filename $sheetname to $record_file"
+    end
+
+    return read_axis_array(record_file, num_dims)
+end
+
 function save_param(
-    param::Dict,
+    vals::AxisArray,
     set_names::Array,
     value_name::Symbol,
     filepath::AbstractString,
@@ -114,23 +193,21 @@ function save_param(
     # TODO: Replace this with more efficient code
 
     # make sure we always have the same order
-    the_keys = sort([k for k in keys(param)])
+    indices =
+        sort!(reshape(collect(Iterators.product(AxisArrays.axes(vals)...)), length(vals)))
 
     # get categorical data
     result = DataFrame()
     for (i, set_name) in enumerate(set_names)
         data = []
-        for key in the_keys
-            push!(data, isa(key, Tuple) ? key[i] : key)
+        for index in indices
+            push!(data, index[i])
         end
         result[!, set_name] = data
     end
 
     # get values
-    data = []
-    for key in the_keys
-        push!(data, param[key])
-    end
+    data = [vals[x...] for x in indices]
     result[!, value_name] = data
 
     # save out
@@ -141,7 +218,10 @@ end
 function compute_difference_one_norm(before_after_pairs)
     result = 0.0
     for (before, after) in before_after_pairs
-        result += sum(abs(after[k] - before[k]) for k in keys(before))
+        result += sum((
+            abs(after[i...] - before[i...]) for
+            i in Iterators.product(AxisArrays.axes(before)...)
+        ))
     end
     return result
 end
@@ -208,27 +288,29 @@ function configure_logging(;
 end
 
 """
-Returns a Dict with all values set to value, and keys formed from 
-indices. Each key is a Symbol.
+Returns a ParamAxisArray with all values set to value.
 """
 function initialize_param(
     name::AbstractString,
-    indices::Dimension;
+    index::Dimension;
     value = 0.0,
     prose_name = "",
     description = "",
 )
-    return ParamVector(
+    return ParamAxisArray(
         name,
-        indices,
-        Dict(t => value for t in indices),
+        (index,),
+        AxisArray(
+            fill!(Vector{Float64}(undef, length(index.elements)), value),
+            index.elements,
+        ),
         prose_name = prose_name,
         description = description,
     )
 end
 
 """
-Returns a Dict with all values set to value, and keys formed from
+Return an AxisArray with all values set to value, and indices formed from
 Iterators.product(indices...).
 """
 function initialize_param(
@@ -238,34 +320,36 @@ function initialize_param(
     prose_name = "",
     description = "",
 )
-    return ParamArray(
+    num_dims = length(indices)
+    return ParamAxisArray(
         name,
         indices,
-        Dict(t => value for t in Iterators.product(indices...)),
+        AxisArray(
+            fill!(Array{Float64, num_dims}(undef, (length(x) for x in indices)...), value),
+            (x.elements for x in indices)...,
+        ),
         prose_name = prose_name,
         description = description,
     )
 end
 
 function read_dataframe(filename::AbstractString)
+    ext = lowercase(splitext(filename)[2])
+    if ext == ".csv"
+        return read_dataframe(CSV.File, filename)
+    end
+
+    @assert false "read_dataframe does not support extension $ext"
+end
+
+function read_dataframe(::Type{CSV.File}, filename::AbstractString)
     open(filename) do io
         CSV.read(io, DataFrame)
     end
 end
 
-# Code from https://stackoverflow.com/a/60907180 that provides a stop() function
-# that can be helpful for testing.
-
-function stop()
-    throw(StopException("Stop."))
-end
-
-struct StopException{T}
-    S::T
-end
-
-function Base.showerror(io::IO, ex::StopException, bt; backtrace = true)
-    Base.with_output_color(get(io, :color, false) ? :green : :nothing, io) do io
-        showerror(io, ex.S)
+function to_csv(df, filename::AbstractString)
+    open(filename, "w") do io
+        CSV.write(io, df)
     end
 end

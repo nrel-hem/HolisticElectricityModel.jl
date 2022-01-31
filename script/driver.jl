@@ -4,14 +4,14 @@ using HolisticElectricityModel
 # This is the driver script
 
 # Define the solver ------------------------------------------------------------
-# using Xpress
-# MIP_solver = XpressSolver(Xpress)
+using Xpress
+MIP_solver = XpressSolver(Xpress)
 using Ipopt
 NLP_solver = Ipopt_Solver(Ipopt)
 
-using Gurobi
-const GRB_ENV = Gurobi.Env()
-MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
+# using Gurobi
+# const GRB_ENV = Gurobi.Env()
+# MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
 # ------------------------------------------------------------------------------
 
 # Define the model run ---------------------------------------------------------
@@ -34,7 +34,7 @@ hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
     NLP_solver,
     WholesaleMarket(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
-    SupplyChoiceUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
+    DERSupplyChoiceUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
 )
 
 regulator_opts = RegulatorOptions(
@@ -43,7 +43,7 @@ regulator_opts = RegulatorOptions(
 )
 
 ipp_opts = IPPOptions(
-    MIQP(),              # LagrangeDecomposition, MIQP
+    LagrangeDecomposition(),              # LagrangeDecomposition, MIQP
 )
 
 # Load sets and parameters, define functions -----------------------------------

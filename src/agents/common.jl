@@ -1,6 +1,7 @@
 # This module defines inputs that are held in common across all agents
 
 const DEFAULT_ID = "default"
+const HEM_TIMER = TimerOutputs.TimerOutput()
 
 struct HEMData
     # Configuration
@@ -15,9 +16,9 @@ struct HEMData
     index_j::Dimension # green tariff technologies
 
     # Parameters
-    omega::ParamVector # number of hours per timeslice
-    year::ParamVector
-    hour::ParamVector
+    omega::ParamAxisArray # number of hours per timeslice
+    year::ParamAxisArray
+    hour::ParamAxisArray
     year_start::ParamScalar
 end
 
@@ -215,31 +216,43 @@ function solve_equilibrium_problem!(
     store = AgentStore(agents_and_opts)
     max_iter = 100
     window_length = 1
+    TimerOutputs.reset_timer!(HEM_TIMER)
 
     utility = get_agent(Utility, store)
     ipp = get_agent(IPPGroup, store)
 
-    for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
-        model_data.index_y.elements =
-            model_data.index_y_fix.elements[w:(w + window_length - 1)]
-        i = 0
-        for i in 1:max_iter
-            diff = 0.0
+    TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
+        for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+            model_data.index_y.elements =
+                model_data.index_y_fix.elements[w:(w + window_length - 1)]
+            i = 0
+            for i in 1:max_iter
+                diff = 0.0
 
-            for (agent, options) in iter_agents_and_options(store)
-                @info "$(typeof(agent)), iteration $i"
-                diff += solve_agent_problem!(agent, options, model_data, hem_opts, store, w)
-            end
-            @info "Iteration $i value: $diff"
+                for (agent, options) in iter_agents_and_options(store)
+                    TimerOutputs.@timeit HEM_TIMER "solve_agent_problem!" begin
+                        @info "$(typeof(agent)), iteration $i"
+                        diff += solve_agent_problem!(
+                            agent,
+                            options,
+                            model_data,
+                            hem_opts,
+                            store,
+                            w,
+                        )
+                    end
+                end
+                @info "Iteration $i value: $diff"
 
-            if diff < model_data.epsilon
-                break
+                if diff < model_data.epsilon
+                    break
+                end
             end
+
+            # save_welfare(welfare, export_file_path, file_prefix)
+            i >= max_iter && error("Reached max iterations $max_iter with no solution")
+            @info "Problem solved!"
         end
-
-        # save_welfare(welfare, export_file_path, file_prefix)
-        i >= max_iter && error("Reached max iterations $max_iter with no solution")
-        @info "Problem solved!"
 
         for k in utility.index_k_existing
             utility.x_R_cumu[k] = utility.x_R_cumu[k] + utility.x_R_my[first(model_data.index_y),k]
@@ -280,13 +293,36 @@ function solve_equilibrium_problem!(
             welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
     end
 
-    save_welfare!(Welfare_supply, Welfare_demand, export_file_path, file_prefix)
+    if hem_opts.use_case == DERUseCase()
+        Welfare_green_developer = [AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        )]
+    else
+        z = store.data[GreenDeveloper]["default"]
+        Welfare_green_developer =
+            welfare_calculation!(z.agent, z.options, model_data, hem_opts, store)
+    end
+
+    save_welfare!(Welfare_supply, Welfare_demand, Welfare_green_developer, export_file_path, file_prefix)
+
+    @info "\n$(HEM_TIMER)\n"
 end
 
 # TODO: Write the welfare calculation and saving more generally
 function save_welfare!(
     Supply::Any,
     Demand::Any,
+    GreenDeveloper::Any,
     exportfilepath::AbstractString,
     fileprefix::AbstractString,
 )
@@ -297,47 +333,53 @@ function save_welfare!(
         joinpath(exportfilepath, "$(fileprefix)_PVNetCS.csv"),
     )
     save_param(
-        Demand[2],
-        [:Year, :CustomerType, :DERTech],
-        :PVEnergySaving_dollar,
-        joinpath(exportfilepath, "$(fileprefix)_PVSaving.csv"),
+        Demand[2].values,
+        [:Year, :CustomerType],
+        :ConGreenPowerNetSurplus_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenPowerNetCS.csv"),
     )
+    # save_param(
+    #     Demand[2],
+    #     [:Year, :CustomerType, :DERTech],
+    #     :PVEnergySaving_dollar,
+    #     joinpath(exportfilepath, "$(fileprefix)_PVSaving.csv"),
+    # )
+    # save_param(
+    #     Demand[3],
+    #     [:Year, :CustomerType, :DERTech],
+    #     :EnergyCost_dollar,
+    #     joinpath(exportfilepath, "$(fileprefix)_EnergyCost.csv"),
+    # )
+    # save_param(
+    #     Demand[4],
+    #     [:Year, :CustomerType, :DERTech],
+    #     :NetCS_dollar,
+    #     joinpath(exportfilepath, "$(fileprefix)_NetCS.csv"),
+    # )
     save_param(
         Demand[3],
-        [:Year, :CustomerType, :DERTech],
-        :EnergyCost_dollar,
-        joinpath(exportfilepath, "$(fileprefix)_EnergyCost.csv"),
-    )
-    save_param(
-        Demand[4],
-        [:Year, :CustomerType, :DERTech],
-        :NetCS_dollar,
-        joinpath(exportfilepath, "$(fileprefix)_NetCS.csv"),
-    )
-    save_param(
-        Demand[5],
         [:Year],
         :TotalNetCS_dollar,
         joinpath(exportfilepath, "$(fileprefix)_TotalNetCS.csv"),
     )
-    save_param(
-        Demand[6],
-        [:Year, :CustomerType, :DERTech],
-        :NetCS_dollar,
-        joinpath(exportfilepath, "$(fileprefix)_NetCS_per_customer.csv"),
-    )
-    save_param(
-        Demand[7],
-        [:Year, :CustomerType],
-        :dollar,
-        joinpath(exportfilepath, "$(fileprefix)_annual_bill_per_customer.csv"),
-    )
-    save_param(
-        Demand[8],
-        [:Year, :CustomerType],
-        :dollar,
-        joinpath(exportfilepath, "$(fileprefix)_average_bill_per_customer.csv"),
-    )
+    # save_param(
+    #     Demand[6],
+    #     [:Year, :CustomerType, :DERTech],
+    #     :NetCS_dollar,
+    #     joinpath(exportfilepath, "$(fileprefix)_NetCS_per_customer.csv"),
+    # )
+    # save_param(
+    #     Demand[7],
+    #     [:Year, :CustomerType],
+    #     :dollar,
+    #     joinpath(exportfilepath, "$(fileprefix)_annual_bill_per_customer.csv"),
+    # )
+    # save_param(
+    #     Demand[8],
+    #     [:Year, :CustomerType],
+    #     :dollar,
+    #     joinpath(exportfilepath, "$(fileprefix)_average_bill_per_customer.csv"),
+    # )
     save_param(
         Supply[1],
         [:Year],
@@ -385,5 +427,17 @@ function save_welfare!(
         [:Year],
         :Metric_ton,
         joinpath(exportfilepath, "$(fileprefix)_Total_Emission.csv"),
+    )
+    save_param(
+        GreenDeveloper[1],
+        [:Year],
+        :GreenDeveloperRevenue_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperRevenue.csv"),
+    )
+    save_param(
+        GreenDeveloper[2],
+        [:Year],
+        :GreenDeveloperCost_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperCost.csv"),
     )
 end
