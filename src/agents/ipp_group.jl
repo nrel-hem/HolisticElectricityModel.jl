@@ -2355,7 +2355,7 @@ function solve_agent_problem_ipp_cap(
     fill!(ipp.Max_Net_Load_my, NaN)
     for y in model_data.index_y
         ipp.Max_Net_Load_my[y] =
-            findmax((ipp.Net_Load_my[y, t] for t in model_data.index_t))[1]
+            findmax(Dict(t => ipp.Net_Load_my[y, t] for t in model_data.index_t))[1]
     end
 
     Max_Net_Load_my_index = Dict(
