@@ -83,7 +83,7 @@ function solve_agent_problem!(
             model_data.omega[t] * utility.rho_C_my[j, t] * (x_green[j, h] + x_green_cumu[j, h]) for
             j in model_data.index_j, t in model_data.index_t
         ) -
-        customers.x_green_sub_my[reg_year_index, h] >=
+        customers.x_green_sub_my[reg_year_index, h] / (1 - utility.loss_dist) >=
         0
     )
 

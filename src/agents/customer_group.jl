@@ -548,7 +548,7 @@ function solve_agent_problem!(
     end
 
     if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, SupplyChoiceUseCase}
-        WholesaleMarketPerc = 0.000001
+        WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
     end
@@ -571,9 +571,23 @@ function solve_agent_problem!(
 
     GreenSubPerc[:Residential] = 0.0
 
+    # is GreenSubPerc a percentage of net load? total load? shall we account for distribution loss or not?
     GreenSubMWh = AxisArray(
         [
-            sum(GreenSubPerc[h] * customers.d[h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
+            sum(GreenSubPerc[h] * 
+            (
+                customers.d[h, t] * (1 - utility.loss_dist) * model_data.omega[t] * customers.gamma[h] -
+                sum(
+                    customers.rho_DG[h, m, t] * customers.x_DG_E_my[reg_year_index, h, m] * model_data.omega[t] for
+                    m in customers.index_m
+                ) -
+                sum(
+                    customers.rho_DG[h, m, t] * model_data.omega[t] * sum(
+                        customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[reg_year_index]
+                    ) for m in customers.index_m
+                )
+            ) for t in model_data.index_t)
             for h in model_data.index_h
         ],
         model_data.index_h.elementsm,
@@ -732,7 +746,7 @@ function solve_agent_problem!(
     green_sub_model = customers.green_sub_model
 
     if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, DERSupplyChoiceUseCase}
-        WholesaleMarketPerc = 0.000001
+        WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
     end
@@ -758,7 +772,20 @@ function solve_agent_problem!(
     # shall we use net load here?
     GreenSubMWh = AxisArray(
         [
-            sum(GreenSubPerc[h] * customers.d[h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
+            sum(GreenSubPerc[h] * 
+            (
+                customers.d[h, t] * (1 - utility.loss_dist) * model_data.omega[t] * customers.gamma[h] -
+                sum(
+                    customers.rho_DG[h, m, t] * customers.x_DG_E_my[reg_year_index, h, m] * model_data.omega[t] for
+                    m in customers.index_m
+                ) -
+                sum(
+                    customers.rho_DG[h, m, t] * model_data.omega[t] * sum(
+                        customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[reg_year_index]
+                    ) for m in customers.index_m
+                )
+            ) for t in model_data.index_t)
             for h in model_data.index_h
         ],
         model_data.index_h.elements,
@@ -1092,7 +1119,7 @@ function welfare_calculation!(
 
     """
 
-    # note: may need to consider distribution loss
+    # note: may need to consider distribution loss and DPV installation?
     max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         max_sub[y, h] = 
@@ -1105,7 +1132,7 @@ function welfare_calculation!(
     end
 
     if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, SupplyChoiceUseCase}
-        WholesaleMarketPerc = 0.000001
+        WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
     end
@@ -1163,7 +1190,8 @@ function welfare_calculation!(
             y_star in model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
     end
 
-    # Calculate energy costs of all other customers, as well as green subscribers' share of T&D cost       
+    # Calculate energy costs of all other customers, as well as green subscribers' share of T&D cost
+    # here, we do not reduce the load by the DPV generation to avoid double-counting of DPV's saving.       
     EnergyCost = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         EnergyCost[y, h] = sum(
@@ -1269,19 +1297,13 @@ function welfare_calculation!(
     """
     Net Consumer Surplus Calculation:
 
+    + Annualized Net Consumer Surplus of Green Power Subscription
+
+    - Cost of Energy Purchase of all other customers
+
+    - T&D cost shared by Green Power Subscriber
+
     + Annualized Net Consumer Surplus of New DER installation (including Energy Savings and DER Excess Credits associated with New DERs)
-
-    + Annualized Net Consumer Surplus of Existing PV installation (including Energy Savings and DER Excess Credits associated with Existing DERs)
-    (Note: this term is assumed to be a constant carried over from previous years and not quantified)
-
-    + Gross Surplus and energy consumption
-    (Note: this term is assumed to be a constant and not quantified (demand is inelastic))
-
-    - Cost of Energy Purchase
-    (Note: this is the out-of-pocket payment for purchasing energy from the utility company, therefore, this term double-counted the energy savings already accounted for in the Annualized Net Consumer Surplus)
-
-    - Energy Savings associaed with both new and existing DERs
-    (Note: this term is to remove the double-counted energy savings from the terms above)
 
     Also note that DER Excess Credits are not listed here because they're implictly accounted for in the Annualized Net Consumer Surplus.
 
@@ -1351,7 +1373,7 @@ function welfare_calculation!(
         end
     end
 
-    # note: may need to consider distribution loss
+    # note: may need to consider distribution loss and DPV installation?
     max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         max_sub[y, h] = 
@@ -1364,7 +1386,7 @@ function welfare_calculation!(
     end
 
     if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, SupplyChoiceUseCase}
-        WholesaleMarketPerc = 0.000001
+        WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
     end
@@ -1422,7 +1444,8 @@ function welfare_calculation!(
             y_star in model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
     end
 
-    # Calculate energy costs of all other customers, as well as green subscribers' share of T&D cost       
+    # Calculate energy costs of all other customers, as well as green subscribers' share of T&D cost
+    # here, we do not reduce the load by the DPV generation to avoid double-counting of DPV's saving.
     EnergyCost = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         EnergyCost[y, h] = sum(
