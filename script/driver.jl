@@ -4,14 +4,14 @@ using HolisticElectricityModel
 # This is the driver script
 
 # Define the solver ------------------------------------------------------------
-using Xpress
-MIP_solver = XpressSolver(Xpress)
+# using Xpress
+# MIP_solver = XpressSolver(Xpress)
 using Ipopt
 NLP_solver = Ipopt_Solver(Ipopt)
 
-# using Gurobi
-# const GRB_ENV = Gurobi.Env()
-# MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
+using Gurobi
+const GRB_ENV = Gurobi.Env()
+MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
 # ------------------------------------------------------------------------------
 
 # Define the model run ---------------------------------------------------------
@@ -38,12 +38,12 @@ hem_opts = HEMOptions(
 )
 
 regulator_opts = RegulatorOptions(
-    TOU(),               # RateDesign
-    ExcessRetailRate(),  # NetMeteringPolicy
+    TOU(),               # RateDesign       # FlatRate(), TOU()
+    ExcessZero(),  # NetMeteringPolicy      # ExcessRetailRate(), ExcessZero()
 )
 
 ipp_opts = IPPOptions(
-    LagrangeDecomposition(),              # LagrangeDecomposition, MIQP
+    MIQP(),              # LagrangeDecomposition, MIQP
 )
 
 # Load sets and parameters, define functions -----------------------------------
@@ -55,7 +55,7 @@ customers = CustomerGroup(input_filename, model_data)
 ipp = IPPGroup(input_filename, model_data)
 green_developer = GreenDeveloper(input_filename, model_data)
 
-file_prefix = "Results_$(hem_opts.use_case)_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
+file_prefix = "Results_$(hem_opts.use_case)_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)_REC$(regulator.REC.value)"
 
 solve_equilibrium_problem!(
     hem_opts,

@@ -98,7 +98,7 @@ function solve_agent_problem!(
     for h in model_data.index_h
         if sum(green_developer.green_tech_buildout_my[reg_year_index, j, h] for j in model_data.index_j) > 0.0
             green_developer.ppa_my[reg_year_index, h] = (sum(sum(utility.fom_C_my[reg_year_index, j] * green_developer.green_tech_buildout_my[reg_year_index, j, h] for j in model_data.index_j) / (1+green_developer.irr)^n for n in 1:20) +
-            sum(utility.CapEx_my[reg_year_index, j] * green_developer.green_tech_buildout_my[reg_year_index, j, h] for j in model_data.index_j)) /
+            sum(utility.CapEx_my[reg_year_index, j] * green_developer.green_tech_buildout_my[reg_year_index, j, h] * (1 - utility.ITC_new_my[reg_year_index, j]) for j in model_data.index_j)) /
             (sum(customers.x_green_sub_incremental_my[reg_year_index, h] / ((1+green_developer.irr)^n) for n in 1:20))
         else
             green_developer.ppa_my[reg_year_index, h] = 0.0
@@ -292,7 +292,7 @@ function welfare_calculation!(
                 green_developer_Revenue[y] - debt_interest[y] - operational_cost[y] -
                 depreciation_tax[y]
             ) * utility.Tax - sum(
-                utility.CapEx_my[y, j] * sum(green_developer.green_tech_buildout_my[y, j, h] for h in model_data.index_h) * utility.ITC_new[j] for
+                utility.CapEx_my[y, j] * sum(green_developer.green_tech_buildout_my[y, j, h] for h in model_data.index_h) * utility.ITC_new_my[y, j] for
                 j in model_data.index_j
             ) for y in model_data.index_y_fix
         ],

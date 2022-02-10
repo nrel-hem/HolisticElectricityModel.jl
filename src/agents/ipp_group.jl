@@ -3465,7 +3465,7 @@ function welfare_calculation!(
                 IPP_Revenue_p[y, p] - debt_interest[y, p] - operational_cost[y, p] -
                 depreciation_tax[y, p]
             ) * ipp.Tax[p] - sum(
-                ipp.CapEx_my[y, p, k] * ipp.x_C_my[y, p, k] * utility.ITC_new[k] for
+                ipp.CapEx_my[y, p, k] * ipp.x_C_my[y, p, k] * utility.ITC_new_my[y, k] for
                 k in ipp.index_k_new
             )
     end

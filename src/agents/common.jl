@@ -440,4 +440,34 @@ function save_welfare!(
         :GreenDeveloperCost_dollar,
         joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperCost.csv"),
     )
+    save_param(
+        GreenDeveloper[3],
+        [:Year],
+        :DebtInterest_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperDebtInterest.csv"),
+    )
+    save_param(
+        GreenDeveloper[4],
+        [:Year],
+        :IncomeTax_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperIncomeTax.csv"),
+    )
+    save_param(
+        GreenDeveloper[5],
+        [:Year],
+        :OperationalCost_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperOperationalCost.csv"),
+    )
+    save_param(
+        GreenDeveloper[6],
+        [:Year],
+        :Depreciation_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperDepreciation.csv"),
+    )
+    save_param(
+        GreenDeveloper[7],
+        [:Year],
+        :Depreciation_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloper_Tax_Depreciation.csv"),
+    )
 end

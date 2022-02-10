@@ -1489,7 +1489,8 @@ function welfare_calculation!(
     ConNetSurplus = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         ConNetSurplus[y, h] =
-            customers.ConGreenPowerNetSurplus_cumu_my[y, h] - EnergyCost[y, h] - Green_sub_TD_charge[y, h]
+            customers.ConGreenPowerNetSurplus_cumu_my[y, h] - EnergyCost[y, h] - Green_sub_TD_charge[y, h] +
+            sum(customers.ConPVNetSurplus_my[y, h, m] for m in customers.index_m)
     end
     # Sum of Net Consumer Surplus across customer tpye and DER technology
     TotalConNetSurplus = AxisArray(
