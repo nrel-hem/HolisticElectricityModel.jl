@@ -33,13 +33,13 @@ logger = configure_logging(
 hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
     NLP_solver,
-    WholesaleMarket(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
+    VerticallyIntegratedUtility(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERSupplyChoiceUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
 )
 
 regulator_opts = RegulatorOptions(
-    TOU(),               # RateDesign       # FlatRate(), TOU()
-    ExcessZero(),  # NetMeteringPolicy      # ExcessRetailRate(), ExcessZero()
+    FlatRate(),               # RateDesign       # FlatRate(), TOU()
+    ExcessRetailRate(),  # NetMeteringPolicy      # ExcessRetailRate(), ExcessZero()
 )
 
 ipp_opts = IPPOptions(

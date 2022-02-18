@@ -82,7 +82,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             1002332810.0,
             description = "other cost not related to the optimization problem",
         ),
-        ParamScalar("REC", 0.0, description = "Renewable Energy Credits"),
+        ParamScalar("REC", 30.0, description = "Renewable Energy Credits"),
         initialize_param(
             "p",
             model_data.index_h,
@@ -362,10 +362,27 @@ function solve_agent_problem!(
     income_tax =
         (
             return_to_equity * utility.Tax +
-            (depreciation - depreciation_tax) * utility.Tax - sum(
-                utility.CapEx_my[reg_year_index, k] *
-                utility.x_C_my[reg_year_index, k] *
-                utility.ITC_new_my[reg_year_index, k] for k in utility.index_k_new
+            (depreciation - depreciation_tax) * utility.Tax - 
+            sum(
+                utility.ITC_existing_my[k] *
+                utility.CapEx_existing_my[k] *
+                (utility.x_E_my[k] - reg_retirement[k]) *
+                utility.AnnualITCAmort_existing_my[reg_year_index, k] +
+                # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
+                utility.ITC_existing_my[k] *
+                utility.CapEx_existing_my[k] *
+                utility.x_R_my[reg_year_index, k] *
+                (
+                    utility.AnnualITCAmort_existing_my[reg_year_index, k] + 1 -
+                    utility.CumuITCAmort_existing_my[reg_year_index, k]
+                ) for k in utility.index_k_existing
+            ) -
+            sum(
+                utility.ITC_new_my[Symbol(Int(y)), k] *
+                utility.CapEx_my[Symbol(Int(y)), k] *
+                utility.x_C_my[Symbol(Int(y)), k] *
+                utility.AnnualITCAmort_new_my[Symbol(Int(reg_year - y + 1)), k] for
+                y in model_data.year[first(model_data.index_y_fix)]:reg_year, k in utility.index_k_new
             )
         ) / (1 - utility.Tax)
     # calculate revenue requirement

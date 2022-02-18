@@ -218,8 +218,6 @@ function solve_equilibrium_problem!(
     window_length = 1
     TimerOutputs.reset_timer!(HEM_TIMER)
 
-    utility = get_agent(Utility, store)
-    ipp = get_agent(IPPGroup, store)
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
         for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
@@ -252,22 +250,8 @@ function solve_equilibrium_problem!(
             # save_welfare(welfare, export_file_path, file_prefix)
             i >= max_iter && error("Reached max iterations $max_iter with no solution")
             @info "Problem solved!"
-        end
 
-        for k in utility.index_k_existing
-            utility.x_R_cumu[k] = utility.x_R_cumu[k] + utility.x_R_my[first(model_data.index_y),k]
-        end
-    
-        for k in utility.index_k_new
-            utility.x_C_cumu[k] = utility.x_C_cumu[k] + utility.x_C_my[first(model_data.index_y),k]
-        end
-
-        for p in ipp.index_p, k in ipp.index_k_existing
-            ipp.x_R_cumu[p,k] = ipp.x_R_cumu[p,k] + ipp.x_R_my[first(model_data.index_y),p,k]
-        end
-    
-        for p in ipp.index_p, k in ipp.index_k_new
-            ipp.x_C_cumu[p,k] = ipp.x_C_cumu[p,k] + ipp.x_C_my[first(model_data.index_y),p,k]
+            update_cumulative!(model_data, agents_and_opts)
         end
 
     end
@@ -316,6 +300,32 @@ function solve_equilibrium_problem!(
     save_welfare!(Welfare_supply, Welfare_demand, Welfare_green_developer, export_file_path, file_prefix)
 
     @info "\n$(HEM_TIMER)\n"
+end
+
+function update_cumulative!(
+    model_data::HEMData,
+    agents_and_opts::Vector{AgentAndOptions},
+)
+    store = AgentStore(agents_and_opts)
+    utility = get_agent(Utility, store)
+    ipp = get_agent(IPPGroup, store)
+
+    for k in utility.index_k_existing
+        utility.x_R_cumu[k] = utility.x_R_cumu[k] + utility.x_R_my[first(model_data.index_y),k]
+    end
+
+    for k in utility.index_k_new
+        utility.x_C_cumu[k] = utility.x_C_cumu[k] + utility.x_C_my[first(model_data.index_y),k]
+    end
+
+    for p in ipp.index_p, k in ipp.index_k_existing
+        ipp.x_R_cumu[p,k] = ipp.x_R_cumu[p,k] + ipp.x_R_my[first(model_data.index_y),p,k]
+    end
+
+    for p in ipp.index_p, k in ipp.index_k_new
+        ipp.x_C_cumu[p,k] = ipp.x_C_cumu[p,k] + ipp.x_C_my[first(model_data.index_y),p,k]
+    end
+
 end
 
 # TODO: Write the welfare calculation and saving more generally

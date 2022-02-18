@@ -3464,9 +3464,32 @@ function welfare_calculation!(
             (
                 IPP_Revenue_p[y, p] - debt_interest[y, p] - operational_cost[y, p] -
                 depreciation_tax[y, p]
-            ) * ipp.Tax[p] - sum(
-                ipp.CapEx_my[y, p, k] * ipp.x_C_my[y, p, k] * utility.ITC_new_my[y, k] for
-                k in ipp.index_k_new
+            ) * ipp.Tax[p] - 
+            sum(
+                utility.ITC_existing_my[k] *
+                utility.CapEx_existing_my[k] *
+                (
+                    ipp.x_E_my[p, k] - sum(
+                        ipp.x_R_my[Symbol(Int(y_symbol)), p, k] for y_symbol in
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    )
+                ) *
+                utility.AnnualITCAmort_existing_my[y, k] +
+                # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
+                utility.ITC_existing_my[k] *
+                utility.CapEx_existing_my[k] *
+                ipp.x_R_my[y, p, k] *
+                (
+                    utility.AnnualITCAmort_existing_my[y, k] + 1 -
+                    utility.CumuITCAmort_existing_my[y, k]
+                ) for k in ipp.index_k_existing
+            ) -
+            sum(
+                utility.ITC_new_my[Symbol(Int(y_symbol)), k] *
+                ipp.CapEx_my[Symbol(Int(y_symbol)), p, k] *
+                ipp.x_C_my[Symbol(Int(y_symbol)), p, k] *
+                utility.AnnualITCAmort_new_my[Symbol(Int(model_data.year[y] - y_symbol + 1)), k] for
+                y_symbol in model_data.year[first(model_data.index_y_fix)]:model_data.year[y], k in ipp.index_k_new
             )
     end
 

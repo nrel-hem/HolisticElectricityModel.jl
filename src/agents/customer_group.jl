@@ -1123,7 +1123,20 @@ function welfare_calculation!(
     max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         max_sub[y, h] = 
-        sum(customers.d_my[y, h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
+        sum(
+            (
+                customers.d_my[y, h, t] * (1 - utility.loss_dist) * model_data.omega[t] * customers.gamma[h] -
+                sum(
+                    customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] * model_data.omega[t] for
+                    m in customers.index_m
+                ) -
+                sum(
+                    customers.rho_DG[h, m, t] * model_data.omega[t] * sum(
+                        customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    ) for m in customers.index_m
+                )
+            ) for t in model_data.index_t)
     end
 
     price_at_max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
@@ -1377,7 +1390,20 @@ function welfare_calculation!(
     max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         max_sub[y, h] = 
-        sum(customers.d_my[y, h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
+        sum(
+            (
+                customers.d_my[y, h, t] * (1 - utility.loss_dist) * model_data.omega[t] * customers.gamma[h] -
+                sum(
+                    customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] * model_data.omega[t] for
+                    m in customers.index_m
+                ) -
+                sum(
+                    customers.rho_DG[h, m, t] * model_data.omega[t] * sum(
+                        customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    ) for m in customers.index_m
+                )
+            ) for t in model_data.index_t)
     end
 
     price_at_max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
@@ -1385,7 +1411,7 @@ function welfare_calculation!(
         price_at_max_sub[y, h] = 0.0
     end
 
-    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, SupplyChoiceUseCase}
+    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, DERSupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0

@@ -291,10 +291,15 @@ function welfare_calculation!(
             (
                 green_developer_Revenue[y] - debt_interest[y] - operational_cost[y] -
                 depreciation_tax[y]
-            ) * utility.Tax - sum(
-                utility.CapEx_my[y, j] * sum(green_developer.green_tech_buildout_my[y, j, h] for h in model_data.index_h) * utility.ITC_new_my[y, j] for
-                j in model_data.index_j
-            ) for y in model_data.index_y_fix
+            ) * utility.Tax - 
+            sum(
+                utility.ITC_new_my[Symbol(Int(y_symbol)), j] *
+                utility.CapEx_my[Symbol(Int(y_symbol)), j] *
+                sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
+                utility.AnnualITCAmort_new_my[Symbol(Int(model_data.year[y] - y_symbol + 1)), j] for
+                y_symbol in model_data.year[first(model_data.index_y_fix)]:model_data.year[y], j in model_data.index_j
+            )
+            for y in model_data.index_y_fix
         ],
         model_data.index_y_fix.elements,
     )
