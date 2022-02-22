@@ -4,14 +4,14 @@ using HolisticElectricityModel
 # This is the driver script
 
 # Define the solver ------------------------------------------------------------
-using Xpress
-MIP_solver = XpressSolver(Xpress)
+# using Xpress
+# MIP_solver = XpressSolver(Xpress)
 using Ipopt
 NLP_solver = Ipopt_Solver(Ipopt)
 
-# using Gurobi
-# const GRB_ENV = Gurobi.Env()
-# solver = GurobiSolver(Gurobi, GRB_ENV)
+using Gurobi
+const GRB_ENV = Gurobi.Env()
+MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
 # ------------------------------------------------------------------------------
 
 # Define the model run ---------------------------------------------------------
@@ -33,20 +33,17 @@ logger = configure_logging(
 hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
     NLP_solver,
-    WholesaleMarket(), # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
+    VerticallyIntegratedUtility(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
+    DERSupplyChoiceUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
 )
 
 regulator_opts = RegulatorOptions(
-    TOU(),               # RateDesign
-    ExcessRetailRate(),  # NetMeteringPolicy
-)
-
-customer_opts = CustomerOptions(
-    DERAdoption(),              # DERAdoption, SupplyChoice
+    FlatRate(),               # RateDesign       # FlatRate(), TOU()
+    ExcessRetailRate(),  # NetMeteringPolicy      # ExcessRetailRate(), ExcessZero()
 )
 
 ipp_opts = IPPOptions(
-    LagrangeDecomposition(),              # LagrangeDecomposition, MIQP
+    MIQP(),              # LagrangeDecomposition, MIQP
 )
 
 # Load sets and parameters, define functions -----------------------------------
@@ -56,8 +53,9 @@ regulator = Regulator(input_filename, model_data)
 utility = Utility(input_filename, model_data, regulator)
 customers = CustomerGroup(input_filename, model_data)
 ipp = IPPGroup(input_filename, model_data)
+green_developer = GreenDeveloper(input_filename, model_data)
 
-file_prefix = "Results_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
+file_prefix = "Results_$(hem_opts.use_case)_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)_REC$(regulator.REC.value)"
 
 solve_equilibrium_problem!(
     hem_opts,
@@ -66,7 +64,8 @@ solve_equilibrium_problem!(
         AgentAndOptions(utility, NullAgentOptions()),
         AgentAndOptions(ipp, ipp_opts),
         AgentAndOptions(regulator, regulator_opts),
-        AgentAndOptions(customers, customer_opts),
+        AgentAndOptions(customers, NullAgentOptions()),
+        AgentAndOptions(green_developer, NullAgentOptions()),
     ],
     export_file_path,
     file_prefix,

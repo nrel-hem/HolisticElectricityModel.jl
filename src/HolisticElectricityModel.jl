@@ -8,7 +8,7 @@ module HolisticElectricityModel
 # Meta
 export HEMSolver
 export XpressSolver
-export GurobiSolver
+export Gurobi_Solver
 export Ipopt_Solver
 export HEMData
 export HEMOptions
@@ -27,6 +27,7 @@ export Regulator
 export Utility
 export CustomerGroup
 export IPPGroup
+export GreenDeveloper
 
 # Agent Options
 export RegulatorOptions
@@ -37,7 +38,8 @@ export IPPOptions
 export FlatRate, TOU                                    # tariff structures
 export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
-export DERAdoption, SupplyChoice                        # consumer decisions
+export DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
+# export DERAdoption, SupplyChoice                        # consumer decisions
 export LagrangeDecomposition, MIQP                      # ipp algorithms
 
 # Solvers
@@ -72,6 +74,7 @@ import Distributions
 import InfrastructureSystems
 import InfrastructureSystems: @assert_op
 import QuadGK
+import Ipopt
 import TimerOutputs
 
 const IS = InfrastructureSystems
@@ -96,5 +99,6 @@ include("agents/regulator.jl")
 include("agents/utility.jl")
 include("agents/customer_group.jl")
 include("agents/ipp_group.jl")
+include("agents/green_developer.jl")
 
 end # module

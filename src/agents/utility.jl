@@ -97,6 +97,7 @@ mutable struct Utility <: AbstractUtility
     AnnualTaxDepre_existing_my::ParamAxisArray # annual tax depreciation of existing capacity (%)
     ITC_existing_my::ParamAxisArray # ITC of existing capacity (%)
     CumuITCAmort_existing_my::ParamAxisArray # ITC amortization of existing capacity (%)
+    AnnualITCAmort_existing_my::ParamAxisArray # ITC amortization of existing capacity (%)
     ADIT_existing_my::ParamAxisArray # accumulated deferred income taxes ($/MW)
     RateBaseNoWC_existing_my::ParamAxisArray # rate base (excluding working capital) ($/MW)
 
@@ -104,6 +105,7 @@ mutable struct Utility <: AbstractUtility
     CumuAccoutDepre_new_my::ParamAxisArray # cumulative accounting depreciation of new capacity (%)
     ITC_new_my::ParamAxisArray # ITC of new capacity (%)
     CumuITCAmort_new_my::ParamAxisArray # ITC amortization of new capacity (%)
+    AnnualITCAmort_new_my::ParamAxisArray # ITC amortization of new capacity (%)
     AnnualAccoutDepre_new_my::ParamAxisArray # annual accounting depreciation of new capacity (%)
     AnnualTaxDepre_new_my::ParamAxisArray # annual tax depreciation of new capacity (%) 
 
@@ -338,6 +340,13 @@ function Utility(
         index_k_existing,
         [model_data.index_y],
     )
+    AnnualITCAmortOld_my = read_param(
+        "AnnualITCAmort_existing_my",
+        input_filename,
+        "AnnualITCAmortOldmy",
+        index_k_existing,
+        [model_data.index_y],
+    )
     # accumulative deferred income tax of existing units ($/MW)
     ADITOld_my = make_axis_array(model_data.index_y, index_k_existing)
     for y in model_data.index_y, k in index_k_existing
@@ -378,10 +387,17 @@ function Utility(
         [model_data.index_y],
     )
     # cumulative ITC ammortization of new units (for each schedule year) (%)
-    CumuITCAmortNew_new = read_param(
+    CumuITCAmortNew_my = read_param(
         "CumuITCAmort_new_my",
         input_filename,
         "CumuITCAmortNewmy",
+        index_k_new,
+        [model_data.index_s],
+    )
+    AnnualITCAmortNew_my = read_param(
+        "AnnualITCAmort_new_my",
+        input_filename,
+        "AnnualITCAmortNewmy",
         index_k_new,
         [model_data.index_s],
     )
@@ -565,6 +581,7 @@ function Utility(
         AnnualTaxDepreOld_my,
         ITCOld_my,
         CumuITCAmortOld_my,
+        AnnualITCAmortOld_my,
         ParamAxisArray(
             "ADIT_existing_my",
             Tuple(push!(copy([model_data.index_y]), index_k_existing)),
@@ -578,7 +595,8 @@ function Utility(
         CumuTaxDepreNew_my,
         CumuAccoutDepreNew_my,
         ITCNew_my,
-        CumuITCAmortNew_new,
+        CumuITCAmortNew_my,
+        AnnualITCAmortNew_my,
         AnnualAccoutDepreNew_my,
         AnnualTaxDepreNew_my,
         initialize_param("x_R_cumu", index_k_existing),
@@ -656,7 +674,7 @@ function solve_agent_problem!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -667,12 +685,13 @@ function solve_agent_problem!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
+    green_developer = get_agent(GreenDeveloper, agent_store)
 
     VIUDER_Utility = get_new_jump_model(hem_opts.MIP_solver)
 
@@ -696,7 +715,7 @@ function solve_agent_problem!(
         end
     end
 
-    fill!(utility.Net_Load_my, Nan)
+    fill!(utility.Net_Load_my, NaN)
     for y in model_data.index_y, t in model_data.index_t
         utility.Net_Load_my[y, t] =
             sum(customers.gamma[h] * customers.d_my[y, h, t] for h in model_data.index_h) +
@@ -711,10 +730,10 @@ function solve_agent_problem!(
             )
     end
 
-    fill!(utility.Max_Net_Load_my, Nan)
+    fill!(utility.Max_Net_Load_my, NaN)
     for y in model_data.index_y
         utility.Max_Net_Load_my[y] =
-            findmax((t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
+            findmax(Dict(t => utility.Net_Load_my[y, t] for t in model_data.index_t))[1]
     end
 
     Max_Net_Load_my_index = Dict(
@@ -799,6 +818,12 @@ function solve_agent_problem!(
                     customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
                     model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
                 ) for h in model_data.index_h, m in customers.index_m
+            ) +
+            # green technology subscription at time t
+            sum(
+                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, h in model_data.index_h
             )
         end
 
@@ -866,6 +891,12 @@ function solve_agent_problem!(
                         model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) + utility.x_C_cumu[k]
                 ) for k in utility.index_k_new
+            ) +
+            # green technology subscription
+            sum(
+                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, h in model_data.index_h
             ) -
             # net_load plus planning reserve
             (1 + regulator.r) * (
@@ -907,6 +938,12 @@ function solve_agent_problem!(
                         model_data.year[first(model_data.index_y)]:model_data.year[y]
                     ) + utility.x_C_cumu[k]
                 ) for k in utility.index_k_new
+            ) +
+            # green technology subscription
+            sum(
+                utility.capacity_credit_C_my[y, j] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
+                model_data.year[first(model_data.index_y_fix)]:model_data.year[y])
+                for j in model_data.index_j, h in model_data.index_h
             ) -
             # net_load plus planning reserve
             utility.Reserve_req_my[y]
@@ -974,7 +1011,7 @@ end
 function save_results(
     utility::Utility,
     utility_opts::AgentOptions,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
@@ -1009,7 +1046,7 @@ function welfare_calculation!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
     agent_store::AgentStore,
 )
     regulator = get_agent(Regulator, agent_store)
