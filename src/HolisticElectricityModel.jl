@@ -11,16 +11,19 @@ export XpressSolver
 export Gurobi_Solver
 export Ipopt_Solver
 export HEMData
+export Options
 export HEMOptions
 export AbstractAgent
 export AgentGroup
 export Agent
 export AgentOptions, NullAgentOptions
 export AgentAndOptions
+export AgentOrOptions
 export configure_logging
 export read_dataframe
 export AgentStore
 export iter_agents_and_options
+export get_file_prefix
 
 # Agents
 export Regulator

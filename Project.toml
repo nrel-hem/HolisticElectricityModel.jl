@@ -19,6 +19,7 @@ Logging = "56ddb016-857b-54e1-b83d-db4d58db5568"
 QuadGK = "1fd47b50-473d-5c70-9696-f719f8f3bcdc"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
+Xpress = "9e70acf3-d6c9-5be6-b5bd-4e2c73e3e054"
 
 [compat]
 AxisArrays = "~0.4"

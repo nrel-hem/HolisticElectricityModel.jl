@@ -99,11 +99,20 @@ struct DERUseCase <: UseCase end
 struct SupplyChoiceUseCase <: UseCase end
 struct DERSupplyChoiceUseCase <: UseCase end
 
-struct HEMOptions{T <: MarketStructure, U <: UseCase}
+abstract type Options end
+function get_file_prefix(options::Options)
+    return []
+end
+
+struct HEMOptions{T <: MarketStructure, U <: UseCase} <: Options
     MIP_solver::HEMSolver
     NLP_solver::HEMSolver
     market_structure::T
     use_case::U
+end
+
+function get_file_prefix(options::HEMOptions)
+    return ["$(options.use_case)", "$(options.market_structure)"]
 end
 
 """
@@ -141,13 +150,19 @@ Abstract type for all individual agents.
 """
 abstract type Agent <: AbstractAgent end
 
-abstract type AgentOptions end
+function get_file_prefix(agent::AbstractAgent)
+    return []
+end
+
+abstract type AgentOptions <: Options end
 struct NullAgentOptions <: AgentOptions end
 
 struct AgentAndOptions{T <: AbstractAgent, U <: AgentOptions}
     agent::T
     options::U
 end
+
+AgentOrOptions = Union{AbstractAgent, Options}
 
 struct AgentStore
     data::OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}
@@ -193,6 +208,23 @@ end
 
 function iter_agents_and_options(store::AgentStore)
     return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
+end
+
+function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndOptions})
+    # create vector of items that may contribute information
+    items = Vector{AgentOrOptions}()
+    append!(items, [hem_opts])
+    for item in agents_and_opts
+        append!(items, [item.options], [item.agent])
+    end
+    
+    # call get_file_prefix on each item
+    file_prefix = Vector{String}()
+    for item in items
+        append!(file_prefix, get_file_prefix(item))
+    end
+    file_prefix = string("Results_",join(file_prefix, "_"))
+    return file_prefix
 end
 
 function save_results(

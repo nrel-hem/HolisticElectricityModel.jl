@@ -18,6 +18,10 @@ struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegu
     net_metering_policy::U
 end
 
+function get_file_prefix(options::RegulatorOptions)
+    return ["$(options.rate_design)", "$(options.net_metering_policy)"]
+end
+
 abstract type AbstractRegulator <: Agent end
 
 mutable struct Regulator <: AbstractRegulator
@@ -208,6 +212,10 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
 end
 
 get_id(x::Regulator) = x.id
+
+function get_file_prefix(agent::Regulator)
+    return ["REC$(agent.REC.value)"]
+end
 
 # although Customer is subtype of Agent, 
 # Vector{Customer} is not subtype of Vector{Agent}
