@@ -112,7 +112,7 @@ struct HEMOptions{T <: MarketStructure, U <: UseCase} <: Options
 end
 
 function get_file_prefix(options::HEMOptions)
-    return ["$(options.use_case)", "$(options.market_structure)"]
+    return ["$(typeof(options.use_case))", "$(typeof(options.market_structure))"]
 end
 
 """

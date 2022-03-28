@@ -19,7 +19,7 @@ struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegu
 end
 
 function get_file_prefix(options::RegulatorOptions)
-    return ["$(options.rate_design)", "$(options.net_metering_policy)"]
+    return ["$(typeof(options.rate_design))", "$(typeof(options.net_metering_policy))"]
 end
 
 abstract type AbstractRegulator <: Agent end
