@@ -3558,3 +3558,16 @@ function welfare_calculation!(
     IPP_Revenue_p,
     IPP_Cost_p
 end
+
+"""
+Update IPPGroup cumulative parameters
+"""
+function update_cumulative!(model_data::HEMData, ipp::IPPGroup)
+    for p in ipp.index_p, k in ipp.index_k_existing
+        ipp.x_R_cumu[p,k] = ipp.x_R_cumu[p,k] + ipp.x_R_my[first(model_data.index_y),p,k]
+    end
+
+    for p in ipp.index_p, k in ipp.index_k_new
+        ipp.x_C_cumu[p,k] = ipp.x_C_cumu[p,k] + ipp.x_C_my[first(model_data.index_y),p,k]
+    end
+end

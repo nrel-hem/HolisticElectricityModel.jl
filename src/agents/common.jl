@@ -137,6 +137,14 @@ Required interfaces:
 """
 abstract type AbstractAgent end
 
+"""
+Default no-op method for updating cumulative parameters in AbstractAgents after
+each model year.
+"""
+function update_cumulative!(model_data::HEMData, agent::AbstractAgent)
+    return
+end
+
 # There is currently no behavioral difference between the structs AgentGroup and Agent, but
 # there may be differences in the future.
 
@@ -338,26 +346,9 @@ function update_cumulative!(
     model_data::HEMData,
     agents_and_opts::Vector{AgentAndOptions},
 )
-    store = AgentStore(agents_and_opts)
-    utility = get_agent(Utility, store)
-    ipp = get_agent(IPPGroup, store)
-
-    for k in utility.index_k_existing
-        utility.x_R_cumu[k] = utility.x_R_cumu[k] + utility.x_R_my[first(model_data.index_y),k]
+    for item in agents_and_opts
+        update_cumulative!(model_data, item.agent)
     end
-
-    for k in utility.index_k_new
-        utility.x_C_cumu[k] = utility.x_C_cumu[k] + utility.x_C_my[first(model_data.index_y),k]
-    end
-
-    for p in ipp.index_p, k in ipp.index_k_existing
-        ipp.x_R_cumu[p,k] = ipp.x_R_cumu[p,k] + ipp.x_R_my[first(model_data.index_y),p,k]
-    end
-
-    for p in ipp.index_p, k in ipp.index_k_new
-        ipp.x_C_cumu[p,k] = ipp.x_C_cumu[p,k] + ipp.x_C_my[first(model_data.index_y),p,k]
-    end
-
 end
 
 # TODO: Write the welfare calculation and saving more generally

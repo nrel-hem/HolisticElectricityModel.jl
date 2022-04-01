@@ -2198,3 +2198,16 @@ function solve_agent_problem_decomposition_by_year_master(
     # ])
 
 end
+
+"""
+Update Utility cumulative parameters
+"""
+function update_cumulative!(model_data::HEMData, utility::Utility)
+    for k in utility.index_k_existing
+        utility.x_R_cumu[k] = utility.x_R_cumu[k] + utility.x_R_my[first(model_data.index_y),k]
+    end
+
+    for k in utility.index_k_new
+        utility.x_C_cumu[k] = utility.x_C_cumu[k] + utility.x_C_my[first(model_data.index_y),k]
+    end
+end
