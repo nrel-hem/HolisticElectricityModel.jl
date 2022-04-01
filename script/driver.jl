@@ -20,6 +20,7 @@ NLP_solver = Ipopt_Solver(Ipopt)
 # File locations
 base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
 hem_data_dir = joinpath(base_dir, "..", "HolisticElectricityModel-Data")
+# 20220328@ETH - For now input_filename can be a folder of csvs or an xlsx file
 input_filename =
     joinpath(hem_data_dir, "inputs", "HEM_Parameters_ipp1_single_year_final.xlsx")     # HEM_Parameters_ipp1_single_year_final, HEM_Parameters_ipp1_two_year_test
 export_file_path = joinpath(hem_data_dir, "outputs")
