@@ -228,7 +228,7 @@ function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
 )
@@ -918,7 +918,7 @@ function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
+    hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
 )
@@ -1477,7 +1477,7 @@ end
 function save_results(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
-    hem_opts::HEMOptions{<:MarketStructure, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )

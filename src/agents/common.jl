@@ -95,24 +95,32 @@ struct VerticallyIntegratedUtility <: MarketStructure end
 struct WholesaleMarket <: MarketStructure end
 
 abstract type UseCase end
+struct NullUseCase <: UseCase end
 struct DERUseCase <: UseCase end
 struct SupplyChoiceUseCase <: UseCase end
-struct DERSupplyChoiceUseCase <: UseCase end
 
 abstract type Options end
 function get_file_prefix(options::Options)
     return []
 end
 
-struct HEMOptions{T <: MarketStructure, U <: UseCase} <: Options
+# TODO: Should we/what's the right way to enforce that U can only be NullUseCase/DERUseCase?
+# I think at this level specifying just UseCase makes things easiest for dispatching on type.
+# Should a constructor enforce the more specific allowable types?
+struct HEMOptions{T <: MarketStructure, U <: UseCase, V <: UseCase} <: Options
     MIP_solver::HEMSolver
     NLP_solver::HEMSolver
     market_structure::T
-    use_case::U
+
+    # use case switches
+    der_use_case::U
+    supply_choice_use_case::V
 end
 
 function get_file_prefix(options::HEMOptions)
-    return ["$(typeof(options.use_case))", "$(typeof(options.market_structure))"]
+    return ["$(typeof(options.der_use_case))", 
+            "$(typeof(options.supply_choice_use_case))",
+            "$(typeof(options.market_structure))"]
 end
 
 """
@@ -317,8 +325,38 @@ function solve_equilibrium_problem!(
             welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
     end
 
-    if hem_opts.use_case == DERUseCase()
+    if typeof(hem_opts.supply_choice_use_case) == NullUseCase
         Welfare_green_developer = [AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
             [
                 0.0
                 for y in model_data.index_y_fix

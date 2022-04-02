@@ -36,16 +36,17 @@ hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
     NLP_solver,
     VerticallyIntegratedUtility(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
-    DERSupplyChoiceUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
+    DERUseCase(),                     # UseCase            # NullUseCase, DERUseCase
+    SupplyChoiceUseCase(),            # UseCase            # NullUseCase, SupplyChoiceUseCase
 )
 
 regulator_opts = RegulatorOptions(
-    FlatRate(),               # RateDesign       # FlatRate(), TOU()
-    ExcessRetailRate(),  # NetMeteringPolicy      # ExcessRetailRate(), ExcessZero()
+    FlatRate(),                       # RateDesign         # FlatRate(), TOU()
+    ExcessRetailRate(),               # NetMeteringPolicy  # ExcessRetailRate(), ExcessZero()
 )
 
 ipp_opts = IPPOptions(
-    MIQP(),              # LagrangeDecomposition, MIQP
+    LagrangeDecomposition(),          # LagrangeDecomposition, MIQP
 )
 
 # Load sets and parameters, define functions -----------------------------------
