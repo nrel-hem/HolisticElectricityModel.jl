@@ -22,7 +22,7 @@ struct HEMData
     year_start::ParamScalar
 end
 
-function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-1)
+function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
     # simulation year index
     index_y = read_set(
         input_filename,

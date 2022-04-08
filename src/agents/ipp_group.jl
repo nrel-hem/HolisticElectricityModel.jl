@@ -2251,7 +2251,7 @@ function solve_agent_problem_ipp_cap(
 
     end
 
-    return compute_difference_one_norm([(x_R_before, ipp.x_R_my), (x_C_before, ipp.x_C_my)])
+    return compute_difference_percentage_one_norm([(x_R_before, ipp.x_R_my), (x_C_before, ipp.x_C_my)])
 end
 
 function solve_agent_problem_ipp_cap(
@@ -3181,7 +3181,7 @@ function solve_agent_problem_ipp_cap(
         ipp.ucap[y, p_star] = UCAP_p_star[y]
     end
 
-    return compute_difference_one_norm([
+    return compute_difference_percentage_one_norm([
         (x_R_before, ipp.x_R_my),
         (x_C_before, ipp.x_C_my),
     ])

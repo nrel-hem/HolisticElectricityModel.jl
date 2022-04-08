@@ -226,6 +226,17 @@ function compute_difference_one_norm(before_after_pairs)
     return result
 end
 
+function compute_difference_percentage_one_norm(before_after_pairs)
+    result = 0.0
+    for (before, after) in before_after_pairs
+        result += sum((
+            before[i...] == 0.0 ? abs(after[i...] - before[i...]) : abs(after[i...] - before[i...]) / before[i...] for
+            i in Iterators.product(AxisArrays.axes(before)...)
+        ))
+    end
+    return result
+end
+
 """
 Sets the log level to, e.g., Logging.Debug, Logging.Warn. Currently only 
 implemented for ConsoleLogger.

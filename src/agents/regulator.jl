@@ -796,6 +796,14 @@ function solve_agent_problem!(
         p_before[h, t] = regulator.p_my[reg_year_index, h, t]
     end
 
+    p_before_wavg = ParamAxisArray(regulator.p_td, "p_before_wavg")
+    fill!(p_before_wavg, NaN)  # TODO DT: debug only
+    for h in model_data.index_h
+        p_before_wavg[h] = 
+            sum(regulator.p_my[reg_year_index, h, t] * model_data.omega[t] * customers.d[h, t] for t in model_data.index_t) / 
+            sum(model_data.omega[t] * customers.d[h, t] for t in model_data.index_t)
+    end
+
     p_ex_before = ParamAxisArray(regulator.p_ex, "p_ex_before")
     fill!(p_ex_before, NaN)
     for h in model_data.index_h, t in model_data.index_t
@@ -878,14 +886,21 @@ function solve_agent_problem!(
         regulator.p_my_td[reg_year_index, h] = regulator.p_td[h]
     end
 
+    p_after_wavg = ParamAxisArray(regulator.p_td, "p_after_wavg")
+    fill!(p_after_wavg, NaN)  # TODO DT: debug only
+    for h in model_data.index_h
+        p_after_wavg[h] = 
+            sum(regulator.p_my[reg_year_index, h, t] * model_data.omega[t] * customers.d[h, t] for t in model_data.index_t) / 
+            sum(model_data.omega[t] * customers.d[h, t] for t in model_data.index_t)
+    end
+
     @info "Original retail price" p_before
     @info "Original DER excess rate" p_ex_before
     @info "New retail price" regulator.p
     @info "New DER excess rate" regulator.p_ex
 
-    return compute_difference_one_norm([
-        (p_before.values, regulator.p.values),
-        (p_ex_before.values, regulator.p_ex.values),
+    return compute_difference_percentage_one_norm([
+        (p_before_wavg.values, p_after_wavg.values),
     ])
 end
 
@@ -1358,6 +1373,15 @@ function solve_agent_problem!(
     for h in model_data.index_h, t in model_data.index_t
         p_before[h, t] = regulator.p_my[reg_year_index, h, t]
     end
+
+    p_before_wavg = ParamAxisArray(regulator.p_td, "p_before_wavg")
+    fill!(p_before_wavg, NaN)  # TODO DT: debug only
+    for h in model_data.index_h
+        p_before_wavg[h] = 
+            sum(regulator.p_my[reg_year_index, h, t] * model_data.omega[t] * customers.d[h, t] for t in model_data.index_t) / 
+            sum(model_data.omega[t] * customers.d[h, t] for t in model_data.index_t)
+    end
+
     p_ex_before = ParamAxisArray(regulator.p_ex, "p_ex_before")
     fill!(p_ex_before, NaN)
     for h in model_data.index_h, t in model_data.index_t
@@ -1438,14 +1462,21 @@ function solve_agent_problem!(
         regulator.p_my_td[reg_year_index, h] = regulator.p_td[h]
     end
 
+    p_after_wavg = ParamAxisArray(regulator.p_td, "p_after_wavg")
+    fill!(p_after_wavg, NaN)  # TODO DT: debug only
+    for h in model_data.index_h
+        p_after_wavg[h] = 
+            sum(regulator.p_my[reg_year_index, h, t] * model_data.omega[t] * customers.d[h, t] for t in model_data.index_t) / 
+            sum(model_data.omega[t] * customers.d[h, t] for t in model_data.index_t)
+    end
+
     @info "Original retail price" p_before
     @info "Original DER excess rate" p_ex_before
     @info "New retail price" regulator.p
     @info "New DER excess rate" regulator.p_ex
 
-    return compute_difference_one_norm([
-        (p_before.values, regulator.p.values),
-        (p_ex_before.values, regulator.p_ex.values),
+    return compute_difference_percentage_one_norm([
+        (p_before_wavg.values, p_after_wavg.values),
     ])
 end
 

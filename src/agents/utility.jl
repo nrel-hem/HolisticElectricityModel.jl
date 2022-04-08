@@ -984,7 +984,7 @@ function solve_agent_problem!(
     # @info "New built capacity" utility.x_C_my
 
     # report change in key variables from previous iteration to this one
-    return compute_difference_one_norm([
+    return compute_difference_percentage_one_norm([
         (x_R_before, utility.x_R_my),
         (x_C_before, utility.x_C_my),
     ])

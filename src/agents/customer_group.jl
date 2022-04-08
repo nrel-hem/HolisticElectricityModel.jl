@@ -515,7 +515,7 @@ function solve_agent_problem!(
     # @info "Original new DG" x_DG_before
     # @info "New new DG" customers.x_DG_new
 
-    return compute_difference_one_norm([(x_DG_before, customers.x_DG_new)])
+    return compute_difference_percentage_one_norm([(x_DG_before, customers.x_DG_new)])
 end
 
 function solve_agent_problem!(
@@ -606,7 +606,7 @@ function solve_agent_problem!(
         end
     end
 
-    return compute_difference_one_norm([(x_green_sub_before, GreenSubMWh)])
+    return compute_difference_percentage_one_norm([(x_green_sub_before, GreenSubMWh)])
 
 end
 
@@ -804,7 +804,7 @@ function solve_agent_problem!(
         end
     end
 
-    return compute_difference_one_norm([
+    return compute_difference_percentage_one_norm([
         (x_green_sub_before, GreenSubMWh), 
         (x_DG_before, customers.x_DG_new)
     ])
