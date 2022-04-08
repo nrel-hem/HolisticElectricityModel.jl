@@ -393,7 +393,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, <:Union{NullUseCase,SupplyChoiceUseCase}},
     agent_store::AgentStore,
     w_iter,
 )
@@ -547,7 +547,7 @@ function solve_agent_problem!(
         customers.d[h, t] = customers.d_my[reg_year_index, h, t]
     end
 
-    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -745,7 +745,7 @@ function solve_agent_problem!(
 
     green_sub_model = customers.green_sub_model
 
-    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1144,7 +1144,7 @@ function welfare_calculation!(
         price_at_max_sub[y, h] = 0.0
     end
 
-    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1411,7 +1411,7 @@ function welfare_calculation!(
         price_at_max_sub[y, h] = 0.0
     end
 
-    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0

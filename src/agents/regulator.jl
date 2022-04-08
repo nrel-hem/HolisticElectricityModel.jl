@@ -19,7 +19,8 @@ struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegu
 end
 
 function get_file_prefix(options::RegulatorOptions)
-    return ["$(typeof(options.rate_design))", "$(typeof(options.net_metering_policy))"]
+    return join(["$(typeof(options.rate_design))", 
+                 "$(typeof(options.net_metering_policy))"], "_")
 end
 
 abstract type AbstractRegulator <: Agent end
@@ -214,7 +215,7 @@ end
 get_id(x::Regulator) = x.id
 
 function get_file_prefix(agent::Regulator)
-    return ["REC$(agent.REC.value)"]
+    return "REC$(agent.REC.value)"
 end
 
 # although Customer is subtype of Agent, 

@@ -100,14 +100,12 @@ struct DERUseCase <: UseCase end
 struct SupplyChoiceUseCase <: UseCase end
 
 abstract type Options end
-function get_file_prefix(options::Options)
-    return []
-end
 
-# TODO: Should we/what's the right way to enforce that U can only be NullUseCase/DERUseCase?
-# I think at this level specifying just UseCase makes things easiest for dispatching on type.
-# Should a constructor enforce the more specific allowable types?
-struct HEMOptions{T <: MarketStructure, U <: UseCase, V <: UseCase} <: Options
+get_file_prefix(::Options) = String("")
+
+struct HEMOptions{T <: MarketStructure, 
+                  U <: Union{NullUseCase,DERUseCase}, 
+                  V <: Union{NullUseCase,SupplyChoiceUseCase}} <: Options
     MIP_solver::HEMSolver
     NLP_solver::HEMSolver
     market_structure::T
@@ -118,9 +116,9 @@ struct HEMOptions{T <: MarketStructure, U <: UseCase, V <: UseCase} <: Options
 end
 
 function get_file_prefix(options::HEMOptions)
-    return ["$(typeof(options.der_use_case))", 
-            "$(typeof(options.supply_choice_use_case))",
-            "$(typeof(options.market_structure))"]
+    return join(["$(typeof(options.der_use_case))", 
+                 "$(typeof(options.supply_choice_use_case))",
+                 "$(typeof(options.market_structure))"],"_")
 end
 
 """
@@ -166,9 +164,7 @@ Abstract type for all individual agents.
 """
 abstract type Agent <: AbstractAgent end
 
-function get_file_prefix(agent::AbstractAgent)
-    return []
-end
+get_file_prefix(::AbstractAgent) = String("")
 
 abstract type AgentOptions <: Options end
 struct NullAgentOptions <: AgentOptions end
@@ -229,15 +225,18 @@ end
 function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndOptions})
     # create vector of items that may contribute information
     items = Vector{AgentOrOptions}()
-    append!(items, [hem_opts])
+    push!(items, hem_opts)
     for item in agents_and_opts
-        append!(items, [item.options], [item.agent])
+        push!(items, item.options, item.agent)
     end
     
     # call get_file_prefix on each item
     file_prefix = Vector{String}()
     for item in items
-        append!(file_prefix, get_file_prefix(item))
+        val = get_file_prefix(item)
+        if not isempty(val)
+            push!(file_prefix, val)
+        end
     end
     file_prefix = string("Results_",join(file_prefix, "_"))
     return file_prefix
@@ -309,14 +308,14 @@ function solve_equilibrium_problem!(
         save_results(agent, options, hem_opts, export_file_path, file_prefix)
     end
 
-    if hem_opts.market_structure == VerticallyIntegratedUtility()
+    if hem_opts.market_structure isa VerticallyIntegratedUtility
         x = store.data[Utility]["default"]
         Welfare_supply =
             welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
         y = store.data[CustomerGroup]["default"]
         Welfare_demand =
             welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    elseif hem_opts.market_structure == WholesaleMarket()
+    elseif hem_opts.market_structure isa WholesaleMarket
         x = store.data[IPPGroup]["default"]
         Welfare_supply =
             welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
@@ -325,7 +324,7 @@ function solve_equilibrium_problem!(
             welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
     end
 
-    if typeof(hem_opts.supply_choice_use_case) == NullUseCase
+    if hem_opts.supply_choice_use_case isa NullUseCase
         Welfare_green_developer = [AxisArray(
             [
                 0.0

@@ -36,8 +36,8 @@ hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
     NLP_solver,
     VerticallyIntegratedUtility(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
-    DERUseCase(),                     # UseCase            # NullUseCase, DERUseCase
-    SupplyChoiceUseCase(),            # UseCase            # NullUseCase, SupplyChoiceUseCase
+    DERUseCase(),                     # Union{NullUseCase,DERUseCase}
+    SupplyChoiceUseCase(),            # Union{NullUseCase,SupplyChoiceUseCase}
 )
 
 regulator_opts = RegulatorOptions(
