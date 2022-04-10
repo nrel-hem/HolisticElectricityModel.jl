@@ -227,13 +227,15 @@ function compute_difference_one_norm(before_after_pairs)
 end
 
 function compute_difference_percentage_one_norm(before_after_pairs)
-    result = 0.0
+    result_vec = []
     for (before, after) in before_after_pairs
-        result += sum((
+        result_one = sum((
             before[i...] == 0.0 ? abs(after[i...] - before[i...]) : abs(after[i...] - before[i...]) / before[i...] for
             i in Iterators.product(AxisArrays.axes(before)...)
         ))
+        push!(result_vec, result_one)
     end
+    result = maximum(result_vec)
     return result
 end
 

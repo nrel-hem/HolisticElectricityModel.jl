@@ -227,12 +227,12 @@ function solve_equilibrium_problem!(
                 model_data.index_y_fix.elements[w:(w + window_length - 1)]
             i = 0
             for i in 1:max_iter
-                diff = 0.0
+                diff_vec = []
 
                 for (agent, options) in iter_agents_and_options(store)
                     TimerOutputs.@timeit HEM_TIMER "solve_agent_problem!" begin
                         @info "$(typeof(agent)), iteration $i"
-                        diff += solve_agent_problem!(
+                        diff_one = solve_agent_problem!(
                             agent,
                             options,
                             model_data,
@@ -241,7 +241,9 @@ function solve_equilibrium_problem!(
                             w,
                         )
                     end
+                    push!(diff_vec, diff_one)
                 end
+                diff = maximum(diff_vec)
                 @info "Iteration $i value: $diff"
 
                 if diff < model_data.epsilon
