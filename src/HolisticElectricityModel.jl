@@ -11,16 +11,19 @@ export XpressSolver
 export Gurobi_Solver
 export Ipopt_Solver
 export HEMData
+export Options
 export HEMOptions
 export AbstractAgent
 export AgentGroup
 export Agent
 export AgentOptions, NullAgentOptions
 export AgentAndOptions
+export AgentOrOptions
 export configure_logging
 export read_dataframe
 export AgentStore
 export iter_agents_and_options
+export get_file_prefix
 
 # Agents
 export Regulator
@@ -38,7 +41,7 @@ export IPPOptions
 export FlatRate, TOU                                    # tariff structures
 export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
-export DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
+export NullUseCase, DERUseCase, SupplyChoiceUseCase
 # export DERAdoption, SupplyChoice                        # consumer decisions
 export LagrangeDecomposition, MIQP                      # ipp algorithms
 

@@ -38,7 +38,7 @@ function solve_agent_problem!(
     green_developer::GreenDeveloper,
     green_developer_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, <:Union{DERSupplyChoiceUseCase, SupplyChoiceUseCase}},
+    hem_opts::HEMOptions{<:MarketStructure, <:Union{NullUseCase,DERUseCase}, SupplyChoiceUseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -113,7 +113,7 @@ function solve_agent_problem!(
     green_developer::GreenDeveloper,
     green_developer_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -125,7 +125,7 @@ end
 function save_results(
     green_developer::GreenDeveloper,
     green_developer_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, <:Union{DERSupplyChoiceUseCase, SupplyChoiceUseCase}},
+    hem_opts::HEMOptions{<:MarketStructure, <:Union{NullUseCase,DERUseCase}, SupplyChoiceUseCase},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
@@ -151,7 +151,7 @@ function welfare_calculation!(
     green_developer::GreenDeveloper,
     green_developer_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, <:Union{DERSupplyChoiceUseCase, SupplyChoiceUseCase}},
+    hem_opts::HEMOptions{<:MarketStructure, <:Union{NullUseCase,DERUseCase}, SupplyChoiceUseCase},
     agent_store::AgentStore,
 )
     utility = get_agent(Utility, agent_store)

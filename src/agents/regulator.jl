@@ -18,6 +18,11 @@ struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegu
     net_metering_policy::U
 end
 
+function get_file_prefix(options::RegulatorOptions)
+    return join(["$(typeof(options.rate_design))", 
+                 "$(typeof(options.net_metering_policy))"], "_")
+end
+
 abstract type AbstractRegulator <: Agent end
 
 mutable struct Regulator <: AbstractRegulator
@@ -209,6 +214,10 @@ end
 
 get_id(x::Regulator) = x.id
 
+function get_file_prefix(agent::Regulator)
+    return "REC$(agent.REC.value)"
+end
+
 # although Customer is subtype of Agent, 
 # Vector{Customer} is not subtype of Vector{Agent}
 # But if a vector of customers c1, c2, c3 is defined 
@@ -220,7 +229,7 @@ function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
 )
@@ -910,7 +919,7 @@ function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
+    hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
 )
@@ -1469,7 +1478,7 @@ end
 function save_results(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
-    hem_opts::HEMOptions{<:MarketStructure, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )

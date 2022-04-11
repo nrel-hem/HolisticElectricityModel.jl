@@ -486,7 +486,7 @@ function solve_agent_problem!(
     ipps::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
 )
@@ -2259,7 +2259,7 @@ function solve_agent_problem_ipp_cap(
     ipp_opts::IPPOptions{MIQP},
     p_star,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
+    hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
 )
@@ -3191,7 +3191,7 @@ function solve_agent_problem!(
     ipp::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
+    hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
 )
@@ -3218,7 +3218,7 @@ end
 function save_results(
     ipps::IPPGroup,
     ipp_opts::AgentOptions,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
+    hem_opts::HEMOptions{WholesaleMarket},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
@@ -3259,7 +3259,7 @@ function welfare_calculation!(
     ipp::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
+    hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
 )
     regulator = get_agent(Regulator, agent_store)
@@ -3557,4 +3557,17 @@ function welfare_calculation!(
     IPP_total_emission_my,
     IPP_Revenue_p,
     IPP_Cost_p
+end
+
+"""
+Update IPPGroup cumulative parameters
+"""
+function update_cumulative!(model_data::HEMData, ipp::IPPGroup)
+    for p in ipp.index_p, k in ipp.index_k_existing
+        ipp.x_R_cumu[p,k] = ipp.x_R_cumu[p,k] + ipp.x_R_my[first(model_data.index_y),p,k]
+    end
+
+    for p in ipp.index_p, k in ipp.index_k_new
+        ipp.x_C_cumu[p,k] = ipp.x_C_cumu[p,k] + ipp.x_C_my[first(model_data.index_y),p,k]
+    end
 end
