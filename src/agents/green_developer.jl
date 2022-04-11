@@ -105,7 +105,7 @@ function solve_agent_problem!(
         end
     end
 
-    return compute_difference_one_norm([(green_tech_buildout_before, green_developer.green_tech_buildout_my)])
+    return compute_difference_percentage_one_norm([(green_tech_buildout_before, green_developer.green_tech_buildout_my)])
 
 end
 
