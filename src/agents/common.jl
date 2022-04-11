@@ -234,7 +234,7 @@ function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndO
     file_prefix = Vector{String}()
     for item in items
         val = get_file_prefix(item)
-        if not isempty(val)
+        if !isempty(val)
             push!(file_prefix, val)
         end
     end
