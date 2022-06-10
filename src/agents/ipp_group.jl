@@ -3292,7 +3292,7 @@ function welfare_calculation!(
 
     IPP_Revenue_total = AxisArray(
         [
-            sum(IPP_Revenue_p[y, p] for p in ipp.index_p) + regulator.othercost for
+            sum(IPP_Revenue_p[y, p] for p in ipp.index_p) + regulator.othercost[y] for
             y in model_data.index_y_fix
         ],
         model_data.index_y_fix.elements,
@@ -3481,7 +3481,7 @@ function welfare_calculation!(
 
     IPP_Cost_total = AxisArray(
         [
-            sum(IPP_Cost_p[y, p] for p in ipp.index_p) + regulator.othercost for
+            sum(IPP_Cost_p[y, p] for p in ipp.index_p) + regulator.othercost[y] for
             y in model_data.index_y_fix
         ],
         model_data.index_y_fix.elements,

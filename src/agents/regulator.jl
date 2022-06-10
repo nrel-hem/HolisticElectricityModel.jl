@@ -27,8 +27,13 @@ mutable struct Regulator <: AbstractRegulator
     r::ParamScalar
     "allowed return on investment (fraction)"
     z::ParamScalar
+    distribution_cost::ParamAxisArray
+    administration_cost::ParamAxisArray
+    transmission_cost::ParamAxisArray
+    interconnection_cost::ParamAxisArray
+    system_cost::ParamAxisArray
     "other cost not related to the optimization problem"
-    othercost::ParamScalar
+    othercost::ParamAxisArray
     "Renewable Energy Credits"
     REC::ParamScalar
 
@@ -73,13 +78,59 @@ mutable struct Regulator <: AbstractRegulator
 end
 
 function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
+
+    distribution_cost = read_param(
+        "distribution_cost",
+        input_filename,
+        "distribution_cost",
+        model_data.index_y,
+        description = "distribution cost (dollar)",
+    )
+
+    administration_cost = read_param(
+        "administration_cost",
+        input_filename,
+        "administration_cost",
+        model_data.index_y,
+        description = "administration cost (dollar)",
+    )
+
+    transmission_cost = read_param(
+        "transmission_cost",
+        input_filename,
+        "transmission_cost",
+        model_data.index_y,
+        description = "transmission cost (dollar)",
+    )
+
+    interconnection_cost = read_param(
+        "interconnection_cost",
+        input_filename,
+        "interconnection_cost",
+        model_data.index_y,
+        description = "interconnection cost (dollar)",
+    )
+
+    system_cost = read_param(
+        "system_cost",
+        input_filename,
+        "system_cost",
+        model_data.index_y,
+        description = "system cost (dollar)",
+    )
+
     return Regulator(
         id,
         ParamScalar("r", 0.12, description = "planning reserve (fraction)"),
         ParamScalar("z", 0.112, description = "allowed return on investment (fraction)"),
-        ParamScalar(
+        distribution_cost,
+        administration_cost,
+        transmission_cost,
+        interconnection_cost,
+        system_cost,
+        initialize_param(
             "othercost",
-            1002332810.0,
+            model_data.index_y,
             description = "other cost not related to the optimization problem",
         ),
         ParamScalar("REC", 0.0, description = "Renewable Energy Credits"),
@@ -224,6 +275,11 @@ function solve_agent_problem!(
     agent_store::AgentStore,
     w_iter,
 )
+
+    for y in model_data.index_y_fix
+        regulator.othercost[y] = regulator.distribution_cost[y] + regulator.administration_cost[y] + regulator.transmission_cost[y] + regulator.interconnection_cost[y] + regulator.system_cost[y]
+    end
+
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
@@ -734,7 +790,7 @@ function solve_agent_problem!(
                 sum(net_peak_load_h[h] for h in model_data.index_h) +
                 utility.Peak_eximport_my[reg_year_index]
             ) + 
-            regulator.othercost * net_peak_load_wo_green_tech_h[h] / (
+            regulator.othercost[reg_year_index] * net_peak_load_wo_green_tech_h[h] / (
                 sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
                 utility.Peak_eximport_my[reg_year_index]
             )
@@ -754,7 +810,7 @@ function solve_agent_problem!(
     )
     demand_cost_allocation_othercost_h = AxisArray(
         [
-            regulator.othercost * net_peak_load_wo_green_tech_h[h] / (
+            regulator.othercost[reg_year_index] * net_peak_load_wo_green_tech_h[h] / (
                 sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
                 utility.Peak_eximport_my[reg_year_index]
             )
@@ -769,7 +825,7 @@ function solve_agent_problem!(
             sum(net_peak_load_h[h] for h in model_data.index_h) +
             utility.Peak_eximport_my[reg_year_index]
         ) +
-        regulator.othercost *
+        regulator.othercost[reg_year_index] *
         utility.Peak_eximport_my[reg_year_index] / (
             sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
             utility.Peak_eximport_my[reg_year_index]
@@ -912,6 +968,11 @@ function solve_agent_problem!(
     agent_store::AgentStore,
     w_iter,
 )
+
+    for y in model_data.index_y_fix
+        regulator.othercost[y] = regulator.distribution_cost[y] + regulator.administration_cost[y] + regulator.transmission_cost[y] + regulator.interconnection_cost[y] + regulator.system_cost[y]
+    end
+
     customers = get_agent(CustomerGroup, agent_store)
     ipp = get_agent(IPPGroup, agent_store)
     utility = get_agent(Utility, agent_store)
@@ -1313,7 +1374,7 @@ function solve_agent_problem!(
                 sum(net_peak_load_h[h] for h in model_data.index_h) +
                 utility.Peak_eximport_my[reg_year_index]
             ) +
-            regulator.othercost * net_peak_load_wo_green_tech_h[h] / (
+            regulator.othercost[reg_year_index] * net_peak_load_wo_green_tech_h[h] / (
                 sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
                 utility.Peak_eximport_my[reg_year_index]
             )
@@ -1333,7 +1394,7 @@ function solve_agent_problem!(
     )
     demand_cost_allocation_othercost_h = AxisArray(
         [
-            regulator.othercost * net_peak_load_wo_green_tech_h[h] / (
+            regulator.othercost[reg_year_index] * net_peak_load_wo_green_tech_h[h] / (
                 sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
                 utility.Peak_eximport_my[reg_year_index]
             )
@@ -1348,7 +1409,7 @@ function solve_agent_problem!(
             sum(net_peak_load_h[h] for h in model_data.index_h) +
             utility.Peak_eximport_my[reg_year_index]
         ) +
-        regulator.othercost *
+        regulator.othercost[reg_year_index] *
         utility.Peak_eximport_my[reg_year_index] / (
             sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
             utility.Peak_eximport_my[reg_year_index]

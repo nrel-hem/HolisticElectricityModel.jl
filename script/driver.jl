@@ -19,10 +19,24 @@ NLP_solver = Ipopt_Solver(Ipopt)
 # File locations
 base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
 hem_data_dir = joinpath(base_dir, "..", "HolisticElectricityModel-Data")
-input_filename =
-    joinpath(hem_data_dir, "inputs", "HEM_Parameters_ipp1_single_year_final.xlsx")     # HEM_Parameters_ipp1_single_year_final, HEM_Parameters_ipp1_two_year_test
+# input_filename =
+#     joinpath(hem_data_dir, "inputs", "HEM_Parameters_ipp1_single_year_final.xlsx")     # HEM_Parameters_ipp1_single_year_final, HEM_Parameters_ipp1_two_year_test
 export_file_path = joinpath(hem_data_dir, "outputs")
 mkpath(export_file_path)
+include(joinpath(hem_data_dir, "inputs", "input_data_parsing.jl"))
+
+input_path = joinpath(hem_data_dir, "inputs")
+ba = "p13"
+base_year = 2018
+future_years = [2019]
+future_years_len = length(future_years)
+ipp_number = 1
+scenario = DataSelection(ba, base_year, future_years, ipp_number)
+
+input_filename = joinpath(hem_data_dir, "inputs", "$ba"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number")
+mkpath(input_filename)
+
+main(input_path, input_filename, scenario)
 
 logger = configure_logging(
     console_level = Logging.Info,
@@ -33,13 +47,13 @@ logger = configure_logging(
 hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
     NLP_solver,
-    WholesaleMarket(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
-    DERSupplyChoiceUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
+    VerticallyIntegratedUtility(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
+    DERUseCase(),         # UseCase            # DERUseCase, SupplyChoiceUseCase, DERSupplyChoiceUseCase
 )
 
 regulator_opts = RegulatorOptions(
-    TOU(),               # RateDesign
-    ExcessRetailRate(),  # NetMeteringPolicy
+    TOU(),               # RateDesign       # FlatRate, #TOU
+    ExcessZero(),  # NetMeteringPolicy    # ExcessRetailRate, ExcessMarginalCost, ExcessZero
 )
 
 ipp_opts = IPPOptions(
@@ -54,6 +68,7 @@ utility = Utility(input_filename, model_data, regulator)
 customers = CustomerGroup(input_filename, model_data)
 ipp = IPPGroup(input_filename, model_data)
 green_developer = GreenDeveloper(input_filename, model_data)
+distribution_utility = DistributionUtility(input_filename, model_data)
 
 file_prefix = "Results_$(hem_opts.use_case)_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
 
@@ -66,6 +81,7 @@ solve_equilibrium_problem!(
         AgentAndOptions(regulator, regulator_opts),
         AgentAndOptions(customers, NullAgentOptions()),
         AgentAndOptions(green_developer, NullAgentOptions()),
+        AgentAndOptions(distribution_utility, NullAgentOptions()),
     ],
     export_file_path,
     file_prefix,
