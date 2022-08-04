@@ -3,7 +3,7 @@
 const DEFAULT_ID = "default"
 const HEM_TIMER = TimerOutputs.TimerOutput()
 
-struct HEMData
+mutable struct HEMData
     # Configuration
     epsilon::ParamScalar # iteration tolerance
 
@@ -28,6 +28,14 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         input_filename,
         "index_y",
         "index_y",
+        prose_name = "simulation year index y",
+        description = "simulation years",
+    )
+
+    index_y_fix = read_set(
+        input_filename,
+        "index_y",
+        "index_y_fix",
         prose_name = "simulation year index y",
         description = "simulation years",
     )
@@ -71,7 +79,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
     return HEMData(
         ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
         index_y,
-        index_y,
+        index_y_fix,
         index_s,
         index_t,
         index_h,

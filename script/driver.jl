@@ -21,22 +21,27 @@ base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel"
 hem_data_dir = joinpath(base_dir, "..", "HolisticElectricityModel-Data")
 # input_filename =
 #     joinpath(hem_data_dir, "inputs", "HEM_Parameters_ipp1_single_year_final.xlsx")     # HEM_Parameters_ipp1_single_year_final, HEM_Parameters_ipp1_two_year_test
-export_file_path = joinpath(hem_data_dir, "outputs")
-mkpath(export_file_path)
 include(joinpath(hem_data_dir, "inputs", "input_data_parsing.jl"))
 
 input_path = joinpath(hem_data_dir, "inputs")
-ba = "p13"
+ba = ["p13"]
+ba_len = length(ba)
 base_year = 2018
-future_years = [2019]
+future_years = [2019, 2020]
 future_years_len = length(future_years)
 ipp_number = 1
 scenario = DataSelection(ba, base_year, future_years, ipp_number)
 
-input_filename = joinpath(hem_data_dir, "inputs", "$ba"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number")
+# need to run in julia: run(#ba, PROFILES_DIRECTORY, "nguo", HOSTNAME, DATABASE, PORT) to get residential and commercial profiles
+# also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
+
+input_filename = joinpath(hem_data_dir, "inputs", "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number")
 mkpath(input_filename)
 
 main(input_path, input_filename, scenario)
+
+export_file_path = joinpath(hem_data_dir, "outputs", "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number")
+mkpath(export_file_path)
 
 logger = configure_logging(
     console_level = Logging.Info,
