@@ -75,6 +75,9 @@ ipp = IPPGroup(input_filename, model_data)
 green_developer = GreenDeveloper(input_filename, model_data)
 distribution_utility = DistributionUtility(input_filename, model_data)
 
+max_iter = 100
+window_length = 1
+
 file_prefix = "Results_$(hem_opts.use_case)_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
 
 solve_equilibrium_problem!(
@@ -90,6 +93,8 @@ solve_equilibrium_problem!(
     ],
     export_file_path,
     file_prefix,
+    max_iter,
+    window_length
 )
 
 close(logger)

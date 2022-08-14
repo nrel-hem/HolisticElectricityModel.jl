@@ -220,10 +220,10 @@ function solve_equilibrium_problem!(
     agents_and_opts::Vector{AgentAndOptions},
     export_file_path::AbstractString,
     file_prefix::AbstractString,
+    max_iter::Int64,
+    window_length::Int64,
 )
     store = AgentStore(agents_and_opts)
-    max_iter = 100
-    window_length = 1
     TimerOutputs.reset_timer!(HEM_TIMER)
 
     utility = get_agent(Utility, store)
