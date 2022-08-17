@@ -35,7 +35,9 @@ mutable struct DistributionUtility <: AbstractDistributionUtility
     distribution_capex_balance_model::DistributionCapexBalanceModel
     distribution_capex_addition_model::DistributionCapexAdditionModel
     distribution_om_cost_model::DistributionOMCostModel
-    norm_inputs::DataFrame
+    capex_balance_norm_inputs::DataFrame
+    capex_addition_norm_inputs::DataFrame
+    om_cost_norm_inputs::DataFrame
     beginning_balance_lifetime::Float64
     DistCumuTaxDepre_new_my::ParamAxisArray # cumulative tax depreciation of new capacity (%)
     DistCumuAccoutDepre_new_my::ParamAxisArray # cumulative accounting depreciation of new capacity (%)
@@ -87,7 +89,19 @@ function DistributionUtility(
 
     # Use static normalization numbers from the national database
     # Ella to update min and max for distribution_capex_balance, distribution_capex_addition, distribution_om_cost
-    norm_inputs = DataFrame(
+    capex_balance_norm_inputs = DataFrame(
+        id = [
+            "total_sales",
+            "residential",
+            "commercial",
+            "industrial",
+            "distribution_capex_balance",
+        ],
+        min = [27345, 82, 16, 0, 671237.28],
+        max = [131738016, 4910766, 678290, 92190, 32197941494],
+    )
+
+    capex_addition_norm_inputs = DataFrame(
         id = [
             "saidi",
             "dpv",
@@ -95,12 +109,23 @@ function DistributionUtility(
             "residential",
             "commercial",
             "industrial",
-            "distribution_capex_balance",
             "distribution_capex_addition",
+        ],
+        min = [0, 0, 33321, 3664, 820, 0, 922384.05],
+        max = [695.6, 5335.178, 131738016, 4910766, 678290, 92190, 2962598721],
+    )
+
+    om_cost_norm_inputs = DataFrame(
+        id = [
+            "saidi",
+            "total_sales",
+            "residential",
+            "commercial",
+            "industrial",
             "distribution_om_cost",
         ],
-        min = [0, 0.02, 33321, 3664, 820, 0, 1851740, 1851740, 1851740],
-        max = [968.6, 3018.362, 131738016, 4489462, 619752, 33562, 3236569353, 3236569353, 3236569353],
+        min = [0, 33321, 3664, 820, 0, 1479877],
+        max = [695.6, 131738016, 4845482, 678290, 91957, 1674846145],
     )
 
     return DistributionUtility(
@@ -115,7 +140,9 @@ function DistributionUtility(
         distribution_capex_balance_model,
         distribution_capex_addition_model,
         distribution_om_cost_model,
-        norm_inputs,
+        capex_balance_norm_inputs,
+        capex_addition_norm_inputs,
+        om_cost_norm_inputs,
         10,
         read_param(
             "DistCumuTaxDepre_new_my",
@@ -202,7 +229,7 @@ function existing_distribution_account(
     customers = get_agent(CustomerGroup, agent_store)
 
     distribution_capex_balance_model = distribution_utility.distribution_capex_balance_model
-    norm_inputs = distribution_utility.norm_inputs
+    capex_balance_norm_inputs = distribution_utility.capex_balance_norm_inputs
 
     total_sale_initial =
         sum(
@@ -224,15 +251,15 @@ function existing_distribution_account(
     
     distribution_capex_balance_norm =
         distribution_capex_balance_model.constant +
-        distribution_capex_balance_model.total_sales_coefficient * norm(total_sale_initial, "total_sales", norm_inputs) +
+        distribution_capex_balance_model.total_sales_coefficient * norm(total_sale_initial, "total_sales", capex_balance_norm_inputs) +
         distribution_capex_balance_model.residential_customer_coefficient *
-        norm(customers.gamma[:Residential], "residential", norm_inputs) +
+        norm(customers.gamma[:Residential], "residential", capex_balance_norm_inputs) +
         distribution_capex_balance_model.commercial_customer_coefficient *
-        norm(customers.gamma[:Commercial], "commercial", norm_inputs) +
+        norm(customers.gamma[:Commercial], "commercial", capex_balance_norm_inputs) +
         distribution_capex_balance_model.industrial_customer_coefficient *
-        norm(customers.gamma[:Industrial], "industrial", norm_inputs)
+        norm(customers.gamma[:Industrial], "industrial", capex_balance_norm_inputs)
 
-    distribution_capex_balance_reverse = reverse_norm(distribution_capex_balance_norm, "distribution_capex_balance", norm_inputs)
+    distribution_capex_balance_reverse = reverse_norm(distribution_capex_balance_norm, "distribution_capex_balance", capex_balance_norm_inputs)
 
     if reg_year - model_data.year_start > distribution_utility.beginning_balance_lifetime
         distribution_existing_balance = 0.0
@@ -259,7 +286,8 @@ function new_distribution_account(
 
     distribution_capex_addition_model = distribution_utility.distribution_capex_addition_model
     distribution_om_cost_model = distribution_utility.distribution_om_cost_model
-    norm_inputs = distribution_utility.norm_inputs
+    capex_addition_norm_inputs = distribution_utility.capex_addition_norm_inputs
+    om_cost_norm_inputs = distribution_utility.om_cost_norm_inputs
 
     total_sale =
         sum(
@@ -290,30 +318,30 @@ function new_distribution_account(
     distribution_capex_addition_norm =
         distribution_capex_addition_model.constant +
         distribution_capex_addition_model.saidi_coefficient *
-        norm(distribution_utility.SAIDI[reg_year_index], "saidi", norm_inputs) +
-        distribution_capex_addition_model.dpv_coefficient * norm(dpv_pca, "dpv", norm_inputs) +
-        distribution_capex_addition_model.total_sales_coefficient * norm(total_sale, "total_sales", norm_inputs) +
+        norm(distribution_utility.SAIDI[reg_year_index], "saidi", capex_addition_norm_inputs) +
+        distribution_capex_addition_model.dpv_coefficient * norm(dpv_pca, "dpv", capex_addition_norm_inputs) +
+        distribution_capex_addition_model.total_sales_coefficient * norm(total_sale, "total_sales", capex_addition_norm_inputs) +
         distribution_capex_addition_model.residential_customer_coefficient *
-        norm(customers.gamma[:Residential], "residential", norm_inputs) +
+        norm(customers.gamma[:Residential], "residential", capex_addition_norm_inputs) +
         distribution_capex_addition_model.commercial_customer_coefficient *
-        norm(customers.gamma[:Commercial], "commercial", norm_inputs) +
+        norm(customers.gamma[:Commercial], "commercial", capex_addition_norm_inputs) +
         distribution_capex_addition_model.industrial_customer_coefficient *
-        norm(customers.gamma[:Industrial], "industrial", norm_inputs)
+        norm(customers.gamma[:Industrial], "industrial", capex_addition_norm_inputs)
 
     distribution_om_cost_norm =
         distribution_om_cost_model.constant +
         distribution_om_cost_model.saidi_coefficient *
-        norm(distribution_utility.SAIDI[reg_year_index], "saidi", norm_inputs) +
-        distribution_om_cost_model.total_sales_coefficient * norm(total_sale, "total_sales", norm_inputs) +
+        norm(distribution_utility.SAIDI[reg_year_index], "saidi", om_cost_norm_inputs) +
+        distribution_om_cost_model.total_sales_coefficient * norm(total_sale, "total_sales", om_cost_norm_inputs) +
         distribution_om_cost_model.residential_customer_coefficient *
-        norm(customers.gamma[:Residential], "residential", norm_inputs) +
+        norm(customers.gamma[:Residential], "residential", om_cost_norm_inputs) +
         distribution_om_cost_model.commercial_customer_coefficient *
-        norm(customers.gamma[:Commercial], "commercial", norm_inputs) +
+        norm(customers.gamma[:Commercial], "commercial", om_cost_norm_inputs) +
         distribution_om_cost_model.industrial_customer_coefficient *
-        norm(customers.gamma[:Industrial], "industrial", norm_inputs)
+        norm(customers.gamma[:Industrial], "industrial", om_cost_norm_inputs)
 
-    distribution_capex_addition_reverse = reverse_norm(distribution_capex_addition_norm, "distribution_capex_addition", norm_inputs)
-    distribution_om_cost_reverse = reverse_norm(distribution_om_cost_norm, "distribution_om_cost", norm_inputs)
+    distribution_capex_addition_reverse = reverse_norm(distribution_capex_addition_norm, "distribution_capex_addition", capex_addition_norm_inputs)
+    distribution_om_cost_reverse = reverse_norm(distribution_om_cost_norm, "distribution_om_cost", om_cost_norm_inputs)
 
     distribution_utility.DistCapExAddition_new_my[reg_year_index] = distribution_capex_addition_reverse
     distribution_utility.DistOMCost_new_my[reg_year_index] = distribution_om_cost_reverse
