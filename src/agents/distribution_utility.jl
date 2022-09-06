@@ -60,31 +60,34 @@ function DistributionUtility(
     id = DEFAULT_ID,
 )
 
+    regression_model_parameters = CSV.read(joinpath(input_filename, "regression_results.csv"), DataFrame)
+    regression_inputs_scale = CSV.read(joinpath(input_filename, "regression_inputs_scale.csv"), DataFrame)
+
     distribution_capex_balance_model = DistributionCapexBalanceModel(
-        ParamScalar("constant", -0.00712743),
-        ParamScalar("total_sales_coefficient", -0.09971823),
-        ParamScalar("residential_customer_coefficient", 0.50846654),
-        ParamScalar("commercial_customer_coefficient", 0.40584111),
-        ParamScalar("industrial_customer_coefficient", 0.11309393),
+        ParamScalar("constant", regression_model_parameters[(regression_model_parameters.regression .== "capex_balance") .& (regression_model_parameters.variable .== "intercept"), :value][1]),
+        ParamScalar("total_sales_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_balance") .& (regression_model_parameters.variable .== "Total Sales MWh"), :value][1]),
+        ParamScalar("residential_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_balance") .& (regression_model_parameters.variable .== "Residential Customers"), :value][1]),
+        ParamScalar("commercial_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_balance") .& (regression_model_parameters.variable .== "Commercial Customers"), :value][1]),
+        ParamScalar("industrial_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_balance") .& (regression_model_parameters.variable .== "Industrial Customers"), :value][1]),
     )
 
     distribution_capex_addition_model = DistributionCapexAdditionModel(
-        ParamScalar("constant", -0.0193135),
-        ParamScalar("saidi_coefficient", 0.03607853),
-        ParamScalar("dpv_coefficient", 0.28150498),
-        ParamScalar("total_sales_coefficient", -0.0284804),
-        ParamScalar("residential_customer_coefficient", 0.53321818),
-        ParamScalar("commercial_customer_coefficient", 0.07271089),
-        ParamScalar("industrial_customer_coefficient", -0.02300505),
+        ParamScalar("constant", regression_model_parameters[(regression_model_parameters.regression .== "capex_additions") .& (regression_model_parameters.variable .== "intercept"), :value][1]),
+        ParamScalar("saidi_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_additions") .& (regression_model_parameters.variable .== "IEEE SAIDI Excluding MED"), :value][1]),
+        ParamScalar("dpv_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_additions") .& (regression_model_parameters.variable .== "Solar Capacity MW"), :value][1]),
+        ParamScalar("total_sales_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_additions") .& (regression_model_parameters.variable .== "Total Sales MWh"), :value][1]),
+        ParamScalar("residential_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_additions") .& (regression_model_parameters.variable .== "Residential Customers"), :value][1]),
+        ParamScalar("commercial_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_additions") .& (regression_model_parameters.variable .== "Commercial Customers"), :value][1]),
+        ParamScalar("industrial_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "capex_additions") .& (regression_model_parameters.variable .== "Industrial Customers"), :value][1]),
     )
 
     distribution_om_cost_model = DistributionOMCostModel(
-        ParamScalar("constant", -0.00549679),
-        ParamScalar("saidi_coefficient", 0.02759952),
-        ParamScalar("total_sales_coefficient", -0.0783589),
-        ParamScalar("residential_customer_coefficient", 0.4508443),
-        ParamScalar("commercial_customer_coefficient", 0.04459026),
-        ParamScalar("industrial_customer_coefficient", 0.16479862),
+        ParamScalar("constant", regression_model_parameters[(regression_model_parameters.regression .== "om") .& (regression_model_parameters.variable .== "intercept"), :value][1]),
+        ParamScalar("saidi_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "om") .& (regression_model_parameters.variable .== "IEEE SAIDI Excluding MED"), :value][1]),
+        ParamScalar("total_sales_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "om") .& (regression_model_parameters.variable .== "Total Sales MWh"), :value][1]),
+        ParamScalar("residential_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "om") .& (regression_model_parameters.variable .== "Residential Customers"), :value][1]),
+        ParamScalar("commercial_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "om") .& (regression_model_parameters.variable .== "Commercial Customers"), :value][1]),
+        ParamScalar("industrial_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "om") .& (regression_model_parameters.variable .== "Industrial Customers"), :value][1]),
     )
 
     # Use static normalization numbers from the national database
@@ -97,8 +100,20 @@ function DistributionUtility(
             "industrial",
             "distribution_capex_balance",
         ],
-        min = [27345, 82, 16, 0, 671237.28],
-        max = [131738016, 4910766, 678290, 92190, 32197941494],
+        min = [
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Total Sales MWh"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Residential Customers"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Commercial Customers"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Industrial Customers"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Distribution CapEx Balance"), :min][1]
+        ],
+        max = [
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Total Sales MWh"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Residential Customers"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Commercial Customers"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Industrial Customers"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_balance") .& (regression_inputs_scale.variable .== "Distribution CapEx Balance"), :max][1]
+        ]
     )
 
     capex_addition_norm_inputs = DataFrame(
@@ -111,8 +126,24 @@ function DistributionUtility(
             "industrial",
             "distribution_capex_addition",
         ],
-        min = [0, 0, 33321, 3664, 820, 0, 922384.05],
-        max = [695.6, 5335.178, 131738016, 4910766, 678290, 92190, 2962598721],
+        min = [
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "IEEE SAIDI Excluding MED"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Solar Capacity MW"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Total Sales MWh"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Residential Customers"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Commercial Customers"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Industrial Customers"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Distribution CapEx Addition"), :min][1]
+        ],
+        max = [
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "IEEE SAIDI Excluding MED"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Solar Capacity MW"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Total Sales MWh"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Residential Customers"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Commercial Customers"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Industrial Customers"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "capex_additions") .& (regression_inputs_scale.variable .== "Distribution CapEx Addition"), :max][1]
+        ],
     )
 
     om_cost_norm_inputs = DataFrame(
@@ -124,8 +155,22 @@ function DistributionUtility(
             "industrial",
             "distribution_om_cost",
         ],
-        min = [0, 33321, 3664, 820, 0, 1479877],
-        max = [695.6, 131738016, 4845482, 678290, 91957, 1674846145],
+        min = [
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "IEEE SAIDI Excluding MED"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Total Sales MWh"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Residential Customers"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Commercial Customers"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Industrial Customers"), :min][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Distribution OM Cost"), :min][1]
+        ],
+        max = [
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "IEEE SAIDI Excluding MED"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Total Sales MWh"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Residential Customers"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Commercial Customers"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Industrial Customers"), :max][1],
+            regression_inputs_scale[(regression_inputs_scale.regression .== "om") .& (regression_inputs_scale.variable .== "Distribution OM Cost"), :max][1]
+        ]
     )
 
     return DistributionUtility(
