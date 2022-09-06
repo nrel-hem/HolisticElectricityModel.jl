@@ -206,3 +206,23 @@ end
 function get_new_jump_model(hem_solver::Ipopt_Solver)
     return Model(hem_solver.solver.Optimizer)
 end
+
+struct UserInputs 
+    balancing_area::Vector{String},
+    base_year::Int,
+    future_years::Vector{Int},
+    ipp_number::Int,
+    max_iter::Int,
+    window_length::Int,
+end
+
+function UserInputs(; balancing_area, base_year, future_years, ipp_number = 1, max_iter = 100, window_length = 1)
+    return UserInputs(
+        balancing_area,
+        base_year,
+        future_years,
+        ipp_number,
+        max_iter,
+        window_length,
+    )
+end

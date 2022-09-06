@@ -1,0 +1,21 @@
+{
+
+    "balancing_area": ["p13"],
+    "base_year": 2018,
+    "future_years": [2019, 2020],
+    "ipp_number": 1,
+    "max_iter": 100,
+    "window_length": 1,
+    "hem_options": {
+        "market_structure": "VerticallyIntegratedUtility",
+        "use_case": "DERUseCase"
+    },
+    "regulator_options": {
+        "rate_design": "TOU",
+        "net_metering_policy": "ExcessZero"
+    },
+    "ipp_options": {
+        "mip_solver": "MIQP"
+    }
+
+}

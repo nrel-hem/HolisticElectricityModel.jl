@@ -21,6 +21,7 @@ export configure_logging
 export read_dataframe
 export AgentStore
 export iter_agents_and_options
+export UserInputs
 
 # Agents
 export Regulator
