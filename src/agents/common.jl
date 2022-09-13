@@ -262,22 +262,22 @@ function solve_equilibrium_problem!(
             # save_welfare(welfare, export_file_path, file_prefix)
             i >= max_iter && error("Reached max iterations $max_iter with no solution")
             @info "Problem solved!"
-        end
 
-        for k in utility.index_k_existing
-            utility.x_R_cumu[k] = utility.x_R_cumu[k] + utility.x_R_my[first(model_data.index_y),k]
-        end
+            for k in utility.index_k_existing
+                utility.x_R_cumu[k] = utility.x_R_cumu[k] + utility.x_R_my[first(model_data.index_y),k]
+            end
+        
+            for k in utility.index_k_new
+                utility.x_C_cumu[k] = utility.x_C_cumu[k] + utility.x_C_my[first(model_data.index_y),k]
+            end
     
-        for k in utility.index_k_new
-            utility.x_C_cumu[k] = utility.x_C_cumu[k] + utility.x_C_my[first(model_data.index_y),k]
-        end
-
-        for p in ipp.index_p, k in ipp.index_k_existing
-            ipp.x_R_cumu[p,k] = ipp.x_R_cumu[p,k] + ipp.x_R_my[first(model_data.index_y),p,k]
-        end
-    
-        for p in ipp.index_p, k in ipp.index_k_new
-            ipp.x_C_cumu[p,k] = ipp.x_C_cumu[p,k] + ipp.x_C_my[first(model_data.index_y),p,k]
+            for p in ipp.index_p, k in ipp.index_k_existing
+                ipp.x_R_cumu[p,k] = ipp.x_R_cumu[p,k] + ipp.x_R_my[first(model_data.index_y),p,k]
+            end
+        
+            for p in ipp.index_p, k in ipp.index_k_new
+                ipp.x_C_cumu[p,k] = ipp.x_C_cumu[p,k] + ipp.x_C_my[first(model_data.index_y),p,k]
+            end
         end
 
     end
