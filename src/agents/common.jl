@@ -103,15 +103,30 @@ struct VerticallyIntegratedUtility <: MarketStructure end
 struct WholesaleMarket <: MarketStructure end
 
 abstract type UseCase end
+struct NullUseCase <: UseCase end
 struct DERUseCase <: UseCase end
 struct SupplyChoiceUseCase <: UseCase end
-struct DERSupplyChoiceUseCase <: UseCase end
 
-struct HEMOptions{T <: MarketStructure, U <: UseCase}
+abstract type Options end
+
+get_file_prefix(::Options) = String("")
+
+struct HEMOptions{T <: MarketStructure, 
+                  U <: Union{NullUseCase,DERUseCase}, 
+                  V <: Union{NullUseCase,SupplyChoiceUseCase}} <: Options
     MIP_solver::HEMSolver
     NLP_solver::HEMSolver
     market_structure::T
-    use_case::U
+
+    # use case switches
+    der_use_case::U
+    supply_choice_use_case::V
+end
+
+function get_file_prefix(options::HEMOptions)
+    return join(["$(typeof(options.der_use_case))", 
+                 "$(typeof(options.supply_choice_use_case))",
+                 "$(typeof(options.market_structure))"],"_")
 end
 
 """
@@ -136,6 +151,14 @@ Required interfaces:
 """
 abstract type AbstractAgent end
 
+"""
+Default no-op method for updating cumulative parameters in AbstractAgents after
+each model year.
+"""
+function update_cumulative!(model_data::HEMData, agent::AbstractAgent)
+    return
+end
+
 # There is currently no behavioral difference between the structs AgentGroup and Agent, but
 # there may be differences in the future.
 
@@ -149,13 +172,17 @@ Abstract type for all individual agents.
 """
 abstract type Agent <: AbstractAgent end
 
-abstract type AgentOptions end
+get_file_prefix(::AbstractAgent) = String("")
+
+abstract type AgentOptions <: Options end
 struct NullAgentOptions <: AgentOptions end
 
 struct AgentAndOptions{T <: AbstractAgent, U <: AgentOptions}
     agent::T
     options::U
 end
+
+AgentOrOptions = Union{AbstractAgent, Options}
 
 struct AgentStore
     data::OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}
@@ -203,6 +230,26 @@ function iter_agents_and_options(store::AgentStore)
     return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
 end
 
+function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndOptions})
+    # create vector of items that may contribute information
+    items = Vector{AgentOrOptions}()
+    push!(items, hem_opts)
+    for item in agents_and_opts
+        push!(items, item.options, item.agent)
+    end
+    
+    # call get_file_prefix on each item
+    file_prefix = Vector{String}()
+    for item in items
+        val = get_file_prefix(item)
+        if !isempty(val)
+            push!(file_prefix, val)
+        end
+    end
+    file_prefix = string("Results_",join(file_prefix, "_"))
+    return file_prefix
+end
+
 function save_results(
     agent::AbstractAgent,
     agent_opts::AgentOptions,
@@ -226,8 +273,6 @@ function solve_equilibrium_problem!(
     store = AgentStore(agents_and_opts)
     TimerOutputs.reset_timer!(HEM_TIMER)
 
-    utility = get_agent(Utility, store)
-    ipp = get_agent(IPPGroup, store)
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
         for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
@@ -263,21 +308,7 @@ function solve_equilibrium_problem!(
             i >= max_iter && error("Reached max iterations $max_iter with no solution")
             @info "Problem solved!"
 
-            for k in utility.index_k_existing
-                utility.x_R_cumu[k] = utility.x_R_cumu[k] + utility.x_R_my[first(model_data.index_y),k]
-            end
-        
-            for k in utility.index_k_new
-                utility.x_C_cumu[k] = utility.x_C_cumu[k] + utility.x_C_my[first(model_data.index_y),k]
-            end
-    
-            for p in ipp.index_p, k in ipp.index_k_existing
-                ipp.x_R_cumu[p,k] = ipp.x_R_cumu[p,k] + ipp.x_R_my[first(model_data.index_y),p,k]
-            end
-        
-            for p in ipp.index_p, k in ipp.index_k_new
-                ipp.x_C_cumu[p,k] = ipp.x_C_cumu[p,k] + ipp.x_C_my[first(model_data.index_y),p,k]
-            end
+            update_cumulative!(model_data, agents_and_opts)
         end
 
     end
@@ -287,14 +318,14 @@ function solve_equilibrium_problem!(
         save_results(agent, options, hem_opts, export_file_path, file_prefix)
     end
 
-    if hem_opts.market_structure == VerticallyIntegratedUtility()
+    if hem_opts.market_structure isa VerticallyIntegratedUtility
         x = store.data[Utility]["default"]
         Welfare_supply =
             welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
         y = store.data[CustomerGroup]["default"]
         Welfare_demand =
             welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    elseif hem_opts.market_structure == WholesaleMarket()
+    elseif hem_opts.market_structure isa WholesaleMarket
         x = store.data[IPPGroup]["default"]
         Welfare_supply =
             welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
@@ -303,8 +334,38 @@ function solve_equilibrium_problem!(
             welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
     end
 
-    if hem_opts.use_case == DERUseCase()
+    if hem_opts.supply_choice_use_case isa NullUseCase
         Welfare_green_developer = [AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
+            [
+                0.0
+                for y in model_data.index_y_fix
+            ],
+            model_data.index_y_fix.elements,
+        ), AxisArray(
             [
                 0.0
                 for y in model_data.index_y_fix
@@ -326,6 +387,15 @@ function solve_equilibrium_problem!(
     save_welfare!(Welfare_supply, Welfare_demand, Welfare_green_developer, export_file_path, file_prefix)
 
     @info "\n$(HEM_TIMER)\n"
+end
+
+function update_cumulative!(
+    model_data::HEMData,
+    agents_and_opts::Vector{AgentAndOptions},
+)
+    for item in agents_and_opts
+        update_cumulative!(model_data, item.agent)
+    end
 end
 
 # TODO: Write the welfare calculation and saving more generally
@@ -449,5 +519,35 @@ function save_welfare!(
         [:Year],
         :GreenDeveloperCost_dollar,
         joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperCost.csv"),
+    )
+    save_param(
+        GreenDeveloper[3],
+        [:Year],
+        :DebtInterest_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperDebtInterest.csv"),
+    )
+    save_param(
+        GreenDeveloper[4],
+        [:Year],
+        :IncomeTax_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperIncomeTax.csv"),
+    )
+    save_param(
+        GreenDeveloper[5],
+        [:Year],
+        :OperationalCost_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperOperationalCost.csv"),
+    )
+    save_param(
+        GreenDeveloper[6],
+        [:Year],
+        :Depreciation_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloperDepreciation.csv"),
+    )
+    save_param(
+        GreenDeveloper[7],
+        [:Year],
+        :Depreciation_dollar,
+        joinpath(exportfilepath, "$(fileprefix)_GreenDeveloper_Tax_Depreciation.csv"),
     )
 end

@@ -393,7 +393,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, <:Union{NullUseCase,SupplyChoiceUseCase}},
     agent_store::AgentStore,
     w_iter,
 )
@@ -522,7 +522,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -547,7 +547,7 @@ function solve_agent_problem!(
         customers.d[h, t] = customers.d_my[reg_year_index, h, t]
     end
 
-    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -590,7 +590,7 @@ function solve_agent_problem!(
             ) for t in model_data.index_t)
             for h in model_data.index_h
         ],
-        model_data.index_h.elementsm,
+        model_data.index_h.elements,
     )
 
     # customers.x_green_sub_my is an annual number (per the regression), however, this number cannot decrease.
@@ -614,7 +614,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERSupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -745,7 +745,7 @@ function solve_agent_problem!(
 
     green_sub_model = customers.green_sub_model
 
-    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, DERSupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -816,7 +816,7 @@ end
 function save_results(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
@@ -833,7 +833,7 @@ end
 function save_results(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
@@ -850,7 +850,7 @@ end
 function save_results(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, DERSupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
@@ -875,7 +875,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -1098,7 +1098,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -1123,7 +1123,20 @@ function welfare_calculation!(
     max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         max_sub[y, h] = 
-        sum(customers.d_my[y, h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
+        sum(
+            (
+                customers.d_my[y, h, t] * (1 - utility.loss_dist) * model_data.omega[t] * customers.gamma[h] -
+                sum(
+                    customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] * model_data.omega[t] for
+                    m in customers.index_m
+                ) -
+                sum(
+                    customers.rho_DG[h, m, t] * model_data.omega[t] * sum(
+                        customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    ) for m in customers.index_m
+                )
+            ) for t in model_data.index_t)
     end
 
     price_at_max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
@@ -1131,7 +1144,7 @@ function welfare_calculation!(
         price_at_max_sub[y, h] = 0.0
     end
 
-    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1269,7 +1282,7 @@ function welfare_calculation!(
     #         ) for y in model_data.index_y_fix, h in model_data.index_h
     # )
 
-    return customers.ConPVNetSurplus_my
+    return customers.ConPVNetSurplus_my,
     customers.ConGreenPowerNetSurplus_cumu_my,
     # EnergyCost,
     # ConNetSurplus,
@@ -1284,7 +1297,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERSupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -1377,7 +1390,20 @@ function welfare_calculation!(
     max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         max_sub[y, h] = 
-        sum(customers.d_my[y, h, t] * model_data.omega[t] * customers.gamma[h] for t in model_data.index_t)
+        sum(
+            (
+                customers.d_my[y, h, t] * (1 - utility.loss_dist) * model_data.omega[t] * customers.gamma[h] -
+                sum(
+                    customers.rho_DG[h, m, t] * customers.x_DG_E_my[y, h, m] * model_data.omega[t] for
+                    m in customers.index_m
+                ) -
+                sum(
+                    customers.rho_DG[h, m, t] * model_data.omega[t] * sum(
+                        customers.x_DG_new_my[Symbol(Int(y_symbol)), h, m] for y_symbol in
+                        model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    ) for m in customers.index_m
+                )
+            ) for t in model_data.index_t)
     end
 
     price_at_max_sub = make_axis_array(model_data.index_y_fix, model_data.index_h)
@@ -1385,7 +1411,7 @@ function welfare_calculation!(
         price_at_max_sub[y, h] = 0.0
     end
 
-    if typeof(hem_opts) == HEMOptions{VerticallyIntegratedUtility, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1489,7 +1515,8 @@ function welfare_calculation!(
     ConNetSurplus = make_axis_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         ConNetSurplus[y, h] =
-            customers.ConGreenPowerNetSurplus_cumu_my[y, h] - EnergyCost[y, h] - Green_sub_TD_charge[y, h]
+            customers.ConGreenPowerNetSurplus_cumu_my[y, h] - EnergyCost[y, h] - Green_sub_TD_charge[y, h] +
+            sum(customers.ConPVNetSurplus_my[y, h, m] for m in customers.index_m)
     end
     # Sum of Net Consumer Surplus across customer tpye and DER technology
     TotalConNetSurplus = AxisArray(

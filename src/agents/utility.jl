@@ -97,6 +97,7 @@ mutable struct Utility <: AbstractUtility
     AnnualTaxDepre_existing_my::ParamAxisArray # annual tax depreciation of existing capacity (%)
     ITC_existing_my::ParamAxisArray # ITC of existing capacity (%)
     CumuITCAmort_existing_my::ParamAxisArray # ITC amortization of existing capacity (%)
+    AnnualITCAmort_existing_my::ParamAxisArray # ITC amortization of existing capacity (%)
     ADIT_existing_my::ParamAxisArray # accumulated deferred income taxes ($/MW)
     RateBaseNoWC_existing_my::ParamAxisArray # rate base (excluding working capital) ($/MW)
 
@@ -104,6 +105,7 @@ mutable struct Utility <: AbstractUtility
     CumuAccoutDepre_new_my::ParamAxisArray # cumulative accounting depreciation of new capacity (%)
     ITC_new_my::ParamAxisArray # ITC of new capacity (%)
     CumuITCAmort_new_my::ParamAxisArray # ITC amortization of new capacity (%)
+    AnnualITCAmort_new_my::ParamAxisArray # ITC amortization of new capacity (%)
     AnnualAccoutDepre_new_my::ParamAxisArray # annual accounting depreciation of new capacity (%)
     AnnualTaxDepre_new_my::ParamAxisArray # annual tax depreciation of new capacity (%) 
 
@@ -338,6 +340,13 @@ function Utility(
         index_k_existing,
         [model_data.index_y],
     )
+    AnnualITCAmortOld_my = read_param(
+        "AnnualITCAmort_existing_my",
+        input_filename,
+        "AnnualITCAmortOldmy",
+        index_k_existing,
+        [model_data.index_y],
+    )
     # accumulative deferred income tax of existing units ($/MW)
     ADITOld_my = make_axis_array(model_data.index_y, index_k_existing)
     for y in model_data.index_y, k in index_k_existing
@@ -378,10 +387,17 @@ function Utility(
         [model_data.index_y],
     )
     # cumulative ITC ammortization of new units (for each schedule year) (%)
-    CumuITCAmortNew_new = read_param(
+    CumuITCAmortNew_my = read_param(
         "CumuITCAmort_new_my",
         input_filename,
         "CumuITCAmortNewmy",
+        index_k_new,
+        [model_data.index_s],
+    )
+    AnnualITCAmortNew_my = read_param(
+        "AnnualITCAmort_new_my",
+        input_filename,
+        "AnnualITCAmortNewmy",
         index_k_new,
         [model_data.index_s],
     )
@@ -565,6 +581,7 @@ function Utility(
         AnnualTaxDepreOld_my,
         ITCOld_my,
         CumuITCAmortOld_my,
+        AnnualITCAmortOld_my,
         ParamAxisArray(
             "ADIT_existing_my",
             Tuple(push!(copy([model_data.index_y]), index_k_existing)),
@@ -578,7 +595,8 @@ function Utility(
         CumuTaxDepreNew_my,
         CumuAccoutDepreNew_my,
         ITCNew_my,
-        CumuITCAmortNew_new,
+        CumuITCAmortNew_my,
+        AnnualITCAmortNew_my,
         AnnualAccoutDepreNew_my,
         AnnualTaxDepreNew_my,
         initialize_param("x_R_cumu", index_k_existing),
@@ -656,7 +674,7 @@ function solve_agent_problem!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
+    hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
 )
@@ -667,7 +685,7 @@ function solve_agent_problem!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
 )
@@ -993,7 +1011,7 @@ end
 function save_results(
     utility::Utility,
     utility_opts::AgentOptions,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
@@ -1028,7 +1046,7 @@ function welfare_calculation!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
 )
     regulator = get_agent(Regulator, agent_store)
@@ -2179,4 +2197,17 @@ function solve_agent_problem_decomposition_by_year_master(
     #     (x_C_before, ipp.x_C_my)
     # ])
 
+end
+
+"""
+Update Utility cumulative parameters
+"""
+function update_cumulative!(model_data::HEMData, utility::Utility)
+    for k in utility.index_k_existing
+        utility.x_R_cumu[k] = utility.x_R_cumu[k] + utility.x_R_my[first(model_data.index_y),k]
+    end
+
+    for k in utility.index_k_new
+        utility.x_C_cumu[k] = utility.x_C_cumu[k] + utility.x_C_my[first(model_data.index_y),k]
+    end
 end

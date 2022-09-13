@@ -19,6 +19,7 @@ MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
 # File locations
 base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
 hem_data_dir = joinpath(base_dir, "..", "HolisticElectricityModel-Data")
+
 # input_filename =
 #     joinpath(hem_data_dir, "inputs", "HEM_Parameters_ipp1_single_year_final.xlsx")     # HEM_Parameters_ipp1_single_year_final, HEM_Parameters_ipp1_two_year_test
 include(joinpath(hem_data_dir, "inputs", "input_data_parsing.jl"))
@@ -78,19 +79,22 @@ distribution_utility = DistributionUtility(input_filename, model_data)
 max_iter = 100
 window_length = 1
 
-file_prefix = "Results_$(hem_opts.use_case)_$(hem_opts.market_structure)_$(regulator_opts.rate_design)_$(regulator_opts.net_metering_policy)"
+agents_and_opts = [
+    AgentAndOptions(utility, NullAgentOptions()),
+    AgentAndOptions(ipp, ipp_opts),
+    AgentAndOptions(regulator, regulator_opts),
+    AgentAndOptions(customers, NullAgentOptions()),
+    AgentAndOptions(green_developer, NullAgentOptions()),
+    AgentAndOptions(distribution_utility, NullAgentOptions()),
+]
+
+file_prefix = get_file_prefix(hem_opts, agents_and_opts)
+@info "file_prefix: $(file_prefix)"
 
 solve_equilibrium_problem!(
     hem_opts,
     model_data,
-    [
-        AgentAndOptions(utility, NullAgentOptions()),
-        AgentAndOptions(ipp, ipp_opts),
-        AgentAndOptions(regulator, regulator_opts),
-        AgentAndOptions(customers, NullAgentOptions()),
-        AgentAndOptions(green_developer, NullAgentOptions()),
-        AgentAndOptions(distribution_utility, NullAgentOptions()),
-    ],
+    agents_and_opts,
     export_file_path,
     file_prefix,
     max_iter,

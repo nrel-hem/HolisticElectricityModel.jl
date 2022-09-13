@@ -246,7 +246,7 @@ implemented for ConsoleLogger.
 function set_log_level(level::Base.CoreLogging.LogLevel)
     current_logger = global_logger()
     new_logger = nothing
-    if typeof(current_logger) == ConsoleLogger
+    if current_logger isa ConsoleLogger
         new_logger = ConsoleLogger(
             current_logger.stream,
             level,
