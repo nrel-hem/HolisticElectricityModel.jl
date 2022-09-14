@@ -18,6 +18,11 @@ struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegu
     net_metering_policy::U
 end
 
+function get_file_prefix(options::RegulatorOptions)
+    return join(["$(typeof(options.rate_design))", 
+                 "$(typeof(options.net_metering_policy))"], "_")
+end
+
 abstract type AbstractRegulator <: Agent end
 
 mutable struct Regulator <: AbstractRegulator
@@ -133,7 +138,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             model_data.index_y,
             description = "other cost not related to the optimization problem",
         ),
-        ParamScalar("REC", 0.0, description = "Renewable Energy Credits"),
+        ParamScalar("REC", 30.0, description = "Renewable Energy Credits"),
         initialize_param(
             "p",
             model_data.index_h,
@@ -260,6 +265,10 @@ end
 
 get_id(x::Regulator) = x.id
 
+function get_file_prefix(agent::Regulator)
+    return "REC$(agent.REC.value)"
+end
+
 # although Customer is subtype of Agent, 
 # Vector{Customer} is not subtype of Vector{Agent}
 # But if a vector of customers c1, c2, c3 is defined 
@@ -271,7 +280,7 @@ function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
 )
@@ -418,10 +427,27 @@ function solve_agent_problem!(
     income_tax =
         (
             return_to_equity * utility.Tax +
-            (depreciation - depreciation_tax) * utility.Tax - sum(
-                utility.CapEx_my[reg_year_index, k] *
-                utility.x_C_my[reg_year_index, k] *
-                utility.ITC_new_my[reg_year_index, k] for k in utility.index_k_new
+            (depreciation - depreciation_tax) * utility.Tax - 
+            sum(
+                utility.ITC_existing_my[k] *
+                utility.CapEx_existing_my[k] *
+                (utility.x_E_my[k] - reg_retirement[k]) *
+                utility.AnnualITCAmort_existing_my[reg_year_index, k] +
+                # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
+                utility.ITC_existing_my[k] *
+                utility.CapEx_existing_my[k] *
+                utility.x_R_my[reg_year_index, k] *
+                (
+                    utility.AnnualITCAmort_existing_my[reg_year_index, k] + 1 -
+                    utility.CumuITCAmort_existing_my[reg_year_index, k]
+                ) for k in utility.index_k_existing
+            ) -
+            sum(
+                utility.ITC_new_my[Symbol(Int(y)), k] *
+                utility.CapEx_my[Symbol(Int(y)), k] *
+                utility.x_C_my[Symbol(Int(y)), k] *
+                utility.AnnualITCAmort_new_my[Symbol(Int(reg_year - y + 1)), k] for
+                y in model_data.year[first(model_data.index_y_fix)]:reg_year, k in utility.index_k_new
             )
         ) / (1 - utility.Tax)
     # calculate revenue requirement
@@ -964,7 +990,7 @@ function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase},
+    hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
 )
@@ -1544,7 +1570,7 @@ end
 function save_results(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
-    hem_opts::HEMOptions{<:MarketStructure, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure},
     export_file_path::AbstractString,
     fileprefix::AbstractString,
 )
