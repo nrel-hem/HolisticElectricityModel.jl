@@ -55,9 +55,9 @@ mutable struct DistributionUtility <: AbstractDistributionUtility
 end
 
 function DistributionUtility(
-    input_filename::AbstractString,
-    model_data::HEMData;
-    id = DEFAULT_ID,
+    input_filename::AbstractString, # folders where input csv files are stored
+    model_data::HEMData; # HEMData
+    id = DEFAULT_ID, # currently, id are all default
 )
 
     regression_model_parameters = CSV.read(joinpath(input_filename, "regression_results.csv"), DataFrame)
@@ -90,8 +90,7 @@ function DistributionUtility(
         ParamScalar("industrial_customer_coefficient", regression_model_parameters[(regression_model_parameters.regression .== "om") .& (regression_model_parameters.variable .== "Industrial Customers"), :value][1]),
     )
 
-    # Use static normalization numbers from the national database
-    # Ella to update min and max for distribution_capex_balance, distribution_capex_addition, distribution_om_cost
+    # Use the same normalization factors as performing the national-level regression analysis
     capex_balance_norm_inputs = DataFrame(
         id = [
             "total_sales",
@@ -246,7 +245,7 @@ end
 
 get_id(x::DistributionUtility) = x.id
 
-function norm(data::Float64, norm_variable::String, norm_inputs::DataFrame)
+function normalize(data::Float64, norm_variable::String, norm_inputs::DataFrame)
     data =
         (data - norm_inputs[norm_inputs.id.==norm_variable, "min"][1]) / (
             norm_inputs[norm_inputs.id.==norm_variable, "max"][1] -
@@ -255,7 +254,7 @@ function norm(data::Float64, norm_variable::String, norm_inputs::DataFrame)
     return data
 end
 
-function reverse_norm(data::Float64, norm_variable::String, norm_inputs::DataFrame)
+function denormalize(data::Float64, norm_variable::String, norm_inputs::DataFrame)
     data =
         data * (
             norm_inputs[norm_inputs.id.==norm_variable, "max"][1] -
@@ -296,15 +295,15 @@ function existing_distribution_account(
     
     distribution_capex_balance_norm =
         distribution_capex_balance_model.constant +
-        distribution_capex_balance_model.total_sales_coefficient * norm(total_sale_initial, "total_sales", capex_balance_norm_inputs) +
+        distribution_capex_balance_model.total_sales_coefficient * normalize(total_sale_initial, "total_sales", capex_balance_norm_inputs) +
         distribution_capex_balance_model.residential_customer_coefficient *
-        norm(customers.gamma[:Residential], "residential", capex_balance_norm_inputs) +
+        normalize(customers.gamma[:Residential], "residential", capex_balance_norm_inputs) +
         distribution_capex_balance_model.commercial_customer_coefficient *
-        norm(customers.gamma[:Commercial], "commercial", capex_balance_norm_inputs) +
+        normalize(customers.gamma[:Commercial], "commercial", capex_balance_norm_inputs) +
         distribution_capex_balance_model.industrial_customer_coefficient *
-        norm(customers.gamma[:Industrial], "industrial", capex_balance_norm_inputs)
+        normalize(customers.gamma[:Industrial], "industrial", capex_balance_norm_inputs)
 
-    distribution_capex_balance_reverse = reverse_norm(distribution_capex_balance_norm, "distribution_capex_balance", capex_balance_norm_inputs)
+    distribution_capex_balance_reverse = denormalize(distribution_capex_balance_norm, "distribution_capex_balance", capex_balance_norm_inputs)
 
     if reg_year - model_data.year_start > distribution_utility.beginning_balance_lifetime
         distribution_existing_balance = 0.0
@@ -313,6 +312,9 @@ function existing_distribution_account(
         distribution_existing_balance = distribution_capex_balance_reverse * (1 - (reg_year - model_data.year_start) / distribution_utility.beginning_balance_lifetime)
         distribution_existing_annual_depreciation = distribution_capex_balance_reverse / distribution_utility.beginning_balance_lifetime
     end
+
+    @info "Existing Distribution Balance: $distribution_existing_balance"
+    @info "Existing Distribution Annual Depreciation: $distribution_existing_annual_depreciation"
 
     return distribution_existing_balance, distribution_existing_annual_depreciation
 
@@ -363,30 +365,30 @@ function new_distribution_account(
     distribution_capex_addition_norm =
         distribution_capex_addition_model.constant +
         distribution_capex_addition_model.saidi_coefficient *
-        norm(distribution_utility.SAIDI[reg_year_index], "saidi", capex_addition_norm_inputs) +
-        distribution_capex_addition_model.dpv_coefficient * norm(dpv_pca, "dpv", capex_addition_norm_inputs) +
-        distribution_capex_addition_model.total_sales_coefficient * norm(total_sale, "total_sales", capex_addition_norm_inputs) +
+        normalize(distribution_utility.SAIDI[reg_year_index], "saidi", capex_addition_norm_inputs) +
+        distribution_capex_addition_model.dpv_coefficient * normalize(dpv_pca, "dpv", capex_addition_norm_inputs) +
+        distribution_capex_addition_model.total_sales_coefficient * normalize(total_sale, "total_sales", capex_addition_norm_inputs) +
         distribution_capex_addition_model.residential_customer_coefficient *
-        norm(customers.gamma[:Residential], "residential", capex_addition_norm_inputs) +
+        normalize(customers.gamma[:Residential], "residential", capex_addition_norm_inputs) +
         distribution_capex_addition_model.commercial_customer_coefficient *
-        norm(customers.gamma[:Commercial], "commercial", capex_addition_norm_inputs) +
+        normalize(customers.gamma[:Commercial], "commercial", capex_addition_norm_inputs) +
         distribution_capex_addition_model.industrial_customer_coefficient *
-        norm(customers.gamma[:Industrial], "industrial", capex_addition_norm_inputs)
+        normalize(customers.gamma[:Industrial], "industrial", capex_addition_norm_inputs)
 
     distribution_om_cost_norm =
         distribution_om_cost_model.constant +
         distribution_om_cost_model.saidi_coefficient *
-        norm(distribution_utility.SAIDI[reg_year_index], "saidi", om_cost_norm_inputs) +
-        distribution_om_cost_model.total_sales_coefficient * norm(total_sale, "total_sales", om_cost_norm_inputs) +
+        normalize(distribution_utility.SAIDI[reg_year_index], "saidi", om_cost_norm_inputs) +
+        distribution_om_cost_model.total_sales_coefficient * normalize(total_sale, "total_sales", om_cost_norm_inputs) +
         distribution_om_cost_model.residential_customer_coefficient *
-        norm(customers.gamma[:Residential], "residential", om_cost_norm_inputs) +
+        normalize(customers.gamma[:Residential], "residential", om_cost_norm_inputs) +
         distribution_om_cost_model.commercial_customer_coefficient *
-        norm(customers.gamma[:Commercial], "commercial", om_cost_norm_inputs) +
+        normalize(customers.gamma[:Commercial], "commercial", om_cost_norm_inputs) +
         distribution_om_cost_model.industrial_customer_coefficient *
-        norm(customers.gamma[:Industrial], "industrial", om_cost_norm_inputs)
+        normalize(customers.gamma[:Industrial], "industrial", om_cost_norm_inputs)
 
-    distribution_capex_addition_reverse = reverse_norm(distribution_capex_addition_norm, "distribution_capex_addition", capex_addition_norm_inputs)
-    distribution_om_cost_reverse = reverse_norm(distribution_om_cost_norm, "distribution_om_cost", om_cost_norm_inputs)
+    distribution_capex_addition_reverse = denormalize(distribution_capex_addition_norm, "distribution_capex_addition", capex_addition_norm_inputs)
+    distribution_om_cost_reverse = denormalize(distribution_om_cost_norm, "distribution_om_cost", om_cost_norm_inputs)
 
     distribution_utility.DistCapExAddition_new_my[reg_year_index] = distribution_capex_addition_reverse
     distribution_utility.DistOMCost_new_my[reg_year_index] = distribution_om_cost_reverse
@@ -427,6 +429,10 @@ function new_distribution_account(
             distribution_utility.DistAnnualTaxDepre_new_my[Symbol(Int(reg_year - y + 1))] for
             y in model_data.year[first(model_data.index_y_fix)]:reg_year
         )
+
+    @info "New Distribution Rate Base: $DistRateBase_new"
+    @info "New Distribution Annual Accounting Depreciation: $distribution_new_annual_accounting_depreciation"
+    @info "New Distribution Annual Tax Depreciation: $distribution_new_annual_tax_depreciation"
 
     return DistRateBase_new, distribution_new_annual_accounting_depreciation, distribution_new_annual_tax_depreciation
 

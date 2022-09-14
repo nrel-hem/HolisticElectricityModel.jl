@@ -31,7 +31,11 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         prose_name = "simulation year index y",
         description = "simulation years",
     )
-
+    # "index_y_fix" represents the full simulation horizon (does not change)
+    # "index_y" represents the simulation years in a particular window (gets updated on line 238)
+    # e.g., when we simulate years 2021-2030, "index_y_fix" will be [2021, ..., 2030]
+    # if the planning window is 5-year for utility or IPPs, so the first index_y will be
+    # [2021, ..., 2025], after solving the first window, index_y will be updated to [2022, ..., 2026] etc.
     index_y_fix = read_set(
         input_filename,
         "index_y",
