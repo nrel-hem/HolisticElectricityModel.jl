@@ -313,8 +313,11 @@ function existing_distribution_account(
         distribution_existing_annual_depreciation = distribution_capex_balance_reverse / distribution_utility.beginning_balance_lifetime
     end
 
+    distribution_existing_balance_per_MWh = distribution_existing_balance / total_sale_initial
+
     @info "Existing Distribution Balance: $distribution_existing_balance"
     @info "Existing Distribution Annual Depreciation: $distribution_existing_annual_depreciation"
+    @info "Existing Distribution Balance per MWh: $distribution_existing_balance_per_MWh"
 
     return distribution_existing_balance, distribution_existing_annual_depreciation
 
@@ -430,9 +433,12 @@ function new_distribution_account(
             y in model_data.year[first(model_data.index_y_fix)]:reg_year
         )
 
+    DistRateBase_new_per_MWh = DistRateBase_new / total_sale
+
     @info "New Distribution Rate Base: $DistRateBase_new"
     @info "New Distribution Annual Accounting Depreciation: $distribution_new_annual_accounting_depreciation"
     @info "New Distribution Annual Tax Depreciation: $distribution_new_annual_tax_depreciation"
+    @info "New Distribution Rate Base per MWh: $DistRateBase_new_per_MWh"
 
     return DistRateBase_new, distribution_new_annual_accounting_depreciation, distribution_new_annual_tax_depreciation
 
