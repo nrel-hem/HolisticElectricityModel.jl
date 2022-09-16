@@ -393,7 +393,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, <:Union{NullUseCase,SupplyChoiceUseCase}},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
 )
