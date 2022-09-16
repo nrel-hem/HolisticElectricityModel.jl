@@ -494,6 +494,7 @@ function solve_agent_problem!(
 end
 
 # Lagrange decomposition of the IPP's problem
+# TODO: Need to add Green Power Subscription to the Lagrange Decomposition approach!
 # Subproblem 1 (Annual Investment & Retirement)
 function Lagrange_Sub_Investment_Retirement_Cap(
     ipp::IPPGroup,
@@ -876,7 +877,7 @@ function Lagrange_Sub_Dispatch_Cap(
     customers = get_agent(CustomerGroup, agent_store)
 
     WMDER_IPP = get_new_jump_model(hem_opts.MIP_solver)
-    set_optimizer_attribute(WMDER_IPP, "OUTPUTLOG", 0)
+    # set_optimizer_attribute(WMDER_IPP, "OUTPUTLOG", 0)
 
     # WMDER_IPP = Model(()->Solver.Optimizer(OUTPUTLOG = 0))
 
@@ -1551,7 +1552,7 @@ function Lagrange_Feasible_Cap(
     customers = get_agent(CustomerGroup, agent_store)
 
     WMDER_IPP = get_new_jump_model(hem_opts.MIP_solver)
-    set_optimizer_attribute(WMDER_IPP, "OUTPUTLOG", 0)
+    # set_optimizer_attribute(WMDER_IPP, "OUTPUTLOG", 0)
 
     # Define positive variables
     @variable(
@@ -2094,7 +2095,7 @@ function solve_agent_problem_ipp_cap(
     w_iter,
 )
     global optimality_gap = 100.0
-    global tol = 0.001  #0.001
+    global tol = 0.01  #0.001
     global rho = 1.0
     global alpha = 1.0
     global lagrange_iter = 1
@@ -3292,7 +3293,7 @@ function welfare_calculation!(
 
     IPP_Revenue_total = AxisArray(
         [
-            sum(IPP_Revenue_p[y, p] for p in ipp.index_p) + regulator.othercost for
+            sum(IPP_Revenue_p[y, p] for p in ipp.index_p) + regulator.othercost[y] for
             y in model_data.index_y_fix
         ],
         model_data.index_y_fix.elements,
@@ -3504,7 +3505,7 @@ function welfare_calculation!(
 
     IPP_Cost_total = AxisArray(
         [
-            sum(IPP_Cost_p[y, p] for p in ipp.index_p) + regulator.othercost for
+            sum(IPP_Cost_p[y, p] for p in ipp.index_p) + regulator.othercost[y] for
             y in model_data.index_y_fix
         ],
         model_data.index_y_fix.elements,

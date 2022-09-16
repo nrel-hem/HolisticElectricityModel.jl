@@ -31,6 +31,7 @@ export Utility
 export CustomerGroup
 export IPPGroup
 export GreenDeveloper
+export DistributionUtility
 
 # Agent Options
 export RegulatorOptions
@@ -103,5 +104,6 @@ include("agents/utility.jl")
 include("agents/customer_group.jl")
 include("agents/ipp_group.jl")
 include("agents/green_developer.jl")
+include("agents/distribution_utility.jl")
 
 end # module
