@@ -28,13 +28,19 @@ input_path = joinpath(hem_data_dir, "inputs")
 ba = ["p13"]
 ba_len = length(ba)
 base_year = 2018
-future_years = [2019, 2020]
+future_years = [2019]
 future_years_len = length(future_years)
 ipp_number = 1
 scenario = DataSelection(ba, base_year, future_years, ipp_number)
 
-# need to run in julia: run(#ba, PROFILES_DIRECTORY, "nguo", HOSTNAME, DATABASE, PORT) to get residential and commercial profiles
-# also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
+# Prior to running this script, you need to run two items in the HolisticElectricityModel-Data repository
+# 0. Copy the folders in the Teams NREL\Holistic Electricity Model - General\HEM Input Data Source folder into HolisticElectricityModel-Data/inputs
+#        e.g., in Git Bash run:
+#            scp -r NREL/Holistic\ Electricity\ Model\ -\ General/HEM\ Input\ Data\ Source/**/ $USER@ed6.hpc.nrel.gov:/home/$USER/HolisticElectricityModel-Data/inputs/
+# 1. The run function in inputs/write_load_profiles.jl, e.g.:
+#        run(user="nguo", pca_ids=[13]) to get residential and commercial profiles
+# 2. python inputs/write_industrial_profiles.py -p #ba to get industrial profiles 
+#       - Requires https://github.com/dsgrid/dsgrid-legacy-efs-api
 
 input_filename = joinpath(hem_data_dir, "inputs", "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number")
 mkpath(input_filename)
@@ -47,13 +53,13 @@ mkpath(export_file_path)
 logger = configure_logging(
     console_level = Logging.Info,
     file_level = Logging.Info,
-    filename = "driver.log",
+    filename = joinpath(export_file_path,"driver.log"),
 )
 
 hem_opts = HEMOptions(
     MIP_solver,                       # HEMSolver
     NLP_solver,
-    WholesaleMarket(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
+    VerticallyIntegratedUtility(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERUseCase(),                     # DERUseCase          
     NullUseCase(),                    # SupplyChoiceUseCase
 )
@@ -64,7 +70,7 @@ regulator_opts = RegulatorOptions(
 )
 
 ipp_opts = IPPOptions(
-    LagrangeDecomposition(),              # LagrangeDecomposition, MIQP
+    MIQP(),              # LagrangeDecomposition, MIQP
 )
 
 # Load sets and parameters, define functions -----------------------------------

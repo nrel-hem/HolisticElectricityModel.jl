@@ -11,6 +11,7 @@ struct ExcessRetailRate <: NetMeteringPolicy end
 struct ExcessMarginalCost <: NetMeteringPolicy end
 struct ExcessZero <: NetMeteringPolicy end
 
+# declare regulator modeling options
 abstract type AbstractRegulatorOptions <: AgentOptions end
 
 struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegulatorOptions
@@ -996,7 +997,13 @@ function solve_agent_problem!(
 )
 
     for y in model_data.index_y_fix
-        regulator.othercost[y] = regulator.distribution_cost[y] + regulator.administration_cost[y] + regulator.transmission_cost[y] + regulator.interconnection_cost[y] + regulator.system_cost[y]
+        regulator.othercost[y] = (
+            regulator.distribution_cost[y] + 
+            regulator.administration_cost[y] + 
+            regulator.transmission_cost[y] + 
+            regulator.interconnection_cost[y] + 
+            regulator.system_cost[y]
+        )
     end
 
     customers = get_agent(CustomerGroup, agent_store)

@@ -85,21 +85,20 @@ function ParamScalar(name::AbstractString, value::Number; prose_name = "", descr
     return ParamScalar(name, prose_name, description, value)
 end
 
-@forward ParamScalar.value Base.isless, Base.isgreater, Base.:+, Base.:*, Base.:-, Base.:/
+@forward ParamScalar.value Base.isless, 
+Base.isgreater, 
+Base.:+, 
+Base.:*, 
+Base.:-, 
+Base.:/
 
 Base.:+(x::Number, y::ParamScalar) = x + y.value
-# Base.:+(x::Ref{Float64}, y::Number) = x[] + y
 Base.:-(x::Number, y::ParamScalar) = x - y.value
 Base.:*(x::Number, y::ParamScalar) = x * y.value
 Base.:*(x::ParamScalar, y::ParamScalar) = x.value * y.value
-# Base.:*(x::Ref{Float64}, y::ParamScalar) = x[] * y.value
-# Base.:*(x::Ref{Float64}, y::Number) = x[] * y
-# Base.:*(x::Ref{Int64}, y::JuMP.VariableRef) = x[] * y
 Base.:/(x::Number, y::ParamScalar) = x / y.value
 Base.:/(x::ParamScalar, y::ParamScalar) = x.value / y.value
-# Base.:/(x::Ref{Float64}, y::Number) = x[] / y
 Base.isless(x::Number, y::ParamScalar) = isless(x, y.value)
-# Base.zero(x::ParamScalar) = zero(x.value[])
 
 ParamScalar(param::ParamScalar) =
     ParamScalar(param.name, param.prose_name, param.description, param.value)
@@ -161,7 +160,15 @@ Base.setindex!,
 Base.findmax,
 Base.fill!,
 Base.length,
+Base.iterate,
+Base.transpose,
 AxisArrays.axes
+
+Base.:+(x::ParamAxisArray, y::ParamAxisArray) = x.values + y.values
+Base.:-(x::ParamAxisArray, y::ParamAxisArray) = x.values - y.values
+Base.:*(x::ParamAxisArray, y::ParamAxisArray) = x.values * y.values
+Base.:(*)(x::ParamAxisArray, y::ParamAxisArray) = x.values .* y.values
+Base.:(*)(x::Matrix, y::ParamAxisArray) = x .* y.values
 
 # TODO PERF: turn off fill_nan when we are confident in the code.
 """
