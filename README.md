@@ -16,7 +16,7 @@ After this, you have some options:
 #### Local Set-up
 
 - [Install the Xpress solver](https://github.nrel.gov/dcutler/fico-xpress)
-- Each time vefore a model run, make sure the driver.jl file is set to use the XpressSolver
+- Each time vefore a model run, make sure the driver.jl file is set to use the Xpress_Solver
 
 #### NREL HPC - Eagle Set-Up
 
@@ -50,7 +50,7 @@ After this, you have some options:
     ```
     module load gurobi
     ```
-    and make sure the driver.jl file is set to use the GurobiSolver
+    and make sure the driver.jl file is set to use the Gurobi_Solver
   
     For example, to run in interactive mode on a debug node:
     ```bash
@@ -58,7 +58,7 @@ After this, you have some options:
     # ... Wait for a compute node
     > cd HolisticElectricityModel.jl
     > module load gurobi
-    > julia --project=. script/driver.jl
+    > julia --project=test script/driver.jl
     ```
 
 
@@ -79,5 +79,5 @@ julia> include("script/driver.jl")
 
 ```bash
 > cd ~/HolisticElectricityModel.jl
-> julia --project=. script/driver.jl
+> julia --project=test script/driver.jl
 ```

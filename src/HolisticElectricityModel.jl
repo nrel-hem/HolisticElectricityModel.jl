@@ -7,9 +7,12 @@ module HolisticElectricityModel
 
 # Meta
 export HEMSolver
-export XpressSolver
+export Xpress_Solver
 export Gurobi_Solver
 export Ipopt_Solver
+export import_gurobi
+export import_ipopt
+export import_xpress
 export HEMData
 export Options
 export HEMOptions
@@ -35,8 +38,9 @@ export DistributionUtility
 
 # Agent Options
 export RegulatorOptions
-export CustomerOptions
+# export CustomerOptions
 export IPPOptions
+export UtilityOptions
 
 # Policies
 export FlatRate, TOU                                    # tariff structures
@@ -60,6 +64,7 @@ export solve_agent_problem_decomposition_by_year
 export solve_agent_problem_decomposition_by_year_feasible
 export solve_agent_problem_decomposition_by_year_feasible_obj
 export solve_agent_problem_decomposition_by_year_master
+export run_hem
 
 ################################################################################
 # Imports
@@ -78,7 +83,6 @@ import Distributions
 import InfrastructureSystems
 import InfrastructureSystems: @assert_op
 import QuadGK
-import Ipopt
 import TimerOutputs
 
 const IS = InfrastructureSystems
@@ -95,6 +99,7 @@ using DocStringExtensions
 #################################################################################
 # Includes
 
+include("solvers.jl")
 include("types.jl")
 include("utils.jl")
 
@@ -105,5 +110,6 @@ include("agents/customer_group.jl")
 include("agents/ipp_group.jl")
 include("agents/green_developer.jl")
 include("agents/distribution_utility.jl")
+include("run_hem.jl")
 
 end # module

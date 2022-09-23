@@ -87,7 +87,6 @@ function read_param(
 
     for (i, ax) in enumerate(ar_axes)
         elements = dims[i].elements
-        # compare the sets TODO DT
         if ax.val != elements
             throw(
                 ArgumentError(

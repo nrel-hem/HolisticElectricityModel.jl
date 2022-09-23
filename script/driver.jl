@@ -1,17 +1,14 @@
 using Logging
 using HolisticElectricityModel
+using JuMP
 
 # This is the driver script
 
 # Define the solver ------------------------------------------------------------
 # using Xpress
-# MIP_solver = XpressSolver(Xpress)
 using Ipopt
-NLP_solver = Ipopt_Solver(Ipopt)
-
 using Gurobi
-const GRB_ENV = Gurobi.Env()
-MIP_solver = Gurobi_Solver(Gurobi, GRB_ENV)
+const GUROBI_ENV = Gurobi.Env()
 # ------------------------------------------------------------------------------
 
 # Define the model run ---------------------------------------------------------
@@ -36,23 +33,15 @@ scenario = DataSelection(ba, base_year, future_years, ipp_number)
 # need to run in julia: run(#ba, PROFILES_DIRECTORY, "nguo", HOSTNAME, DATABASE, PORT) to get residential and commercial profiles
 # also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
 
-input_filename = joinpath(hem_data_dir, "inputs", "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number")
-mkpath(input_filename)
+input_dir = joinpath(hem_data_dir, "inputs", "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number")
+mkpath(input_dir)
 
-main(input_path, input_filename, scenario)
+main(input_path, input_dir, scenario)
 
-export_file_path = joinpath(hem_data_dir, "outputs", "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number")
-mkpath(export_file_path)
-
-logger = configure_logging(
-    console_level = Logging.Info,
-    file_level = Logging.Info,
-    filename = "driver.log",
-)
+# export_file_path = joinpath(hem_data_dir, "outputs", "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number")
+# mkpath(export_file_path)
 
 hem_opts = HEMOptions(
-    MIP_solver,                       # HEMSolver
-    NLP_solver,
     WholesaleMarket(),    # MarketStructure    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERUseCase(),                     # DERUseCase          
     NullUseCase(),                    # SupplyChoiceUseCase
@@ -65,41 +54,38 @@ regulator_opts = RegulatorOptions(
 
 ipp_opts = IPPOptions(
     LagrangeDecomposition(),              # LagrangeDecomposition, MIQP
+    Dict(
+        "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
+            Ipopt.Optimizer,
+            "print_level" => 0,
+            # "tol" => 1e-6,
+            # "max_iter" => 500,
+        ),
+        "Lagrange_Sub_Dispatch_Cap" => JuMP.optimizer_with_attributes(
+            () -> Gurobi.Optimizer(GUROBI_ENV),
+            # "OUTPUTLOG" => 0,
+        ),
+        "Lagrange_Feasible_Cap" => JuMP.optimizer_with_attributes(
+            () -> Gurobi.Optimizer(GUROBI_ENV),
+            "Presolve" => 0,
+            # "OUTPUTLOG" => 0,
+        )
+    )
+)
+
+utility_opts = UtilityOptions(
+    JuMP.optimizer_with_attributes(
+        () -> Gurobi.Optimizer(GUROBI_ENV),
+        # "OUTPUTLOG" => 0,
+    ),
 )
 
 # Load sets and parameters, define functions -----------------------------------
-@info "Loading data"
-model_data = HEMData(input_filename)
-regulator = Regulator(input_filename, model_data)
-utility = Utility(input_filename, model_data, regulator)
-customers = CustomerGroup(input_filename, model_data)
-ipp = IPPGroup(input_filename, model_data)
-green_developer = GreenDeveloper(input_filename, model_data)
-distribution_utility = DistributionUtility(input_filename, model_data)
-
-max_iter = 100
-window_length = 1
-
-agents_and_opts = [
-    AgentAndOptions(utility, NullAgentOptions()),
-    AgentAndOptions(ipp, ipp_opts),
-    AgentAndOptions(regulator, regulator_opts),
-    AgentAndOptions(customers, NullAgentOptions()),
-    AgentAndOptions(green_developer, NullAgentOptions()),
-    AgentAndOptions(distribution_utility, NullAgentOptions()),
-]
-
-file_prefix = get_file_prefix(hem_opts, agents_and_opts)
-@info "file_prefix: $(file_prefix)"
-
-solve_equilibrium_problem!(
+run_hem(
+    input_dir,
     hem_opts,
-    model_data,
-    agents_and_opts,
-    export_file_path,
-    file_prefix,
-    max_iter,
-    window_length
+    regulator_options=regulator_opts,
+    ipp_options=ipp_opts,
+    utility_options=utility_opts,
+    force=true,
 )
-
-close(logger)

@@ -127,7 +127,6 @@ function save_results(
     green_developer_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure, <:Union{NullUseCase,DERUseCase}, SupplyChoiceUseCase},
     export_file_path::AbstractString,
-    fileprefix::AbstractString,
 )
 
     # Primal Variables
@@ -135,14 +134,14 @@ function save_results(
         green_developer.green_tech_buildout_my.values,
         [:Year, :GreenTech, :CustomerType],
         :Capacity_MW,
-        joinpath(export_file_path, "$(fileprefix)_green_tech_buildout.csv"),
+        joinpath(export_file_path, "green_tech_buildout.csv"),
     )
     
     save_param(
         green_developer.ppa_my.values,
         [:Year, :CustomerType],
         :PPAPrice,
-        joinpath(export_file_path, "$(fileprefix)_ppa.csv"),
+        joinpath(export_file_path, "ppa.csv"),
     )
 end
 

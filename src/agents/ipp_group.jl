@@ -9,6 +9,23 @@ abstract type AbstractIPPOptions <: AgentOptions end
 
 struct IPPOptions{T <: IPPAlgorithm} <: AbstractIPPOptions
     ipp_algorithm::T
+    solvers::Dict{String, <:HEMSolver}
+end
+
+"""
+Construct IPPOptions with solvers defined as MOI.OptimizerWithAttributes instances.
+"""
+function IPPOptions(algorithm::IPPAlgorithm, solvers::Dict)
+    hem_solvers = Dict{String, HEMSolver}()
+    for (key, val) in solvers
+        if val isa MOI.OptimizerWithAttributes
+            hem_solvers[key] = Any_Solver(val)
+        else
+            hem_solvers[key] = val
+        end
+    end
+
+    return IPPOptions(algorithm, hem_solvers)
 end
 
 abstract type AbstractIPPGroup <: AgentGroup end
@@ -508,10 +525,7 @@ function Lagrange_Sub_Investment_Retirement_Cap(
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
 
-    WMDER_IPP = get_new_jump_model(hem_opts.NLP_solver)
-    set_optimizer_attribute(WMDER_IPP, "print_level", 0)
-    # get_optimizer_attribute(WMDER_IPP, "MIPTOL")
-    # set_optimizer_attributes(WMDER_IPP, "tol" => 1e-6, "max_iter" => 500)
+    WMDER_IPP = get_new_jump_model(ipp_opts.solvers["Lagrange_Sub_Investment_Retirement_Cap"])
 
     # Define positive variables
     @variable(WMDER_IPP, 0 <= x_C[model_data.index_y, ipp.index_k_new] <= 5000)
@@ -876,10 +890,7 @@ function Lagrange_Sub_Dispatch_Cap(
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
 
-    WMDER_IPP = get_new_jump_model(hem_opts.MIP_solver)
-    # set_optimizer_attribute(WMDER_IPP, "OUTPUTLOG", 0)
-
-    # WMDER_IPP = Model(()->Solver.Optimizer(OUTPUTLOG = 0))
+    WMDER_IPP = get_new_jump_model(ipp_opts.solvers["Lagrange_Sub_Dispatch_Cap"])
 
     # Define positive variables
     @variable(WMDER_IPP, 0 <= x_C[model_data.index_y, ipp.index_k_new] <= 5000)
@@ -1551,8 +1562,7 @@ function Lagrange_Feasible_Cap(
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
 
-    WMDER_IPP = get_new_jump_model(hem_opts.MIP_solver)
-    # set_optimizer_attribute(WMDER_IPP, "OUTPUTLOG", 0)
+    WMDER_IPP = get_new_jump_model(ipp_opts.solvers["Lagrange_Feasible_Cap"])
 
     # Define positive variables
     @variable(
@@ -2272,11 +2282,7 @@ function solve_agent_problem_ipp_cap(
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
 
-    WMDER_IPP = get_new_jump_model(hem_opts.MIP_solver)
-    # set_optimizer_attribute(WMDER_IPP, "OUTPUTLOG", 0)
-
-    # get_optimizer_attribute(WMDER_IPP, "MIPTOL")
-    # set_optimizer_attributes(WMDER_IPP, "tol" => 1e-6, "max_iter" => 500)
+    WMDER_IPP = make_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_cap"])
 
     # Define positive variables
     @variable(WMDER_IPP, x_C[model_data.index_y, ipp.index_k_new] >= 0)
@@ -3221,38 +3227,37 @@ function save_results(
     ipp_opts::AgentOptions,
     hem_opts::HEMOptions{WholesaleMarket},
     export_file_path::AbstractString,
-    fileprefix::AbstractString,
 )
     # Primal Variables
     save_param(
         ipps.y_E_my.values,
         [:Year, :IPP, :GenTech, :Time],
         :Generation_MWh,
-        joinpath(export_file_path, "$(fileprefix)_y_E.csv"),
+        joinpath(export_file_path, "y_E.csv"),
     )
     save_param(
         ipps.y_C_my.values,
         [:Year, :IPP, :GenTech, :Time],
         :Generation_MWh,
-        joinpath(export_file_path, "$(fileprefix)_y_C.csv"),
+        joinpath(export_file_path, "y_C.csv"),
     )
     save_param(
         ipps.x_R_my.values,
         [:Year, :IPP, :GenTech],
         :Capacity_MW,
-        joinpath(export_file_path, "$(fileprefix)_x_R.csv"),
+        joinpath(export_file_path, "x_R.csv"),
     )
     save_param(
         ipps.x_C_my.values,
         [:Year, :IPP, :GenTech],
         :Capacity_MW,
-        joinpath(export_file_path, "$(fileprefix)_x_C.csv"),
+        joinpath(export_file_path, "x_C.csv"),
     )
     save_param(
         ipps.LMP_my.values,
         [:Year, :Time],
         :MarginalCost,
-        joinpath(export_file_path, "$(fileprefix)_LMP.csv"),
+        joinpath(export_file_path, "LMP.csv"),
     )
 end
 
