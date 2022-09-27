@@ -35,7 +35,7 @@ export DistributionUtility
 
 # Agent Options
 export RegulatorOptions
-export CustomerOptions
+# export CustomerOptions
 export IPPOptions
 
 # Policies
@@ -77,8 +77,9 @@ import CSV
 import Distributions
 import InfrastructureSystems
 import InfrastructureSystems: @assert_op
-import QuadGK
 import Ipopt
+import LibPQ # EH: adding because Aqua says to, but I don't know what this is used for
+import QuadGK
 import TimerOutputs
 
 const IS = InfrastructureSystems

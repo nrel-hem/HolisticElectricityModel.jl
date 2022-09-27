@@ -15,7 +15,7 @@ After this, you have some options:
 
 #### Local Set-up
 
-- [Install the Xpress solver](https://github.nrel.gov/dcutler/fico-xpress)
+- [Install the Xpress solver](https://github.nrel.gov/bknueven/fico-xpress)
 - Each time vefore a model run, make sure the driver.jl file is set to use the XpressSolver
 
 #### NREL HPC - Eagle Set-Up
