@@ -183,6 +183,15 @@ function make_axis_array(indices...; fill_nan = true)
     return array
 end
 
+function make_keyed_array(indices...; fill_nan = true)
+    array = KeyedArray(
+        Array{Float64, length(indices)}(undef, length.(indices)...);
+        [Pair(get_symbol(x), getproperty(x, :elements)) for x in indices]...,
+    )
+    fill_nan && fill!(array.data, NaN)
+    return array
+end
+
 # ------------------------------------------------------------------------------
 # Optimization Solvers
 # ------------------------------------------------------------------------------
