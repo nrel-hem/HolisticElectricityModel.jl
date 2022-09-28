@@ -164,11 +164,11 @@ Base.iterate,
 Base.transpose,
 AxisArrays.axes
 
-Base.:+(x::ParamAxisArray, y::ParamAxisArray) = x.values + y.values
-Base.:-(x::ParamAxisArray, y::ParamAxisArray) = x.values - y.values
-Base.:*(x::ParamAxisArray, y::ParamAxisArray) = x.values * y.values
-Base.:(*)(x::ParamAxisArray, y::ParamAxisArray) = x.values .* y.values
-Base.:(*)(x::Matrix, y::ParamAxisArray) = x .* y.values
+#Base.:+(x::ParamAxisArray, y::ParamAxisArray) = x.values + y.values
+#Base.:-(x::ParamAxisArray, y::ParamAxisArray) = x.values - y.values
+#Base.:*(x::ParamAxisArray, y::ParamAxisArray) = x.values * y.values
+#Base.:(*)(x::ParamAxisArray, y::ParamAxisArray) = x.values .* y.values
+#Base.:(*)(x::Matrix, y::ParamAxisArray) = x .* y.values
 
 # TODO PERF: turn off fill_nan when we are confident in the code.
 """
