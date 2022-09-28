@@ -83,6 +83,7 @@ import Distributions
 import InfrastructureSystems
 import InfrastructureSystems: @assert_op
 import QuadGK
+import Tables
 import TimerOutputs
 
 const IS = InfrastructureSystems
