@@ -139,16 +139,16 @@ function read_axis_array(file::CSV.File, num_dims)
 
     index_names = Vector{Vector{Symbol}}(undef, num_dims)
     for i in 1:(num_dims - 1)
-        index_names[i] = Symbol.(unique(file.columns[i]))
+        index_names[i] = Symbol.(unique(Tables.getcolumn(file, i)))
     end
     index_names[num_dims] = Symbol.(file.names[num_dims:end])
 
     data =
         AxisArray(Array{Float64, num_dims}(undef, length.(index_names)...), index_names...)
     for i in 1:(file.rows)
-        indices = [Symbol(file.columns[j][i]) for j in 1:(num_dims - 1)]
+        indices = [Symbol(Tables.getcolumn(file, j)[i]) for j in 1:(num_dims - 1)]
         data[indices...] =
-            [file.columns[x + num_dims - 1][i] for x in 1:length(index_names[end])]
+            [Tables.getcolumn(file, x + num_dims - 1)[i] for x in 1:length(index_names[end])]
     end
 
     return data
