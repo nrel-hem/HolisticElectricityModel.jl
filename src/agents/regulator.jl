@@ -136,34 +136,34 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
         system_cost,
         initialize_param(
             "othercost",
-            model_data.index_y,
+            model_data.index_y;
             description = "other cost not related to the optimization problem",
         ),
         ParamScalar("REC", 30.0, description = "Renewable Energy Credits"),
         initialize_param(
             "p",
             model_data.index_h,
-            model_data.index_t,
+            model_data.index_t;
             value = 10.0,
             description = "retail price",
         ),
         initialize_param(
             "p_ex",
             model_data.index_h,
-            model_data.index_t,
+            model_data.index_t;
             value = 10.0,
             description = "DER excess generation rate",
         ),
         initialize_param(
             "p_eximport",
-            model_data.index_t,
+            model_data.index_t;
             value = 10.0,
             description = "retail price of import/export",
         ),
         initialize_param(
             "p_green",
             model_data.index_h,
-            model_data.index_j,
+            model_data.index_j;
             value = 20.0,
             description = "green tariff rate",
         ),
@@ -181,7 +181,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             "p_my",
             model_data.index_y,
             model_data.index_h,
-            model_data.index_t,
+            model_data.index_t;
             value = 10.0,
             description = "multi-year retail price",
         ),
@@ -189,75 +189,75 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             "p_ex_my",
             model_data.index_y,
             model_data.index_h,
-            model_data.index_t,
+            model_data.index_t;
             value = 10.0,
             description = "multi-year DER excess generation rate",
         ),
         initialize_param(
             "p_eximport_my",
             model_data.index_y,
-            model_data.index_t,
+            model_data.index_t;
             value = 10.0,
             description = "multi-year retail price of import/export",
         ),
         initialize_param(
             "revenue_req_my",
-            model_data.index_y,
+            model_data.index_y;
             description = "revenue (requirement) of utility company by year",
         ),
         initialize_param(
             "cost_my",
-            model_data.index_y,
+            model_data.index_y;
             description = "cost of utility company (without return on equity) by year",
         ),
         initialize_param(
             "debt_interest_my",
-            model_data.index_y,
+            model_data.index_y;
             description = "debt interest by year",
         ),
         initialize_param(
             "income_tax_my",
-            model_data.index_y,
+            model_data.index_y;
             description = "income tax by year",
         ),
         initialize_param(
             "operational_cost_my",
-            model_data.index_y,
+            model_data.index_y;
             description = "operational cost by year",
         ),
         initialize_param(
             "depreciation_my",
-            model_data.index_y,
+            model_data.index_y;
             description = "accounting depreciation by year",
         ),
         initialize_param(
             "depreciation_tax_my",
-            model_data.index_y,
+            model_data.index_y;
             description = "tax depreciation by year",
         ),
         initialize_param(
             "p_regression",
-            model_data.index_h,
+            model_data.index_h;
             value = 10.0,
             description = "retail price for regression (no T&D cost)",
         ),
         initialize_param(
             "p_my_regression",
             model_data.index_y,
-            model_data.index_h,
+            model_data.index_h;
             value = 10.0,
             description = "multi-year retail price for regression (no T&D cost)",
         ),
         initialize_param(
             "p_td",
-            model_data.index_h,
+            model_data.index_h;
             value = 0.0,
             description = "T&D component charge",
         ),
         initialize_param(
             "p_my_td",
             model_data.index_y,
-            model_data.index_h,
+            model_data.index_h;
             value = 0.0,
             description = "multi-year T&D component charge",
         ),
@@ -287,7 +287,7 @@ function solve_agent_problem!(
 )
 
     for y in model_data.index_y_fix
-        regulator.othercost[y] = regulator.distribution_cost[y] + regulator.administration_cost[y] + regulator.transmission_cost[y] + regulator.interconnection_cost[y] + regulator.system_cost[y]
+        regulator.othercost(y, :) .= regulator.distribution_cost(y) + regulator.administration_cost(y) + regulator.transmission_cost(y) + regulator.interconnection_cost(y) + regulator.system_cost(y)
     end
 
     utility = get_agent(Utility, agent_store)
@@ -295,134 +295,134 @@ function solve_agent_problem!(
     green_developer = get_agent(GreenDeveloper, agent_store)
 
     # the year regulator is making a rate case
-    reg_year = model_data.year[first(model_data.index_y)]
+    reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
     # retirement up to the rate case year
-    reg_retirement = AxisArray(
+    reg_retirement = KeyedArray(
         [
             sum(
-                utility.x_R_my[Symbol(Int(y_symbol)), k] for
-                y_symbol in model_data.year[first(model_data.index_y_fix)]:reg_year
+                utility.x_R_my(Symbol(Int(y_symbol)), k) for
+                y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
             ) for k in utility.index_k_existing
-        ],
-        utility.index_k_existing.elements,
+        ];
+        [get_pair(utility.index_k_existing)]...
     )
 
     # pure volumetric rate
     energy_cost =
         sum(
-            model_data.omega[t] *
-            (utility.v_E_my[reg_year_index, k, t] * utility.y_E_my[reg_year_index, k, t])
+            model_data.omega(t) *
+            (utility.v_E_my(reg_year_index, k, t) * utility.y_E_my(reg_year_index, k, t))
             for k in utility.index_k_existing, t in model_data.index_t
         ) + sum(
-            model_data.omega[t] *
-            (utility.v_C_my[reg_year_index, k, t] * utility.y_C_my[reg_year_index, k, t])
+            model_data.omega(t) *
+            (utility.v_C_my(reg_year_index, k, t) * utility.y_C_my(reg_year_index, k, t))
             for k in utility.index_k_new, t in model_data.index_t
         )
     fixed_om =
         sum(
-            utility.fom_E_my[reg_year_index, k] * (utility.x_E_my[k] - reg_retirement[k])
+            utility.fom_E_my(reg_year_index, k) * (utility.x_E_my(k) - reg_retirement(k))
             for k in utility.index_k_existing
         ) + sum(
-            utility.fom_C_my[Symbol(Int(y_symbol)), k] *
-            utility.x_C_my[Symbol(Int(y_symbol)), k] for
-            y_symbol in model_data.year[first(model_data.index_y_fix)]:reg_year,
+            utility.fom_C_my(Symbol(Int(y_symbol)), k) *
+            utility.x_C_my(Symbol(Int(y_symbol)), k) for
+            y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year,
             k in utility.index_k_new
         )
     operational_cost = energy_cost + fixed_om
     working_capital = utility.DaysofWC / 365 * operational_cost
 
     # calculate ADIT and rate base (no working capital) for new builds, "reg_year-y+1" represents the number of years since the new investment is made
-    ADITNew = AxisArray(
+    ADITNew = KeyedArray(
         [
             sum(
-                utility.CapEx_my[Symbol(Int(y)), k] *
-                utility.x_C_my[Symbol(Int(y)), k] *
+                utility.CapEx_my(Symbol(Int(y)), k) *
+                utility.x_C_my(Symbol(Int(y)), k) *
                 (
-                    utility.CumuTaxDepre_new_my[Symbol(Int(reg_year - y + 1)), k] -
-                    utility.CumuAccoutDepre_new_my[Symbol(Int(reg_year - y + 1)), k]
+                    utility.CumuTaxDepre_new_my(Symbol(Int(reg_year - y + 1)), k) -
+                    utility.CumuAccoutDepre_new_my(Symbol(Int(reg_year - y + 1)), k)
                 ) *
                 utility.Tax +
-                utility.ITC_new_my[Symbol(Int(y)), k] *
-                utility.CapEx_my[Symbol(Int(y)), k] *
-                utility.x_C_my[Symbol(Int(y)), k] *
-                (1 - utility.CumuITCAmort_new_my[Symbol(Int(reg_year - y + 1)), k]) for
-                y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                utility.ITC_new_my(Symbol(Int(y)), k) *
+                utility.CapEx_my(Symbol(Int(y)), k) *
+                utility.x_C_my(Symbol(Int(y)), k) *
+                (1 - utility.CumuITCAmort_new_my(Symbol(Int(reg_year - y + 1)), k)) for
+                y in model_data.year(first(model_data.index_y_fix)):reg_year
             ) for k in utility.index_k_new
-        ],
-        utility.index_k_new.elements,
+        ];
+        [get_pair(utility.index_k_new)]...
     )
-    RateBaseNoWC_new = AxisArray(
+    RateBaseNoWC_new = KeyedArray(
         [
             sum(
-                utility.CapEx_my[Symbol(Int(y)), k] *
-                utility.x_C_my[Symbol(Int(y)), k] *
-                (1 - utility.CumuAccoutDepre_new_my[Symbol(Int(reg_year - y + 1)), k])
-                for y in model_data.year[first(model_data.index_y_fix)]:reg_year
-            ) - ADITNew[k] for k in utility.index_k_new
-        ],
-        utility.index_k_new.elements,
+                utility.CapEx_my(Symbol(Int(y)), k) *
+                utility.x_C_my(Symbol(Int(y)), k) *
+                (1 - utility.CumuAccoutDepre_new_my(Symbol(Int(reg_year - y + 1)), k))
+                for y in model_data.year(first(model_data.index_y_fix)):reg_year
+            ) - ADITNew(k) for k in utility.index_k_new
+        ];
+        [get_pair(utility.index_k_new)]...
     )
 
     # calculate total rate base for the year of rate making
     rate_base =
         sum(
-            utility.RateBaseNoWC_existing_my[reg_year_index, k] *
-            (utility.x_E_my[k] - reg_retirement[k]) for k in utility.index_k_existing
+            utility.RateBaseNoWC_existing_my(reg_year_index, k) *
+            (utility.x_E_my(k) - reg_retirement(k)) for k in utility.index_k_existing
         ) +
-        sum(RateBaseNoWC_new[k] for k in utility.index_k_new) +
+        sum(RateBaseNoWC_new(k) for k in utility.index_k_new) +
         working_capital
     debt_interest = rate_base * utility.DebtRatio * utility.COD
     # calculate total depreciation
     depreciation =
     # annual depreciation on existing units that have not retired
         sum(
-            utility.CapEx_existing_my[k] *
-            (utility.x_E_my[k] - reg_retirement[k]) *
-            utility.AnnualAccoutDepre_existing_my[reg_year_index, k] +
+            utility.CapEx_existing_my(k) *
+            (utility.x_E_my(k) - reg_retirement(k)) *
+            utility.AnnualAccoutDepre_existing_my(reg_year_index, k) +
             # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
-            utility.CapEx_existing_my[k] *
-            utility.x_R_my[reg_year_index, k] *
+            utility.CapEx_existing_my(k) *
+            utility.x_R_my(reg_year_index, k) *
             (
-                utility.AnnualAccoutDepre_existing_my[reg_year_index, k] + 1 -
-                utility.CumuAccoutDepre_existing_my[reg_year_index, k]
+                utility.AnnualAccoutDepre_existing_my(reg_year_index, k) + 1 -
+                utility.CumuAccoutDepre_existing_my(reg_year_index, k)
             ) for k in utility.index_k_existing
         ) +
         # annual depreciation on new units
         sum(
-            utility.CapEx_my[Symbol(Int(y)), k] *
-            utility.x_C_my[Symbol(Int(y)), k] *
-            utility.AnnualAccoutDepre_new_my[Symbol(Int(reg_year - y + 1)), k] for
-            y in model_data.year[first(model_data.index_y_fix)]:reg_year,
+            utility.CapEx_my(Symbol(Int(y)), k) *
+            utility.x_C_my(Symbol(Int(y)), k) *
+            utility.AnnualAccoutDepre_new_my(Symbol(Int(reg_year - y + 1)), k) for
+            y in model_data.year(first(model_data.index_y_fix)):reg_year,
             k in utility.index_k_new
         )
     # calculate total tax depreciation
     depreciation_tax =
     # annual depreciation on existing units that have not retired
         sum(
-            utility.CapEx_existing_my[k] *
-            (utility.x_E_my[k] - reg_retirement[k]) *
-            utility.AnnualTaxDepre_existing_my[reg_year_index, k] +
+            utility.CapEx_existing_my(k) *
+            (utility.x_E_my(k) - reg_retirement(k)) *
+            utility.AnnualTaxDepre_existing_my(reg_year_index, k) +
             # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
-            utility.CapEx_existing_my[k] *
-            utility.x_R_my[reg_year_index, k] *
+            utility.CapEx_existing_my(k) *
+            utility.x_R_my(reg_year_index, k) *
             (
-                utility.AnnualTaxDepre_existing_my[reg_year_index, k] + 1 -
-                utility.CumuTaxDepre_existing_my[reg_year_index, k]
+                utility.AnnualTaxDepre_existing_my(reg_year_index, k) + 1 -
+                utility.CumuTaxDepre_existing_my(reg_year_index, k)
             ) for k in utility.index_k_existing
         ) +
         # annual depreciation on new units
         sum(
-            utility.CapEx_my[Symbol(Int(y)), k] *
-            utility.x_C_my[Symbol(Int(y)), k] *
-            utility.AnnualTaxDepre_new_my[Symbol(Int(reg_year - y + 1)), k] for
-            y in model_data.year[first(model_data.index_y_fix)]:reg_year,
+            utility.CapEx_my(Symbol(Int(y)), k) *
+            utility.x_C_my(Symbol(Int(y)), k) *
+            utility.AnnualTaxDepre_new_my(Symbol(Int(reg_year - y + 1)), k) for
+            y in model_data.year(first(model_data.index_y_fix)):reg_year,
             k in utility.index_k_new
         )
     return_to_equity = rate_base * (1 - utility.DebtRatio) * utility.COE
     #=
     income_tax = (return_to_equity -
-        sum(utility.CapEx_my[reg_year_index,k]*utility.x_C_my[reg_year_index,k]*utility.ITC_new_my[reg_year_index,k] for k in utility.index_k_new)) /
+        sum(utility.CapEx_my(reg_year_index,k)*utility.x_C_my(reg_year_index,k)*utility.ITC_new_my(reg_year_index,k) for k in utility.index_k_new)) /
         (1-utility.Tax) - return_to_equity
     =#
     income_tax =
@@ -430,40 +430,40 @@ function solve_agent_problem!(
             return_to_equity * utility.Tax +
             (depreciation - depreciation_tax) * utility.Tax - 
             sum(
-                utility.ITC_existing_my[k] *
-                utility.CapEx_existing_my[k] *
-                (utility.x_E_my[k] - reg_retirement[k]) *
-                utility.AnnualITCAmort_existing_my[reg_year_index, k] +
+                utility.ITC_existing_my(k) *
+                utility.CapEx_existing_my(k) *
+                (utility.x_E_my(k) - reg_retirement(k)) *
+                utility.AnnualITCAmort_existing_my(reg_year_index, k) +
                 # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
-                utility.ITC_existing_my[k] *
-                utility.CapEx_existing_my[k] *
-                utility.x_R_my[reg_year_index, k] *
+                utility.ITC_existing_my(k) *
+                utility.CapEx_existing_my(k) *
+                utility.x_R_my(reg_year_index, k) *
                 (
-                    utility.AnnualITCAmort_existing_my[reg_year_index, k] + 1 -
-                    utility.CumuITCAmort_existing_my[reg_year_index, k]
+                    utility.AnnualITCAmort_existing_my(reg_year_index, k) + 1 -
+                    utility.CumuITCAmort_existing_my(reg_year_index, k)
                 ) for k in utility.index_k_existing
             ) -
             sum(
-                utility.ITC_new_my[Symbol(Int(y)), k] *
-                utility.CapEx_my[Symbol(Int(y)), k] *
-                utility.x_C_my[Symbol(Int(y)), k] *
-                utility.AnnualITCAmort_new_my[Symbol(Int(reg_year - y + 1)), k] for
-                y in model_data.year[first(model_data.index_y_fix)]:reg_year, k in utility.index_k_new
+                utility.ITC_new_my(Symbol(Int(y)), k) *
+                utility.CapEx_my(Symbol(Int(y)), k) *
+                utility.x_C_my(Symbol(Int(y)), k) *
+                utility.AnnualITCAmort_new_my(Symbol(Int(reg_year - y + 1)), k) for
+                y in model_data.year(first(model_data.index_y_fix)):reg_year, k in utility.index_k_new
             )
         ) / (1 - utility.Tax)
     # calculate revenue requirement
     revenue_requirement =
         debt_interest + return_to_equity + income_tax + operational_cost + depreciation
 
-    regulator.revenue_req_my[reg_year_index] = revenue_requirement
-    regulator.cost_my[reg_year_index] =
+    regulator.revenue_req_my(reg_year_index, :) .= revenue_requirement
+    regulator.cost_my(reg_year_index, :) .=
         debt_interest + income_tax + operational_cost + depreciation
 
-    regulator.debt_interest_my[reg_year_index] = debt_interest
-    regulator.income_tax_my[reg_year_index] = income_tax
-    regulator.operational_cost_my[reg_year_index] = operational_cost
-    regulator.depreciation_my[reg_year_index] = depreciation
-    regulator.depreciation_tax_my[reg_year_index] = depreciation_tax
+    regulator.debt_interest_my(reg_year_index, :) .= debt_interest
+    regulator.income_tax_my(reg_year_index, :) .= income_tax
+    regulator.operational_cost_my(reg_year_index, :) .= operational_cost
+    regulator.depreciation_my(reg_year_index, :) .= depreciation
+    regulator.depreciation_tax_my(reg_year_index, :) .= depreciation_tax
 
     # when it comes to net demand, calculate two values: the one with loss is used for cost allocation;
     # the one without loss is used for rate calculation.
@@ -473,12 +473,12 @@ function solve_agent_problem!(
         # e.g. utility generation is 100 MW, 50 MW to serve load (including distribution loss),
         #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
         sum(
-            customers.gamma[h] * model_data.omega[t] * customers.d[h, t] for
+            customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
             h in model_data.index_h, t in model_data.index_t
         ) +
         # export
         sum(
-            model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
+            model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
             t in model_data.index_t
         ) -
         # DG
@@ -486,19 +486,19 @@ function solve_agent_problem!(
         # this does not consider enery offset at the household level, which is only considered when 
         # calculating retail rates.
         sum(
-            model_data.omega[t] * (
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
-                    y in model_data.year[first(model_data.index_y_fix)]:reg_year
+            model_data.omega(t) * (
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
             ) for t in model_data.index_t, h in model_data.index_h,
             m in customers.index_m
         ) -
         # green technology subscription
         sum(
-            model_data.omega[t] * utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-            model_data.year[first(model_data.index_y_fix)]:reg_year)
+            model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+            model_data.year(first(model_data.index_y_fix)):reg_year)
             for t in model_data.index_t, j in model_data.index_j, h in model_data.index_h
         )
     )
@@ -506,69 +506,69 @@ function solve_agent_problem!(
     # In the presence of distribution loss, multiply load (including distribution loss) by (1 - loss factor),
     # DER generation above this value shall be compansated for DER excess credits
     # e.g. DER generation is 100 MW, load (without loss) is 95 MW, receive 5 MW excess credits
-    der_excess_cost_h = AxisArray(
+    der_excess_cost_h = KeyedArray(
         [
             sum(
-                model_data.omega[t] *
-                regulator.p_ex[h, t] *
+                model_data.omega(t) *
+                regulator.p_ex(h, t) *
                 (
                     max(
                         0,
-                        customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m] -
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                    customers.Opti_DG_E[h, m] + sum(
+                        customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m) -
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                    customers.Opti_DG_E(h, m) + sum(
                         max(
                             0,
-                            customers.rho_DG[h, m, t] *
-                            customers.Opti_DG_my[Symbol(Int(y)), h, m] -
-                            customers.d[h, t] * (1 - utility.loss_dist),
-                        ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                        y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                            customers.rho_DG(h, m, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), h, m) -
+                            customers.d(h, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
             ) for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
-    net_demand_h_w_loss = AxisArray(
+    net_demand_h_w_loss = KeyedArray(
         # demand
         [
             sum(
-                customers.gamma[h] * model_data.omega[t] * customers.d[h, t] for
+                customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
                 t in model_data.index_t
             ) -
             # DG
             sum(
-                model_data.omega[t] * (
-                    customers.rho_DG[h, m, t] *
-                    customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                        customers.rho_DG[h, m, t] *
-                        customers.x_DG_new_my[Symbol(Int(y)), h, m] for
-                        y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                model_data.omega(t) * (
+                    customers.rho_DG(h, m, t) *
+                    customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                        customers.rho_DG(h, m, t) *
+                        customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
             ) -
             # green technology subscription
             sum(
-                model_data.omega[t] * utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for t in model_data.index_t, j in model_data.index_j
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
-    net_demand_h_wo_loss = AxisArray(
+    net_demand_h_wo_loss = KeyedArray(
         # demand
         [
             sum(
-                customers.gamma[h] *
-                model_data.omega[t] *
-                customers.d[h, t] *
+                customers.gamma(h) *
+                model_data.omega(t) *
+                customers.d(h, t) *
                 (1 - utility.loss_dist) for t in model_data.index_t
             ) -
             # DG
@@ -577,40 +577,40 @@ function solve_agent_problem!(
             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
             # 100 MW instead of 80 MW.
             sum(
-                model_data.omega[t] * (
+                model_data.omega(t) * (
                     min(
-                        customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m],
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                    customers.Opti_DG_E[h, m] + sum(
+                        customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                    customers.Opti_DG_E(h, m) + sum(
                         min(
-                            customers.rho_DG[h, m, t] *
-                            customers.Opti_DG_my[Symbol(Int(y)), h, m],
-                            customers.d[h, t] * (1 - utility.loss_dist),
-                        ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                        y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                            customers.rho_DG(h, m, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), h, m),
+                            customers.d(h, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
             ) -
             # green technology subscription
             sum(
-                model_data.omega[t] * utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for t in model_data.index_t, j in model_data.index_j
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
-    net_demand_wo_green_tech_h_wo_loss = AxisArray(
+    net_demand_wo_green_tech_h_wo_loss = KeyedArray(
         [
             # demand
             sum(
-                customers.gamma[h] *
-                model_data.omega[t] *
-                customers.d[h, t] *
+                customers.gamma(h) *
+                model_data.omega(t) *
+                customers.d(h, t) *
                 (1 - utility.loss_dist) for t in model_data.index_t
             ) -
             # DG
@@ -619,313 +619,313 @@ function solve_agent_problem!(
             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
             # 100 MW instead of 80 MW.
             sum(
-                model_data.omega[t] * (
+                model_data.omega(t) * (
                     min(
-                        customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m],
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                    customers.Opti_DG_E[h, m] + sum(
+                        customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                    customers.Opti_DG_E(h, m) + sum(
                         min(
-                            customers.rho_DG[h, m, t] *
-                            customers.Opti_DG_my[Symbol(Int(y)), h, m],
-                            customers.d[h, t] * (1 - utility.loss_dist),
-                        ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                        y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                            customers.rho_DG(h, m, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), h, m),
+                            customers.d(h, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
     #=
-    energy_cost_t = Dict(t => sum(utility.v_E[k,t]*utility.y_E[k,t] for k in utility.index_k_existing) +
-        sum(utility.v_C[k,t]*utility.y_C[k,t] for k in utility.index_k_new) for t in model_data.index_t)
+    energy_cost_t = Dict(t => sum(utility.v_E(k, t)*utility.y_E(k, t) for k in utility.index_k_existing) +
+        sum(utility.v_C(k, t)*utility.y_C(k, t) for k in utility.index_k_new) for t in model_data.index_t)
     =#
-    energy_cost_t = AxisArray(
+    energy_cost_t = KeyedArray(
         [
             sum(
-                utility.v_E_my[reg_year_index, k, t] * utility.y_E_my[reg_year_index, k, t] for k in utility.index_k_existing
+                utility.v_E_my(reg_year_index, k, t) * utility.y_E_my(reg_year_index, k, t) for k in utility.index_k_existing
             ) + sum(
-                utility.v_C_my[reg_year_index, k, t] * utility.y_C_my[reg_year_index, k, t] for k in utility.index_k_new
+                utility.v_C_my(reg_year_index, k, t) * utility.y_C_my(reg_year_index, k, t) for k in utility.index_k_new
             ) for t in model_data.index_t
-        ],
-        model_data.index_t.elements,
+        ];
+        [get_pair(model_data.index_t)]...
     )
 
-    net_demand_t_w_loss = AxisArray(
+    net_demand_t_w_loss = KeyedArray(
         # demand
         [
-            sum(customers.gamma[h] * customers.d[h, t] for h in model_data.index_h) +
+            sum(customers.gamma(h) * customers.d(h, t) for h in model_data.index_h) +
             # export
-            utility.eximport_my[reg_year_index, t] -
+            utility.eximport_my(reg_year_index, t) -
             # DG
             sum(
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
-                    y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) for h in model_data.index_h, m in customers.index_m
             ) -
             # green technology subscription
             sum(
-                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for h in model_data.index_h, j in model_data.index_j
             )
             for t in model_data.index_t
-        ],
-        model_data.index_t.elements,
+        ];
+        [get_pair(model_data.index_t)]...
     )
 
-    der_excess_cost_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    der_excess_cost_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        der_excess_cost_h_t[h, t] = sum(
-            regulator.p_ex[h, t] * (
+        der_excess_cost_h_t(h, t, :) .= sum(
+            regulator.p_ex(h, t) * (
                 max(
                     0,
-                    customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m] -
-                    customers.d[h, t] * (1 - utility.loss_dist),
-                ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                customers.Opti_DG_E[h, m] + sum(
+                    customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m) -
+                    customers.d(h, t) * (1 - utility.loss_dist),
+                ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                customers.Opti_DG_E(h, m) + sum(
                     max(
                         0,
-                        customers.rho_DG[h, m, t] *
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m] -
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                    customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                    y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                        customers.rho_DG(h, m, t) *
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m) -
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                    customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
             ) for m in customers.index_m
         )
     end
 
-    net_demand_h_t_w_loss = make_axis_array(model_data.index_h, model_data.index_t)
+    net_demand_h_t_w_loss = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        net_demand_h_t_w_loss[h, t] =
+        net_demand_h_t_w_loss(h, t, :) .=
         # demand
-            customers.gamma[h] * customers.d[h, t] -
+            customers.gamma(h) * customers.d(h, t) -
             # DG
             sum(
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m]
-                    for y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
+                    for y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) for m in customers.index_m
             ) -
             sum(
-                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for j in model_data.index_j
             )
     end
 
-    net_demand_h_t_wo_loss = make_axis_array(model_data.index_h, model_data.index_t)
+    net_demand_h_t_wo_loss = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        net_demand_h_t_wo_loss[h, t] =
+        net_demand_h_t_wo_loss(h, t, :) .=
         # demand
-            customers.gamma[h] * customers.d[h, t] * (1 - utility.loss_dist) -
+            customers.gamma(h) * customers.d(h, t) * (1 - utility.loss_dist) -
             # DG
             sum(
                 min(
-                    customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m],
-                    customers.d[h, t] * (1 - utility.loss_dist),
-                ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                customers.Opti_DG_E[h, m] + sum(
+                    customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
+                    customers.d(h, t) * (1 - utility.loss_dist),
+                ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                customers.Opti_DG_E(h, m) + sum(
                     min(
-                        customers.rho_DG[h, m, t] *
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m],
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                    customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                    y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                        customers.rho_DG(h, m, t) *
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m),
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                    customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) for m in customers.index_m
             ) -
             sum(
-                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for j in model_data.index_j
             )
     end
 
     # for the purpose of calculating net peak load, use load including distribution loss
-    net_demand_for_peak_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    net_demand_for_peak_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        net_demand_for_peak_h_t[h, t] =
-            customers.gamma[h] * customers.d[h, t] - sum(
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m]
-                    for y in model_data.year[first(model_data.index_y_fix)]:reg_year
+        net_demand_for_peak_h_t(h, t, :) .=
+            customers.gamma(h) * customers.d(h, t) - sum(
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
+                    for y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) for m in customers.index_m
             ) -
             sum(
-                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for j in model_data.index_j
             )
     end
 
     # excluding green tech generation offset when it comes to sharing T&D costs
-    net_demand_for_peak_wo_green_tech_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    net_demand_for_peak_wo_green_tech_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        net_demand_for_peak_wo_green_tech_h_t[h, t] =
-            customers.gamma[h] * customers.d[h, t] - sum(
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
-                    y in model_data.year[first(model_data.index_y_fix)]:reg_year
+        net_demand_for_peak_wo_green_tech_h_t(h, t, :) .=
+            customers.gamma(h) * customers.d(h, t) - sum(
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) for m in customers.index_m
             )
     end
 
-    net_peak_load_h = AxisArray(
+    net_peak_load_h = KeyedArray(
         [
-            findmax(Dict(t => net_demand_for_peak_h_t[h, t] for t in model_data.index_t))[1] for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+            findmax(Dict(t => net_demand_for_peak_h_t(h, t) for t in model_data.index_t))[1] for h in model_data.index_h
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
-    net_peak_load_wo_green_tech_h = AxisArray(
+    net_peak_load_wo_green_tech_h = KeyedArray(
         [ 
-            findmax(Dict(t => net_demand_for_peak_wo_green_tech_h_t[h, t] for t in model_data.index_t))[1] for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+            findmax(Dict(t => net_demand_for_peak_wo_green_tech_h_t(h, t) for t in model_data.index_t))[1] for h in model_data.index_h
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
     # Cost Classification/Allocation
-    energy_cost_allocation_h = AxisArray(
+    energy_cost_allocation_h = KeyedArray(
         [
-            energy_cost * net_demand_h_w_loss[h] / net_demand_w_loss + der_excess_cost_h[h] for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+            energy_cost * net_demand_h_w_loss(h) / net_demand_w_loss + der_excess_cost_h(h) for h in model_data.index_h
+        ];
+        [get_pair(model_data.index_h)]...
     )
     energy_cost_allocation_eximport =
         energy_cost * sum(
-            model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
+            model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
             t in model_data.index_t
         ) / net_demand_w_loss
 
     # allocate (revenue_requirement - energy_cost) by net peak load with green tech generation offset;
     # allocate regulator.othercost (T&D costs) by net peak load without green tech generation offset;
-    demand_cost_allocation_h = AxisArray(
+    demand_cost_allocation_h = KeyedArray(
         [
-            (revenue_requirement - energy_cost) * net_peak_load_h[h] / (
-                sum(net_peak_load_h[h] for h in model_data.index_h) +
-                utility.Peak_eximport_my[reg_year_index]
+            (revenue_requirement - energy_cost) * net_peak_load_h(h) / (
+                sum(net_peak_load_h(h) for h in model_data.index_h) +
+                utility.Peak_eximport_my(reg_year_index)
             ) + 
-            regulator.othercost[reg_year_index] * net_peak_load_wo_green_tech_h[h] / (
-                sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
-                utility.Peak_eximport_my[reg_year_index]
+            regulator.othercost(reg_year_index) * net_peak_load_wo_green_tech_h(h) / (
+                sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
+                utility.Peak_eximport_my(reg_year_index)
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements
+        ];
+        [get_pair(model_data.index_h)]...
     )
-    demand_cost_allocation_capacity_h = AxisArray(
+    demand_cost_allocation_capacity_h = KeyedArray(
         [
-            (revenue_requirement - energy_cost) * net_peak_load_h[h] / (
-                sum(net_peak_load_h[h] for h in model_data.index_h) +
-                utility.Peak_eximport_my[reg_year_index]
+            (revenue_requirement - energy_cost) * net_peak_load_h(h) / (
+                sum(net_peak_load_h(h) for h in model_data.index_h) +
+                utility.Peak_eximport_my(reg_year_index)
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
-    demand_cost_allocation_othercost_h = AxisArray(
+    demand_cost_allocation_othercost_h = KeyedArray(
         [
-            regulator.othercost[reg_year_index] * net_peak_load_wo_green_tech_h[h] / (
-                sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
-                utility.Peak_eximport_my[reg_year_index]
+            regulator.othercost(reg_year_index) * net_peak_load_wo_green_tech_h(h) / (
+                sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
+                utility.Peak_eximport_my(reg_year_index)
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
     demand_cost_allocation_eximport =
         (revenue_requirement - energy_cost) *
-        utility.Peak_eximport_my[reg_year_index] / (
-            sum(net_peak_load_h[h] for h in model_data.index_h) +
-            utility.Peak_eximport_my[reg_year_index]
+        utility.Peak_eximport_my(reg_year_index) / (
+            sum(net_peak_load_h(h) for h in model_data.index_h) +
+            utility.Peak_eximport_my(reg_year_index)
         ) +
-        regulator.othercost[reg_year_index] *
-        utility.Peak_eximport_my[reg_year_index] / (
-            sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
-            utility.Peak_eximport_my[reg_year_index]
+        regulator.othercost(reg_year_index) *
+        utility.Peak_eximport_my(reg_year_index) / (
+            sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
+            utility.Peak_eximport_my(reg_year_index)
         )
 
-    energy_cost_allocation_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    energy_cost_allocation_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        energy_cost_allocation_h_t[h, t] =
-            energy_cost_t[t] * net_demand_h_t_w_loss[h, t] / net_demand_t_w_loss[t] +
-            der_excess_cost_h_t[h, t]
+        energy_cost_allocation_h_t(h, t, :) .=
+            energy_cost_t(t) * net_demand_h_t_w_loss(h, t) / net_demand_t_w_loss(t) +
+            der_excess_cost_h_t(h, t)
     end
-    energy_cost_allocation_eximport_t = AxisArray(
+    energy_cost_allocation_eximport_t = KeyedArray(
         [
-            energy_cost_t[t] * utility.eximport_my[reg_year_index, t] /
-            net_demand_t_w_loss[t] for t in model_data.index_t
-        ],
-        model_data.index_t.elements,
+            energy_cost_t(t) * utility.eximport_my(reg_year_index, t) /
+            net_demand_t_w_loss(t) for t in model_data.index_t
+        ];
+        [get_pair(model_data.index_t)]...
     )
 
     # compute the retail price
     p_before = ParamAxisArray(regulator.p, "p_before")
     fill!(p_before, NaN)  # TODO DT: debug only
     for h in model_data.index_h, t in model_data.index_t
-        p_before[h, t] = regulator.p_my[reg_year_index, h, t]
+        p_before(h, t, :) .= regulator.p_my(reg_year_index, h, t)
     end
 
     p_before_wavg = ParamAxisArray(regulator.p_td, "p_before_wavg")
     fill!(p_before_wavg, NaN)  # TODO DT: debug only
     for h in model_data.index_h
-        p_before_wavg[h] = 
-            sum(regulator.p_my[reg_year_index, h, t] * model_data.omega[t] * customers.d[h, t] for t in model_data.index_t) / 
-            sum(model_data.omega[t] * customers.d[h, t] for t in model_data.index_t)
+        p_before_wavg(h, :) .= 
+            sum(regulator.p_my(reg_year_index, h, t) * model_data.omega(t) * customers.d(h, t) for t in model_data.index_t) / 
+            sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
     end
 
     p_ex_before = ParamAxisArray(regulator.p_ex, "p_ex_before")
     fill!(p_ex_before, NaN)
     for h in model_data.index_h, t in model_data.index_t
-        p_ex_before[h, t] = regulator.p_ex_my[reg_year_index, h, t]
+        p_ex_before(h, t, :) .= regulator.p_ex_my(reg_year_index, h, t)
     end
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
         for h in model_data.index_h, t in model_data.index_t
-            regulator.p[h, t] =
-                (energy_cost_allocation_h[h] + demand_cost_allocation_capacity_h[h]) /
-                net_demand_h_wo_loss[h] +
-                demand_cost_allocation_othercost_h[h] / net_demand_wo_green_tech_h_wo_loss[h]
+            regulator.p(h, t, :) .=
+                (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
+                net_demand_h_wo_loss(h) +
+                demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
         end
         fill!(regulator.p_eximport, NaN)
         for t in model_data.index_t
-            regulator.p_eximport[t] =
+            regulator.p_eximport(t, :) .=
                 (energy_cost_allocation_eximport + demand_cost_allocation_eximport) /
                 sum(
-                    model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
+                    model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
                     t in model_data.index_t
                 )
         end
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
         for h in model_data.index_h, t in model_data.index_t
-            regulator.p[h, t] =
-                energy_cost_allocation_h_t[h, t] / net_demand_h_t_wo_loss[h, t] +
-                demand_cost_allocation_capacity_h[h] / net_demand_h_wo_loss[h] +
-                demand_cost_allocation_othercost_h[h] / net_demand_wo_green_tech_h_wo_loss[h]
+            regulator.p(h, t, :) .=
+                energy_cost_allocation_h_t(h, t) / net_demand_h_t_wo_loss(h, t) +
+                demand_cost_allocation_capacity_h(h) / net_demand_h_wo_loss(h) +
+                demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
         end
         fill!(regulator.p_eximport, NaN)
         for t in model_data.index_t
-            regulator.p_eximport[t] =
-                energy_cost_allocation_eximport_t[t] /
-                utility.eximport_my[reg_year_index, t] +
+            regulator.p_eximport(t, :) .=
+                energy_cost_allocation_eximport_t(t) /
+                utility.eximport_my(reg_year_index, t) +
                 demand_cost_allocation_eximport / sum(
-                    model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
+                    model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
                     t in model_data.index_t
                 )
         end
@@ -933,15 +933,15 @@ function solve_agent_problem!(
 
     fill!(regulator.p_regression, NaN)
     for h in model_data.index_h
-        regulator.p_regression[h] =
-            (energy_cost_allocation_h[h] + demand_cost_allocation_capacity_h[h]) /
-            net_demand_h_wo_loss[h]
+        regulator.p_regression(h, :) .=
+            (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
+            net_demand_h_wo_loss(h)
     end
 
     fill!(regulator.p_td, NaN)
     for h in model_data.index_h
-        regulator.p_td[h] =
-            demand_cost_allocation_othercost_h[h] / net_demand_wo_green_tech_h_wo_loss[h]
+        regulator.p_td(h, :) .=
+            demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
     end
 
     # TODO: Call a function instead of using if-then
@@ -950,31 +950,31 @@ function solve_agent_problem!(
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         fill!(regulator.p_ex, NaN)
         for h in model_data.index_h, t in model_data.index_t
-            regulator.p_ex[h, t] =
-                utility.miu_my[reg_year_index, t] /
-                (model_data.omega[t] * utility.pvf_onm[reg_year_index])
+            regulator.p_ex(h, t, :) .=
+                utility.miu_my(reg_year_index, t) /
+                (model_data.omega(t) * utility.pvf_onm(reg_year_index))
         end
     elseif regulator_opts.net_metering_policy isa ExcessZero
         fill!(regulator.p_ex, 0.0)
     end
 
     for h in model_data.index_h, t in model_data.index_t
-        regulator.p_my[reg_year_index, h, t] = regulator.p[h, t]
-        regulator.p_ex_my[reg_year_index, h, t] = regulator.p_ex[h, t]
-        regulator.p_eximport_my[reg_year_index, t] = regulator.p_eximport[t]
+        regulator.p_my(reg_year_index, h, t, :) .= regulator.p(h, t)
+        regulator.p_ex_my(reg_year_index, h, t, :) .= regulator.p_ex(h, t)
+        regulator.p_eximport_my(reg_year_index, t, :) .= regulator.p_eximport(t)
     end
 
     for h in model_data.index_h
-        regulator.p_my_regression[reg_year_index, h] = regulator.p_regression[h]
-        regulator.p_my_td[reg_year_index, h] = regulator.p_td[h]
+        regulator.p_my_regression(reg_year_index, h, :) .= regulator.p_regression(h)
+        regulator.p_my_td(reg_year_index, h, :) .= regulator.p_td(h)
     end
 
     p_after_wavg = ParamAxisArray(regulator.p_td, "p_after_wavg")
     fill!(p_after_wavg, NaN)  # TODO DT: debug only
     for h in model_data.index_h
-        p_after_wavg[h] = 
-            sum(regulator.p_my[reg_year_index, h, t] * model_data.omega[t] * customers.d[h, t] for t in model_data.index_t) / 
-            sum(model_data.omega[t] * customers.d[h, t] for t in model_data.index_t)
+        p_after_wavg(h, :) .= 
+            sum(regulator.p_my(reg_year_index, h, t) * model_data.omega(t) * customers.d(h, t) for t in model_data.index_t) / 
+            sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
     end
 
     @info "Original retail price" p_before
@@ -997,12 +997,12 @@ function solve_agent_problem!(
 )
 
     for y in model_data.index_y_fix
-        regulator.othercost[y] = (
-            regulator.distribution_cost[y] + 
-            regulator.administration_cost[y] + 
-            regulator.transmission_cost[y] + 
-            regulator.interconnection_cost[y] + 
-            regulator.system_cost[y]
+        regulator.othercost(y, :) .= (
+            regulator.distribution_cost(y) + 
+            regulator.administration_cost(y) + 
+            regulator.transmission_cost(y) + 
+            regulator.interconnection_cost(y) + 
+            regulator.system_cost(y)
         )
     end
 
@@ -1012,7 +1012,7 @@ function solve_agent_problem!(
     green_developer = get_agent(GreenDeveloper, agent_store)
 
     # the year regulator is making a rate case
-    reg_year = model_data.year[first(model_data.index_y)]
+    reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
 
     net_demand_w_loss = (
@@ -1021,12 +1021,12 @@ function solve_agent_problem!(
         # e.g. utility generation is 100 MW, 50 MW to serve load (including distribution loss),
         #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
         sum(
-            customers.gamma[h] * model_data.omega[t] * customers.d[h, t] for
+            customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
             h in model_data.index_h, t in model_data.index_t
         ) +
         # export
         sum(
-            model_data.omega[t] * ipp.eximport_my[reg_year_index, t] for
+            model_data.omega(t) * ipp.eximport_my(reg_year_index, t) for
             t in model_data.index_t
         ) -
         # DG
@@ -1034,86 +1034,86 @@ function solve_agent_problem!(
         # this does not consider enery offset at the household level, which is only considered when 
         # calculating retail rates.
         sum(
-            model_data.omega[t] * (
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
-                    y in model_data.year[first(model_data.index_y_fix)]:reg_year
+            model_data.omega(t) * (
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
             ) for t in model_data.index_t, h in model_data.index_h,
             m in customers.index_m
         ) -
         # green technology subscription
         sum(
-            model_data.omega[t] * utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-            model_data.year[first(model_data.index_y_fix)]:reg_year)
+            model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+            model_data.year(first(model_data.index_y_fix)):reg_year)
             for t in model_data.index_t, j in model_data.index_j, h in model_data.index_h
         )
     )
 
-    der_excess_cost_h = AxisArray(
+    der_excess_cost_h = KeyedArray(
         [
             sum(
-                model_data.omega[t] *
-                regulator.p_ex[h, t] *
+                model_data.omega(t) *
+                regulator.p_ex(h, t) *
                 (
                     max(
                         0,
-                        customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m] -
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                    customers.Opti_DG_E[h, m] + sum(
+                        customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m) -
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                    customers.Opti_DG_E(h, m) + sum(
                         max(
                             0,
-                            customers.rho_DG[h, m, t] *
-                            customers.Opti_DG_my[Symbol(Int(y)), h, m] -
-                            customers.d[h, t] * (1 - utility.loss_dist),
-                        ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                        y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                            customers.rho_DG(h, m, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), h, m) -
+                            customers.d(h, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
             ) for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
-    net_demand_h_w_loss = AxisArray(
+    net_demand_h_w_loss = KeyedArray(
         # demand
         [
             sum(
-                customers.gamma[h] * model_data.omega[t] * customers.d[h, t] for
+                customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
                 t in model_data.index_t
             ) -
             # DG
             sum(
-                model_data.omega[t] * (
-                    customers.rho_DG[h, m, t] *
-                    customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                        customers.rho_DG[h, m, t] *
-                        customers.x_DG_new_my[Symbol(Int(y)), h, m] for
-                        y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                model_data.omega(t) * (
+                    customers.rho_DG(h, m, t) *
+                    customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                        customers.rho_DG(h, m, t) *
+                        customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
             ) -
             # green technology subscription
             sum(
-                model_data.omega[t] * utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for t in model_data.index_t, j in model_data.index_j
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
-    net_demand_h_wo_loss = AxisArray(
+    net_demand_h_wo_loss = KeyedArray(
         # demand
         [
             sum(
-                customers.gamma[h] *
-                model_data.omega[t] *
-                customers.d[h, t] *
+                customers.gamma(h) *
+                model_data.omega(t) *
+                customers.d(h, t) *
                 (1 - utility.loss_dist) for t in model_data.index_t
             ) -
             # DG
@@ -1122,40 +1122,40 @@ function solve_agent_problem!(
             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
             # 100 MW instead of 80 MW.
             sum(
-                model_data.omega[t] * (
+                model_data.omega(t) * (
                     min(
-                        customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m],
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                    customers.Opti_DG_E[h, m] + sum(
+                        customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                    customers.Opti_DG_E(h, m) + sum(
                         min(
-                            customers.rho_DG[h, m, t] *
-                            customers.Opti_DG_my[Symbol(Int(y)), h, m],
-                            customers.d[h, t] * (1 - utility.loss_dist),
-                        ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                        y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                            customers.rho_DG(h, m, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), h, m),
+                            customers.d(h, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
             ) -
             # green technology subscription
             sum(
-                model_data.omega[t] * utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for t in model_data.index_t, j in model_data.index_j
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
-    net_demand_wo_green_tech_h_wo_loss = AxisArray(
+    net_demand_wo_green_tech_h_wo_loss = KeyedArray(
         [
         # demand
             sum(
-                customers.gamma[h] *
-                model_data.omega[t] *
-                customers.d[h, t] *
+                customers.gamma(h) *
+                model_data.omega(t) *
+                customers.d(h, t) *
                 (1 - utility.loss_dist) for t in model_data.index_t
             ) -
             # DG
@@ -1164,177 +1164,177 @@ function solve_agent_problem!(
             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
             # 100 MW instead of 80 MW.
             sum(
-                model_data.omega[t] * (
+                model_data.omega(t) * (
                     min(
-                        customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m],
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                    customers.Opti_DG_E[h, m] + sum(
+                        customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                    customers.Opti_DG_E(h, m) + sum(
                         min(
-                            customers.rho_DG[h, m, t] *
-                            customers.Opti_DG_my[Symbol(Int(y)), h, m],
-                            customers.d[h, t] * (1 - utility.loss_dist),
-                        ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                        y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                            customers.rho_DG(h, m, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), h, m),
+                            customers.d(h, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for t in model_data.index_t, m in customers.index_m
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
-    net_demand_t_w_loss = AxisArray(
+    net_demand_t_w_loss = KeyedArray(
         # demand
         [
-            sum(customers.gamma[h] * customers.d[h, t] for h in model_data.index_h) +
+            sum(customers.gamma(h) * customers.d(h, t) for h in model_data.index_h) +
             # export
-            utility.eximport_my[reg_year_index, t] -
+            utility.eximport_my(reg_year_index, t) -
             # DG
             sum(
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
-                    y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) for h in model_data.index_h, m in customers.index_m
             ) -
             # green technology subscription
             sum(
-                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for h in model_data.index_h, j in model_data.index_j
             )
             for t in model_data.index_t
-        ],
-        model_data.index_t.elements,
+        ];
+        [get_pair(model_data.index_t)]...
     )
 
-    der_excess_cost_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    der_excess_cost_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        der_excess_cost_h_t[h, t] = sum(
-            regulator.p_ex[h, t] * (
+        der_excess_cost_h_t(h, t, :) .= sum(
+            regulator.p_ex(h, t) * (
                 max(
                     0,
-                    customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m] -
-                    customers.d[h, t] * (1 - utility.loss_dist),
-                ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                customers.Opti_DG_E[h, m] + sum(
+                    customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m) -
+                    customers.d(h, t) * (1 - utility.loss_dist),
+                ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                customers.Opti_DG_E(h, m) + sum(
                     max(
                         0,
-                        customers.rho_DG[h, m, t] *
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m] -
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                    customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                    y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                        customers.rho_DG(h, m, t) *
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m) -
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                    customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
             ) for m in customers.index_m
         )
     end
 
-    net_demand_h_t_w_loss = make_axis_array(model_data.index_h, model_data.index_t)
+    net_demand_h_t_w_loss = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        net_demand_h_t_w_loss[h, t] =
+        net_demand_h_t_w_loss(h, t, :) .=
         # demand
-            customers.gamma[h] * customers.d[h, t] -
+            customers.gamma(h) * customers.d(h, t) -
             # DG
             sum(
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m]
-                    for y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
+                    for y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) for m in customers.index_m
             ) -
             sum(
-                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for j in model_data.index_j
             )
     end
 
-    net_demand_h_t_wo_loss = make_axis_array(model_data.index_h, model_data.index_t)
+    net_demand_h_t_wo_loss = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        net_demand_h_t_wo_loss[h, t] =
+        net_demand_h_t_wo_loss(h, t, :) .=
         # demand
-            customers.gamma[h] * customers.d[h, t] * (1 - utility.loss_dist) -
+            customers.gamma(h) * customers.d(h, t) * (1 - utility.loss_dist) -
             # DG
             sum(
                 min(
-                    customers.rho_DG[h, m, t] * customers.Opti_DG_E[h, m],
-                    customers.d[h, t] * (1 - utility.loss_dist),
-                ) * customers.x_DG_E_my[first(model_data.index_y), h, m] /
-                customers.Opti_DG_E[h, m] + sum(
+                    customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
+                    customers.d(h, t) * (1 - utility.loss_dist),
+                ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
+                customers.Opti_DG_E(h, m) + sum(
                     min(
-                        customers.rho_DG[h, m, t] *
-                        customers.Opti_DG_my[Symbol(Int(y)), h, m],
-                        customers.d[h, t] * (1 - utility.loss_dist),
-                    ) * customers.x_DG_new_my[Symbol(Int(y)), h, m] /
-                    customers.Opti_DG_my[Symbol(Int(y)), h, m] for
-                    y in model_data.year[first(model_data.index_y_fix)]:reg_year
+                        customers.rho_DG(h, m, t) *
+                        customers.Opti_DG_my(Symbol(Int(y)), h, m),
+                        customers.d(h, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
+                    customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) for m in customers.index_m
             ) -
             sum(
-                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for j in model_data.index_j
             )
     end
 
     # for the purpose of calculating net peak load, use load including distribution loss
-    net_demand_for_peak_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    net_demand_for_peak_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        net_demand_for_peak_h_t[h, t] =
-            customers.gamma[h] * customers.d[h, t] - sum(
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m]
-                    for y in model_data.year[first(model_data.index_y_fix)]:reg_year
+        net_demand_for_peak_h_t(h, t, :) .=
+            customers.gamma(h) * customers.d(h, t) - sum(
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
+                    for y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) for m in customers.index_m
             ) -
             sum(
-                utility.rho_C_my[j, t] * sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:reg_year)
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
                 for j in model_data.index_j
             )
     end
 
     # excluding green tech generation offset when it comes to sharing T&D costs
-    net_demand_for_peak_wo_green_tech_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    net_demand_for_peak_wo_green_tech_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        net_demand_for_peak_wo_green_tech_h_t[h, t] =
-                customers.gamma[h] * customers.d[h, t] - sum(
-                    customers.rho_DG[h, m, t] *
-                    customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                        customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m] for
-                        y in model_data.year[first(model_data.index_y_fix)]:reg_year
+        net_demand_for_peak_wo_green_tech_h_t(h, t, :) .=
+                customers.gamma(h) * customers.d(h, t) - sum(
+                    customers.rho_DG(h, m, t) *
+                    customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                        customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     ) for m in customers.index_m
                 )
     end
 
-    net_peak_load_h = AxisArray(
+    net_peak_load_h = KeyedArray(
         [
-            findmax(Dict(t => net_demand_for_peak_h_t[h, t] for t in model_data.index_t))[1] for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+            findmax(Dict(t => net_demand_for_peak_h_t(h, t) for t in model_data.index_t))[1] for h in model_data.index_h
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
-    net_peak_load_wo_green_tech_h = AxisArray(
+    net_peak_load_wo_green_tech_h = KeyedArray(
         [ 
-            findmax(Dict(t => net_demand_for_peak_wo_green_tech_h_t[h, t] for t in model_data.index_t))[1] for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+            findmax(Dict(t => net_demand_for_peak_wo_green_tech_h_t(h, t) for t in model_data.index_t))[1] for h in model_data.index_h
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
     # Cost Classification/Allocation
     energy_purchase_cost =
         sum(
-            ipp.miu_my[reg_year_index, t] * (
+            ipp.miu_my(reg_year_index, t) * (
                 sum(
-                    ipp.y_E_my[reg_year_index, p, k, t] for k in ipp.index_k_existing,
+                    ipp.y_E_my(reg_year_index, p, k, t) for k in ipp.index_k_existing,
                     p in ipp.index_p
                 ) + sum(
-                    ipp.y_C_my[reg_year_index, p, k, t] for k in ipp.index_k_new,
+                    ipp.y_C_my(reg_year_index, p, k, t) for k in ipp.index_k_new,
                     p in ipp.index_p
                 )
             ) for t in model_data.index_t
@@ -1342,179 +1342,179 @@ function solve_agent_problem!(
         # incorporate REC cost into energy purchase cost
         sum(
             regulator.REC *
-            model_data.omega[t] *
+            model_data.omega(t) *
             (
                 sum(
-                    ipp.y_E_my[reg_year_index, p, rps, t] for rps in ipp.index_rps,
+                    ipp.y_E_my(reg_year_index, p, rps, t) for rps in ipp.index_rps,
                     p in ipp.index_p
                 ) + sum(
-                    ipp.y_C_my[reg_year_index, p, rps, t] for rps in ipp.index_rps,
+                    ipp.y_C_my(reg_year_index, p, rps, t) for rps in ipp.index_rps,
                     p in ipp.index_p
                 )
             ) for t in model_data.index_t
         )
-    energy_purchase_cost_t = AxisArray(
+    energy_purchase_cost_t = KeyedArray(
         [
-            ipp.miu_my[reg_year_index, t] / model_data.omega[t] * (
+            ipp.miu_my(reg_year_index, t) / model_data.omega(t) * (
                 sum(
-                    ipp.y_E_my[reg_year_index, p, k, t] for k in ipp.index_k_existing,
+                    ipp.y_E_my(reg_year_index, p, k, t) for k in ipp.index_k_existing,
                     p in ipp.index_p
                 ) + sum(
-                    ipp.y_C_my[reg_year_index, p, k, t] for k in ipp.index_k_new,
+                    ipp.y_C_my(reg_year_index, p, k, t) for k in ipp.index_k_new,
                     p in ipp.index_p
                 )
             ) +
             # incorporate REC cost into energy purchase cost
             regulator.REC * (
                 sum(
-                    ipp.y_E_my[reg_year_index, p, rps, t] for rps in ipp.index_rps,
+                    ipp.y_E_my(reg_year_index, p, rps, t) for rps in ipp.index_rps,
                     p in ipp.index_p
                 ) + sum(
-                    ipp.y_C_my[reg_year_index, p, rps, t] for rps in ipp.index_rps,
+                    ipp.y_C_my(reg_year_index, p, rps, t) for rps in ipp.index_rps,
                     p in ipp.index_p
                 )
             ) for t in model_data.index_t
-        ],
-        model_data.index_t.elements,
+        ];
+        [get_pair(model_data.index_t)]...
     )
 
     capacity_purchase_cost = sum(
-        ipp.ucap[reg_year_index, p] * (
-            ipp.Capacity_intercept_my[reg_year_index] +
-            ipp.Capacity_slope_my[reg_year_index] *
-            sum(ipp.ucap[reg_year_index, p] for p in ipp.index_p)
+        ipp.ucap(reg_year_index, p) * (
+            ipp.Capacity_intercept_my(reg_year_index) +
+            ipp.Capacity_slope_my(reg_year_index) *
+            sum(ipp.ucap(reg_year_index, p) for p in ipp.index_p)
         ) for p in ipp.index_p
     )
 
-    energy_cost_allocation_h = AxisArray(
+    energy_cost_allocation_h = KeyedArray(
         [
-            energy_purchase_cost * net_demand_h_w_loss[h] / net_demand_w_loss +
-            der_excess_cost_h[h] for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+            energy_purchase_cost * net_demand_h_w_loss(h) / net_demand_w_loss +
+            der_excess_cost_h(h) for h in model_data.index_h
+        ];
+        [get_pair(model_data.index_h)]...
     )
     energy_cost_allocation_eximport =
         energy_purchase_cost * sum(
-            model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
+            model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
             t in model_data.index_t
         ) / net_demand_w_loss
 
     # allocate capacity_purchase_cost by net peak load with green tech generation offset;
     # allocate regulator.othercost (T&D costs) by net peak load without green tech generation offset;
-    demand_cost_allocation_h = AxisArray(
+    demand_cost_allocation_h = KeyedArray(
         [
-            capacity_purchase_cost * net_peak_load_h[h] / (
-                sum(net_peak_load_h[h] for h in model_data.index_h) +
-                utility.Peak_eximport_my[reg_year_index]
+            capacity_purchase_cost * net_peak_load_h(h) / (
+                sum(net_peak_load_h(h) for h in model_data.index_h) +
+                utility.Peak_eximport_my(reg_year_index)
             ) +
-            regulator.othercost[reg_year_index] * net_peak_load_wo_green_tech_h[h] / (
-                sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
-                utility.Peak_eximport_my[reg_year_index]
+            regulator.othercost(reg_year_index) * net_peak_load_wo_green_tech_h(h) / (
+                sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
+                utility.Peak_eximport_my(reg_year_index)
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
-    demand_cost_allocation_capacity_h = AxisArray(
+    demand_cost_allocation_capacity_h = KeyedArray(
         [
-            capacity_purchase_cost * net_peak_load_h[h] / (
-                sum(net_peak_load_h[h] for h in model_data.index_h) +
-                utility.Peak_eximport_my[reg_year_index]
+            capacity_purchase_cost * net_peak_load_h(h) / (
+                sum(net_peak_load_h(h) for h in model_data.index_h) +
+                utility.Peak_eximport_my(reg_year_index)
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
-    demand_cost_allocation_othercost_h = AxisArray(
+    demand_cost_allocation_othercost_h = KeyedArray(
         [
-            regulator.othercost[reg_year_index] * net_peak_load_wo_green_tech_h[h] / (
-                sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
-                utility.Peak_eximport_my[reg_year_index]
+            regulator.othercost(reg_year_index) * net_peak_load_wo_green_tech_h(h) / (
+                sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
+                utility.Peak_eximport_my(reg_year_index)
             )
             for h in model_data.index_h
-        ],
-        model_data.index_h.elements,
+        ];
+        [get_pair(model_data.index_h)]...
     )
 
     demand_cost_allocation_eximport =
         capacity_purchase_cost *
-        utility.Peak_eximport_my[reg_year_index] / (
-            sum(net_peak_load_h[h] for h in model_data.index_h) +
-            utility.Peak_eximport_my[reg_year_index]
+        utility.Peak_eximport_my(reg_year_index) / (
+            sum(net_peak_load_h(h) for h in model_data.index_h) +
+            utility.Peak_eximport_my(reg_year_index)
         ) +
-        regulator.othercost[reg_year_index] *
-        utility.Peak_eximport_my[reg_year_index] / (
-            sum(net_peak_load_wo_green_tech_h[h] for h in model_data.index_h) +
-            utility.Peak_eximport_my[reg_year_index]
+        regulator.othercost(reg_year_index) *
+        utility.Peak_eximport_my(reg_year_index) / (
+            sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
+            utility.Peak_eximport_my(reg_year_index)
         )
-    energy_cost_allocation_h_t = make_axis_array(model_data.index_h, model_data.index_t)
+    energy_cost_allocation_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
     for h in model_data.index_h, t in model_data.index_t
-        energy_cost_allocation_h_t[h, t] =
-            energy_purchase_cost_t[t] * net_demand_h_t_w_loss[h, t] /
-            net_demand_t_w_loss[t] + der_excess_cost_h_t[h, t]
+        energy_cost_allocation_h_t(h, t, :) .=
+            energy_purchase_cost_t(t) * net_demand_h_t_w_loss(h, t) /
+            net_demand_t_w_loss(t) + der_excess_cost_h_t(h, t)
     end
 
-    energy_cost_allocation_eximport_t = AxisArray(
+    energy_cost_allocation_eximport_t = KeyedArray(
         [
-            energy_purchase_cost_t[t] * utility.eximport_my[reg_year_index, t] /
-            net_demand_t_w_loss[t] for t in model_data.index_t
-        ],
-        model_data.index_t.elements,
+            energy_purchase_cost_t(t) * utility.eximport_my(reg_year_index, t) /
+            net_demand_t_w_loss(t) for t in model_data.index_t
+        ];
+        [get_pair(model_data.index_t)]...
     )
 
     p_before = ParamAxisArray(regulator.p, "p_before")
     fill!(p_before, NaN)
     for h in model_data.index_h, t in model_data.index_t
-        p_before[h, t] = regulator.p_my[reg_year_index, h, t]
+        p_before(h, t, :) .= regulator.p_my(reg_year_index, h, t)
     end
 
     p_before_wavg = ParamAxisArray(regulator.p_td, "p_before_wavg")
     fill!(p_before_wavg, NaN)  # TODO DT: debug only
     for h in model_data.index_h
-        p_before_wavg[h] = 
-            sum(regulator.p_my[reg_year_index, h, t] * model_data.omega[t] * customers.d[h, t] for t in model_data.index_t) / 
-            sum(model_data.omega[t] * customers.d[h, t] for t in model_data.index_t)
+        p_before_wavg(h, :) .= 
+            sum(regulator.p_my(reg_year_index, h, t) * model_data.omega(t) * customers.d(h, t) for t in model_data.index_t) / 
+            sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
     end
 
     p_ex_before = ParamAxisArray(regulator.p_ex, "p_ex_before")
     fill!(p_ex_before, NaN)
     for h in model_data.index_h, t in model_data.index_t
-        p_ex_before[h, t] = regulator.p_ex_my[reg_year_index, h, t]
+        p_ex_before(h, t, :) .= regulator.p_ex_my(reg_year_index, h, t)
     end
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
         for h in model_data.index_h, t in model_data.index_t
-            regulator.p[h, t] =
-                (energy_cost_allocation_h[h] + demand_cost_allocation_capacity_h[h]) /
-                net_demand_h_wo_loss[h] +
-                demand_cost_allocation_othercost_h[h] / net_demand_wo_green_tech_h_wo_loss[h]
+            regulator.p(h, t, :) .=
+                (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
+                net_demand_h_wo_loss(h) +
+                demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
         end
         fill!(regulator.p_eximport, NaN)
         for t in model_data.index_t
-            regulator.p_eximport[t] =
+            regulator.p_eximport(t, :) .=
                 (energy_cost_allocation_eximport + demand_cost_allocation_eximport) /
                 sum(
-                    model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
+                    model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
                     t in model_data.index_t
                 )
         end
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
         for h in model_data.index_h, t in model_data.index_t
-            regulator.p[h, t] =
-                energy_cost_allocation_h_t[h, t] / net_demand_h_t_wo_loss[h, t] +
-                demand_cost_allocation_capacity_h[h] / net_demand_h_wo_loss[h] +
-                demand_cost_allocation_othercost_h[h] / net_demand_wo_green_tech_h_wo_loss[h]
+            regulator.p(h, t, :) .=
+                energy_cost_allocation_h_t(h, t) / net_demand_h_t_wo_loss(h, t) +
+                demand_cost_allocation_capacity_h(h) / net_demand_h_wo_loss(h) +
+                demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
         end
         fill!(regulator.p_eximport, NaN)
         for t in model_data.index_t
-            regulator.p_eximport[t] =
-                energy_cost_allocation_eximport_t[t] /
-                utility.eximport_my[reg_year_index, t] +
+            regulator.p_eximport(t, :) .=
+                energy_cost_allocation_eximport_t(t) /
+                utility.eximport_my(reg_year_index, t) +
                 demand_cost_allocation_eximport / sum(
-                    model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
+                    model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
                     t in model_data.index_t
                 )
         end
@@ -1522,15 +1522,15 @@ function solve_agent_problem!(
 
     fill!(regulator.p_regression, NaN)
     for h in model_data.index_h
-        regulator.p_regression[h] =
-            (energy_cost_allocation_h[h] + demand_cost_allocation_capacity_h[h]) /
-            net_demand_h_wo_loss[h]
+        regulator.p_regression(h, :) .=
+            (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
+            net_demand_h_wo_loss(h)
     end
 
     fill!(regulator.p_td, NaN)
     for h in model_data.index_h
-        regulator.p_td[h] =
-            demand_cost_allocation_othercost_h[h] / net_demand_wo_green_tech_h_wo_loss[h]
+        regulator.p_td(h, :) .=
+            demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
     end
 
     # TODO: Call a function instead of using if-then
@@ -1539,29 +1539,29 @@ function solve_agent_problem!(
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         fill!(regulator.p_ex, NaN)
         for h in model_data.index_h, t in model_data.index_t
-            regulator.p_ex[h, t] = ipp.miu_my[reg_year_index, t] / model_data.omega[t]
+            regulator.p_ex(h, t, :) .= ipp.miu_my(reg_year_index, t) / model_data.omega(t)
         end
     elseif regulator_opts.net_metering_policy isa ExcessZero
         fill!(regulator.p_ex, 0.0)
     end
 
     for h in model_data.index_h, t in model_data.index_t
-        regulator.p_my[reg_year_index, h, t] = regulator.p[h, t]
-        regulator.p_ex_my[reg_year_index, h, t] = regulator.p_ex[h, t]
-        regulator.p_eximport_my[reg_year_index, t] = regulator.p_eximport[t]
+        regulator.p_my(reg_year_index, h, t, :) .= regulator.p(h, t)
+        regulator.p_ex_my(reg_year_index, h, t, :) .= regulator.p_ex(h, t)
+        regulator.p_eximport_my(reg_year_index, t, :) .= regulator.p_eximport(t)
     end
 
     for h in model_data.index_h
-        regulator.p_my_regression[reg_year_index, h] = regulator.p_regression[h]
-        regulator.p_my_td[reg_year_index, h] = regulator.p_td[h]
+        regulator.p_my_regression(reg_year_index, h, :) .= regulator.p_regression(h)
+        regulator.p_my_td(reg_year_index, h, :) .= regulator.p_td(h)
     end
 
     p_after_wavg = ParamAxisArray(regulator.p_td, "p_after_wavg")
     fill!(p_after_wavg, NaN)  # TODO DT: debug only
     for h in model_data.index_h
-        p_after_wavg[h] = 
-            sum(regulator.p_my[reg_year_index, h, t] * model_data.omega[t] * customers.d[h, t] for t in model_data.index_t) / 
-            sum(model_data.omega[t] * customers.d[h, t] for t in model_data.index_t)
+        p_after_wavg(h, :) .= 
+            sum(regulator.p_my(reg_year_index, h, t) * model_data.omega(t) * customers.d(h, t) for t in model_data.index_t) / 
+            sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
     end
 
     @info "Original retail price" p_before

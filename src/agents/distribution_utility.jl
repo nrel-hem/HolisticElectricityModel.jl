@@ -277,19 +277,19 @@ function existing_distribution_account(
 
     total_sale_initial =
         sum(
-            customers.gamma[h] * model_data.omega[t] * customers.d_my[first(model_data.index_y_fix), h, t] for
+            customers.gamma(h) * model_data.omega(t) * customers.d_my(first(model_data.index_y_fix), h, t) for
             h in model_data.index_h, t in model_data.index_t
         ) +
         # export
         sum(
-            model_data.omega[t] * utility.eximport_my[first(model_data.index_y_fix), t] for
+            model_data.omega(t) * utility.eximport_my(first(model_data.index_y_fix), t) for
             t in model_data.index_t
         ) -
         # DG
         sum(
-            model_data.omega[t] * (
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y_fix), h, m]
+            model_data.omega(t) * (
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y_fix), h, m)
             ) for t in model_data.index_t, h in model_data.index_h, m in customers.index_m
         )
     
@@ -297,11 +297,11 @@ function existing_distribution_account(
         distribution_capex_balance_model.constant +
         distribution_capex_balance_model.total_sales_coefficient * normalize(total_sale_initial, "total_sales", capex_balance_norm_inputs) +
         distribution_capex_balance_model.residential_customer_coefficient *
-        normalize(customers.gamma[:Residential], "residential", capex_balance_norm_inputs) +
+        normalize(customers.gamma(:Residential), "residential", capex_balance_norm_inputs) +
         distribution_capex_balance_model.commercial_customer_coefficient *
-        normalize(customers.gamma[:Commercial], "commercial", capex_balance_norm_inputs) +
+        normalize(customers.gamma(:Commercial), "commercial", capex_balance_norm_inputs) +
         distribution_capex_balance_model.industrial_customer_coefficient *
-        normalize(customers.gamma[:Industrial], "industrial", capex_balance_norm_inputs)
+        normalize(customers.gamma(:Industrial), "industrial", capex_balance_norm_inputs)
 
     distribution_capex_balance_reverse = denormalize(distribution_capex_balance_norm, "distribution_capex_balance", capex_balance_norm_inputs)
 
@@ -341,78 +341,78 @@ function new_distribution_account(
 
     total_sale =
         sum(
-            customers.gamma[h] * model_data.omega[t] * customers.d[h, t] for
+            customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
             h in model_data.index_h, t in model_data.index_t
         ) +
         # export
         sum(
-            model_data.omega[t] * utility.eximport_my[reg_year_index, t] for
+            model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
             t in model_data.index_t
         ) -
         # DG
         sum(
-            model_data.omega[t] * (
-                customers.rho_DG[h, m, t] *
-                customers.x_DG_E_my[first(model_data.index_y), h, m] + sum(
-                    customers.rho_DG[h, m, t] * customers.x_DG_new_my[Symbol(Int(y)), h, m]
-                    for y = model_data.year[first(model_data.index_y_fix)]:reg_year
+            model_data.omega(t) * (
+                customers.rho_DG(h, m, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
+                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
+                    for y = model_data.year(first(model_data.index_y_fix)):reg_year
                 )
             ) for t in model_data.index_t, h in model_data.index_h, m in customers.index_m
         )
 
     # customer module updates customers.x_DG_E to be the DPV at the beginning of the year,
-    # to use end of the year, add customers.x_DG_new_my[reg_year_index, h, m]    
+    # to use end of the year, add customers.x_DG_new_my(reg_year_index, h, m)
     dpv_pca =
-        sum(customers.x_DG_E[h, m] for h in model_data.index_h, m in customers.index_m)
+        sum(customers.x_DG_E(h, m) for h in model_data.index_h, m in customers.index_m)
     
     distribution_capex_addition_norm =
         distribution_capex_addition_model.constant +
         distribution_capex_addition_model.saidi_coefficient *
-        normalize(distribution_utility.SAIDI[reg_year_index], "saidi", capex_addition_norm_inputs) +
+        normalize(distribution_utility.SAIDI(reg_year_index), "saidi", capex_addition_norm_inputs) +
         distribution_capex_addition_model.dpv_coefficient * normalize(dpv_pca, "dpv", capex_addition_norm_inputs) +
         distribution_capex_addition_model.total_sales_coefficient * normalize(total_sale, "total_sales", capex_addition_norm_inputs) +
         distribution_capex_addition_model.residential_customer_coefficient *
-        normalize(customers.gamma[:Residential], "residential", capex_addition_norm_inputs) +
+        normalize(customers.gamma(:Residential), "residential", capex_addition_norm_inputs) +
         distribution_capex_addition_model.commercial_customer_coefficient *
-        normalize(customers.gamma[:Commercial], "commercial", capex_addition_norm_inputs) +
+        normalize(customers.gamma(:Commercial), "commercial", capex_addition_norm_inputs) +
         distribution_capex_addition_model.industrial_customer_coefficient *
-        normalize(customers.gamma[:Industrial], "industrial", capex_addition_norm_inputs)
+        normalize(customers.gamma(:Industrial), "industrial", capex_addition_norm_inputs)
 
     distribution_om_cost_norm =
         distribution_om_cost_model.constant +
         distribution_om_cost_model.saidi_coefficient *
-        normalize(distribution_utility.SAIDI[reg_year_index], "saidi", om_cost_norm_inputs) +
+        normalize(distribution_utility.SAIDI(reg_year_index), "saidi", om_cost_norm_inputs) +
         distribution_om_cost_model.total_sales_coefficient * normalize(total_sale, "total_sales", om_cost_norm_inputs) +
         distribution_om_cost_model.residential_customer_coefficient *
-        normalize(customers.gamma[:Residential], "residential", om_cost_norm_inputs) +
+        normalize(customers.gamma(:Residential), "residential", om_cost_norm_inputs) +
         distribution_om_cost_model.commercial_customer_coefficient *
-        normalize(customers.gamma[:Commercial], "commercial", om_cost_norm_inputs) +
+        normalize(customers.gamma(:Commercial), "commercial", om_cost_norm_inputs) +
         distribution_om_cost_model.industrial_customer_coefficient *
-        normalize(customers.gamma[:Industrial], "industrial", om_cost_norm_inputs)
+        normalize(customers.gamma(:Industrial), "industrial", om_cost_norm_inputs)
 
     distribution_capex_addition_reverse = denormalize(distribution_capex_addition_norm, "distribution_capex_addition", capex_addition_norm_inputs)
     distribution_om_cost_reverse = denormalize(distribution_om_cost_norm, "distribution_om_cost", om_cost_norm_inputs)
 
-    distribution_utility.DistCapExAddition_new_my[reg_year_index] = distribution_capex_addition_reverse
-    distribution_utility.DistOMCost_new_my[reg_year_index] = distribution_om_cost_reverse
+    distribution_utility.DistCapExAddition_new_my(reg_year_index, :) .= distribution_capex_addition_reverse
+    distribution_utility.DistOMCost_new_my(reg_year_index, :) .= distribution_om_cost_reverse
 
     DistADITNew = sum(
-            distribution_utility.DistCapExAddition_new_my[Symbol(Int(y))] *
+            distribution_utility.DistCapExAddition_new_my(Symbol(Int(y))) *
             (
-                distribution_utility.DistCumuTaxDepre_new_my[Symbol(Int(reg_year - y + 1))] -
-                distribution_utility.DistCumuAccoutDepre_new_my[Symbol(Int(reg_year - y + 1))]
+                distribution_utility.DistCumuTaxDepre_new_my(Symbol(Int(reg_year - y + 1))) -
+                distribution_utility.DistCumuAccoutDepre_new_my(Symbol(Int(reg_year - y + 1)))
             ) *
             distribution_utility.Tax +
-            distribution_utility.DistITC_new_my[Symbol(Int(y))] *
-            distribution_utility.DistCapExAddition_new_my[Symbol(Int(y))] *
-            (1 - distribution_utility.DistCumuITCAmort_new_my[Symbol(Int(reg_year - y + 1))]) for
-            y in model_data.year[first(model_data.index_y_fix)]:reg_year
+            distribution_utility.DistITC_new_my(Symbol(Int(y))) *
+            distribution_utility.DistCapExAddition_new_my(Symbol(Int(y))) *
+            (1 - distribution_utility.DistCumuITCAmort_new_my(Symbol(Int(reg_year - y + 1)))) for
+            y in model_data.year(first(model_data.index_y_fix)):reg_year
     )
 
     DistRateBaseNoWC_new = sum(
-            distribution_utility.DistCapExAddition_new_my[Symbol(Int(y))] *
-            (1 - distribution_utility.DistCumuAccoutDepre_new_my[Symbol(Int(reg_year - y + 1))])
-            for y in model_data.year[first(model_data.index_y_fix)]:reg_year
+            distribution_utility.DistCapExAddition_new_my(Symbol(Int(y))) *
+            (1 - distribution_utility.DistCumuAccoutDepre_new_my(Symbol(Int(reg_year - y + 1))))
+            for y in model_data.year(first(model_data.index_y_fix)):reg_year
     ) - DistADITNew
 
     Dist_working_capital = distribution_utility.DaysofWC / 365 * distribution_om_cost_reverse
@@ -421,16 +421,16 @@ function new_distribution_account(
 
     distribution_new_annual_accounting_depreciation =
         sum(
-            distribution_utility.DistCapExAddition_new_my[Symbol(Int(y))] *
-            distribution_utility.DistAnnualAccoutDepre_new_my[Symbol(Int(reg_year - y + 1))] for
-            y in model_data.year[first(model_data.index_y_fix)]:reg_year
+            distribution_utility.DistCapExAddition_new_my(Symbol(Int(y))) *
+            distribution_utility.DistAnnualAccoutDepre_new_my(Symbol(Int(reg_year - y + 1))) for
+            y in model_data.year(first(model_data.index_y_fix)):reg_year
         )
     
     distribution_new_annual_tax_depreciation =
         sum(
-            distribution_utility.DistCapExAddition_new_my[Symbol(Int(y))] *
-            distribution_utility.DistAnnualTaxDepre_new_my[Symbol(Int(reg_year - y + 1))] for
-            y in model_data.year[first(model_data.index_y_fix)]:reg_year
+            distribution_utility.DistCapExAddition_new_my(Symbol(Int(y))) *
+            distribution_utility.DistAnnualTaxDepre_new_my(Symbol(Int(reg_year - y + 1))) for
+            y in model_data.year(first(model_data.index_y_fix)):reg_year
         )
 
     DistRateBase_new_per_MWh = DistRateBase_new / total_sale
@@ -449,14 +449,14 @@ function solve_agent_problem!(
     distribution_utility::DistributionUtility,
     distribution_utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure,<:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure,<:UseCase,<:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
 
     regulator = get_agent(Regulator, agent_store)
 
-    reg_year = model_data.year[first(model_data.index_y)]
+    reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
 
     distribution_cost_before = regulator.distribution_cost
@@ -477,16 +477,16 @@ function solve_agent_problem!(
         (
             return_to_equity * distribution_utility.Tax +
             (distribution_new_annual_accounting_depreciation - distribution_new_annual_tax_depreciation) * distribution_utility.Tax - 
-                distribution_utility.DistITC_new_my[reg_year_index] *
-                distribution_utility.DistCapExAddition_new_my[reg_year_index]
+                distribution_utility.DistITC_new_my(reg_year_index) *
+                distribution_utility.DistCapExAddition_new_my(reg_year_index)
         ) / (1 - distribution_utility.Tax)
 
-    operational_cost = distribution_utility.DistOMCost_new_my[reg_year_index]
+    operational_cost = distribution_utility.DistOMCost_new_my(reg_year_index)
     
     revenue_requirement =
         debt_interest + return_to_equity + income_tax + operational_cost + distribution_existing_annual_depreciation + distribution_new_annual_accounting_depreciation
 
-    regulator.distribution_cost[reg_year_index] = revenue_requirement
+    regulator.distribution_cost(reg_year_index, :) .= revenue_requirement
 
     return compute_difference_percentage_one_norm([
         (distribution_cost_before, regulator.distribution_cost),

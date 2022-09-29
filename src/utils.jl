@@ -42,7 +42,7 @@ function read_param(
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
-    vals = read_record_file(AxisArray, filename, sheetname, 1)
+    vals = read_record_file(KeyedArray, filename, sheetname, 1)
     result = ParamAxisArray(
         name,
         (index,),
@@ -75,12 +75,12 @@ function read_param(
     description::AbstractString = "",
 )
     dims = Tuple(push!(copy(row_indices), column_index))
-    vals = read_record_file(AxisArray, filename, sheetname, length(dims))
-    ar_axes = AxisArrays.axes(vals)
+    vals = read_record_file(KeyedArray, filename, sheetname, length(dims))
+    ar_axes = AxisKeys.axiskeys(vals)
     if length(ar_axes) != length(dims)
         throw(
             ArgumentError(
-                "dimension length of AxisArray ($(length(ar_axes))) does not match passed dimensions ($(length(dims)))",
+                "dimension length of KeyedArray ($(length(ar_axes))) does not match passed dimensions ($(length(dims)))",
             ),
         )
     end
@@ -88,10 +88,10 @@ function read_param(
     for (i, ax) in enumerate(ar_axes)
         elements = dims[i].elements
         # compare the sets TODO DT
-        if ax.val != elements
+        if ax != elements
             throw(
                 ArgumentError(
-                    "dimension elements of AxisArray ($ax) does not match passed dimension ($elements)",
+                    "dimension elements of KeyedArray axis $i ($ax) does not match passed dimension $i's ($elements)",
                 ),
             )
         end
@@ -155,17 +155,69 @@ function read_axis_array(file::CSV.File, num_dims)
     return data
 end
 
+"""
+Return a KeyedArray from an N-dimensional array flattened in a CSV file.
+
+If there is one dimension then the file must have a single row with dimension names.
+If there is more than one dimension then it must conform to the following format:
+
+The header row consists of dimension names for the first N-1 dimensions followed by the last
+dimension's element ids pivoted out to form data column headers.
+
+The data rows contain dimension element ids in the first N-1 columns followed by parameter
+values in the remaining columns. Each value maps to the dimension element ids listed in the
+row's first N-1 columns plus the dimension element id found in that value's column.
+
+3-dimension example:
+
+d1_variable_name,d2_variable_name,d3_name1,d3_name2,d3_name3
+d1_name1,d2_name1,1.0,1.0,1.0
+d1_name2,d2_name2,1.0,1.0,1.0
+"""
+function read_keyed_array(filename::AbstractString, num_dims::Int)
+    @debug "read_keyed_array" filename num_dims
+    file = open(filename) do io
+        CSV.File(io)
+    end
+
+    isempty(file) && error("$filename is empty")
+    return read_keyed_array(file, num_dims)
+end
+
+function read_keyed_array(file::CSV.File, num_dims)
+    if num_dims == 1
+        data = [getproperty(file, x)[1] for x in file.names]
+        return KeyedArray(data, (file.names,))
+    end
+
+    index_names = Vector{Vector{Symbol}}(undef, num_dims)
+    for i in 1:(num_dims - 1)
+        index_names[i] = Symbol.(unique(file.columns[i]))
+    end
+    index_names[num_dims] = Symbol.(file.names[num_dims:end])
+
+    data =
+        KeyedArray(Array{Float64, num_dims}(undef, length.(index_names)...), Tuple(index_names))
+    for i in 1:(file.rows)
+        indices = [Symbol(file.columns[j][i]) for j in 1:(num_dims - 1)]
+        data(indices...,:,:) .=
+            [file.columns[x + num_dims - 1][i] for x in 1:length(index_names[end])]
+    end
+
+    return data
+end
+
 function read_record_file(::Type{DataFrame}, filename, sheetname)
-    # TODO: Remove when all .xlsx files have been converted.
     base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
     workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
     record_file = joinpath(workbook_dir, sheetname * ".csv")
-    if !isfile(record_file)
-        df = DataFrame(XLSX.readtable(filename, sheetname)...)
-        mkpath(workbook_dir)
-        to_csv(df, record_file)
-        @info "Converted $filename $sheetname to $record_file"
-    end
+    # ETH@20220928 - Testing that we can deprecate this code
+    # if !isfile(record_file)
+    #     df = DataFrame(XLSX.readtable(filename, sheetname)...)
+    #     mkpath(workbook_dir)
+    #     to_csv(df, record_file)
+    #     @info "Converted $filename $sheetname to $record_file"
+    # end
 
     return read_dataframe(record_file)
 end
@@ -174,18 +226,34 @@ function read_record_file(::Type{AxisArray}, filename, sheetname, num_dims)
     base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
     workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
     record_file = joinpath(workbook_dir, sheetname * ".csv")
-    if !isfile(record_file)
-        df = DataFrame(XLSX.readtable(filename, sheetname)...)
-        mkpath(workbook_dir)
-        to_csv(df, record_file)
-        @info "Converted $filename $sheetname to $record_file"
-    end
+    # ETH@20220928 - Testing that we can deprecate this code
+    # if !isfile(record_file)
+    #     df = DataFrame(XLSX.readtable(filename, sheetname)...)
+    #     mkpath(workbook_dir)
+    #     to_csv(df, record_file)
+    #     @info "Converted $filename $sheetname to $record_file"
+    # end
 
     return read_axis_array(record_file, num_dims)
 end
 
+function read_record_file(::Type{KeyedArray}, filename, sheetname, num_dims)
+    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
+    workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
+    record_file = joinpath(workbook_dir, sheetname * ".csv")
+    # ETH@20220928 - Testing that we can deprecate this code
+    # if !isfile(record_file)
+    #     df = DataFrame(XLSX.readtable(filename, sheetname)...)
+    #     mkpath(workbook_dir)
+    #     to_csv(df, record_file)
+    #     @info "Converted $filename $sheetname to $record_file"
+    # end
+
+    return read_keyed_array(record_file, num_dims)
+end
+
 function save_param(
-    vals::AxisArray,
+    vals::KeyedArray,
     set_names::Array,
     value_name::Symbol,
     filepath::AbstractString,
@@ -194,7 +262,7 @@ function save_param(
 
     # make sure we always have the same order
     indices =
-        sort!(reshape(collect(Iterators.product(AxisArrays.axes(vals)...)), length(vals)))
+        sort!(reshape(collect(Iterators.product(AxisKeys.axiskeys(vals)...)), length(vals)))
 
     # get categorical data
     result = DataFrame()
@@ -207,7 +275,7 @@ function save_param(
     end
 
     # get values
-    data = [vals[x...] for x in indices]
+    data = [vals(x...) for x in indices]
     result[!, value_name] = data
 
     # save out
@@ -313,10 +381,7 @@ function initialize_param(
     return ParamAxisArray(
         name,
         (index,),
-        AxisArray(
-            fill!(Vector{Float64}(undef, length(index.elements)), value),
-            index.elements,
-        ),
+        initialize_keyed_array(index; value=value),
         prose_name = prose_name,
         description = description,
     )
@@ -334,16 +399,19 @@ function initialize_param(
     description = "",
 )
     num_dims = length(indices)
-    return ParamAxisArray(
-        name,
-        indices,
-        AxisArray(
-            fill!(Array{Float64, num_dims}(undef, (length(x) for x in indices)...), value),
-            (x.elements for x in indices)...,
-        ),
-        prose_name = prose_name,
-        description = description,
-    )
+    param = try
+        ParamAxisArray(
+            name,
+            indices,
+            initialize_keyed_array(indices...; value=value),
+            prose_name = prose_name,
+            description = description,
+        )
+    catch e
+        @info "Failed to initialize parameter $name"
+        rethrow(e)
+    end
+    return param
 end
 
 function read_dataframe(filename::AbstractString)

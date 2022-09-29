@@ -50,6 +50,8 @@ function Dimension(
     return Dimension(name, prose_name, description, elements)
 end
 
+get_pair(dim::Dimension) = Pair(get_symbol(dim), getproperty(dim, :elements))
+
 @forward Dimension.elements Base.IteratorSize,
 Base.IteratorEltype,
 Base.size,
@@ -114,18 +116,12 @@ end
 
 update!(param::ParamScalar, value) = param.value = value
 
-# There is debate in the Julia community on which package to use for arrays with named
-# dimensions. Refer to https://github.com/JuliaCollections/AxisArraysFuture/issues/1.
-# That thread discusses how AxisArrays.jl may be supplanted by a new package that combines
-# AxisKeys.jl and NamedDims.jl. AxisKeys.jl is almost a drop-in replacement for AxisArrays.
-# Indexing works like A(:a, :b) instead of A[:a, :b].
-
 mutable struct ParamAxisArray{N} <: HEMParameter
     name::String
     prose_name::String
     description::String
     dims::NTuple{N, Dimension}
-    values::AxisArray
+    values::KeyedArray
 end
 
 ParamAxisArray(param::ParamAxisArray) = ParamAxisArray(
@@ -148,7 +144,7 @@ end
 function ParamAxisArray(
     name::AbstractString,
     dims::NTuple{N, Dimension},
-    vals::AxisArray;
+    vals::KeyedArray;
     prose_name = "",
     description = "",
 ) where {N}
@@ -163,6 +159,9 @@ Base.length,
 Base.iterate,
 Base.transpose,
 AxisArrays.axes
+
+# implement KeyedArray callable syntax for ParamAxisArrays
+(P::ParamAxisArray)(args...) = P.values(args...)
 
 #Base.:+(x::ParamAxisArray, y::ParamAxisArray) = x.values + y.values
 #Base.:-(x::ParamAxisArray, y::ParamAxisArray) = x.values - y.values
@@ -183,12 +182,29 @@ function make_axis_array(indices...; fill_nan = true)
     return array
 end
 
+"""
+Return an uninitialized KeyedArray from any number of Dimension values.
+"""
 function make_keyed_array(indices...; fill_nan = true)
     array = KeyedArray(
         Array{Float64, length(indices)}(undef, length.(indices)...);
-        [Pair(get_symbol(x), getproperty(x, :elements)) for x in indices]...,
+        [get_pair(x) for x in indices]...,
     )
     fill_nan && fill!(array.data, NaN)
+    return array
+end
+
+function initialize_keyed_array(indices...; value=0.0)
+    array = try
+        KeyedArray(
+            Array{Float64, length(indices)}(undef, length.(indices)...);
+            [get_pair(x) for x in indices]...,
+        )
+    catch e
+        @info "Error encountered in initialize_keyed_array with indices" indices length(indices) length.(indices) [get_pair(x) for x in indices]
+        rethrow(e)
+    end
+    fill!(array.data, value)
     return array
 end
 
