@@ -87,5 +87,4 @@ run_hem(
     regulator_options=regulator_opts,
     ipp_options=ipp_opts,
     utility_options=utility_opts,
-    force=true,
 )
