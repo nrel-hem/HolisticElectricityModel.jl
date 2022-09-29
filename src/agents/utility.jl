@@ -3,30 +3,29 @@
 abstract type AbstractUtility <: Agent end
 
 struct UtilityOptions <: AgentOptions
-    solvers::Union{HEMSolver, Dict{String, <:HEMSolver}}
+    solvers::HEMSolver
+    # solvers::Union{HEMSolver, Dict{String, <:HEMSolver}}
 end
 
-"""
-Construct UtilityOptions with a solvers defined as MOI.OptimizerWithAttributes instances.
-"""
-function UtilityOptions(solvers::Dict)
-    hem_solvers = Dict{String, HEMSolver}()
-    for (key, val) in solvers
-        if val isa MOI.OptimizerWithAttributes
-            hem_solvers[key] = Any_Solver(val)
-        else
-            hem_solvers[key] = val
-        end
-    end
+# This format is provided in case someone needs to extend the functionality in the future.
+# function UtilityOptions(solvers::Dict)
+#     hem_solvers = Dict{String, HEMSolver}()
+#     for (key, val) in solvers
+#         if val isa MOI.OptimizerWithAttributes
+#             hem_solvers[key] = AnySolver(val)
+#         else
+#             hem_solvers[key] = val
+#         end
+#     end
 
-    return UtilityOptions(hem_solvers)
-end
+#     return UtilityOptions(hem_solvers)
+# end
 
 """
 Construct UtilityOptions with an MOI.OptimizerWithAttributes instance.
 """
 function UtilityOptions(attributes::MOI.OptimizerWithAttributes)
-    return UtilityOptions(Any_Solver(attributes))
+    return UtilityOptions(AnySolver(attributes))
 end
 
 mutable struct Utility <: AbstractUtility
