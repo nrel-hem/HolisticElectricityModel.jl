@@ -6,11 +6,11 @@ function make_jump_model(attributes::MOI.OptimizerWithAttributes)
     return model
 end
 
-struct Any_Solver <: HEMSolver
+struct AnySolver <: HEMSolver
     attributes::MOI.OptimizerWithAttributes
 end
 
-get_new_jump_model(hem_solver::Any_Solver) = make_jump_model(hem_solver.attributes)
+get_new_jump_model(hem_solver::AnySolver) = make_jump_model(hem_solver.attributes)
 
 """
 Construct an Ipopt optimizer. Use default settings or pass an MOI.OptimizerWithAttributes
@@ -21,22 +21,22 @@ If using the default settings, call `import_ipopt()` first. Ipopt must be instal
 # Examples
 ```
 julia> import_ipopt()
-julia> hem_solver = Ipopt_Solver()
+julia> hem_solver = IpoptSolver()
 
 julia> import Ipopt
 julia> import JuMP
 julia> ipopt = JuMP.optimizer_with_attributes(Ipopt.Optimizer, "tol" => 1e-6, "print_level" => 0)
-julia> solver = Ipopt_Solver(ipopt)
+julia> solver = IpoptSolver(ipopt)
 ```
 """
-struct Ipopt_Solver <: HEMSolver
+struct IpoptSolver <: HEMSolver
     attributes::Union{Nothing, MOI.OptimizerWithAttributes}
 
-    Ipopt_Solver(attributes=nothing) = new(attributes)
+    IpoptSolver(attributes=nothing) = new(attributes)
 end
 
 
-function get_new_jump_model(hem_solver::Ipopt_Solver)
+function get_new_jump_model(hem_solver::IpoptSolver)
     isnothing(hem_solver.attributes) && return Model(_get_ipopt())
     make_jump_model(hem_solver.attributes)
 end
@@ -50,7 +50,7 @@ If using the default settings, call `import_xpress()` first. Xpress must be inst
 # Examples
 ```
 julia> import_xpress()
-julia> hem_solver = Xpress_Solver()
+julia> hem_solver = XpressSolver()
 
 julia> import Xpress
 julia> import JuMP
@@ -59,16 +59,16 @@ julia> xpress = JuMP.optimizer_with_attributes(
     "MIPRELSTOP" => 0.01,
     "OUTPUTLOG" => 1,
 )
-julia> solver = Xpress_Solver(xpress)
+julia> solver = XpressSolver(xpress)
 ```
 """
-struct Xpress_Solver <: HEMSolver
+struct XpressSolver <: HEMSolver
     attributes::Union{Nothing, MOI.OptimizerWithAttributes}
 
-    Xpress_Solver(attributes=nothing) = new(attributes)
+    XpressSolver(attributes=nothing) = new(attributes)
 end
 
-function get_new_jump_model(hem_solver::Xpress_Solver)
+function get_new_jump_model(hem_solver::XpressSolver)
     isnothing(hem_solver.attributes) && return Model(_get_xpress())
     make_jump_model(hem_solver.attributes)
 end
@@ -82,7 +82,7 @@ If using the default settings, call `import_gurobi()` first. Gurobi must be inst
 # Examples
 ```
 julia> import_gurobi()
-julia> hem_solver = Gurobi_Solver()
+julia> hem_solver = GurobiSolver()
 
 julia> import Gurobi
 julia> import JuMP
@@ -90,17 +90,17 @@ julia> gurobi = JuMP.optimizer_with_attributes(
     () -> Gurobi.Optimizer(Gurobi.Env()),
     "MIPFocus" => 3,
 )
-julia> solver = Gurobi_Solver(gurobi)
+julia> solver = GurobiSolver(gurobi)
 ```
 """
-struct Gurobi_Solver <: HEMSolver
+struct GurobiSolver <: HEMSolver
     env::Any
     attributes::Union{Nothing, MOI.OptimizerWithAttributes}
 
-    Gurobi_Solver(env, attributes=nothing) = new(Gurobi_Solver(env, attributes))
+    GurobiSolver(env, attributes=nothing) = new(GurobiSolver(env, attributes))
 end
 
-function get_new_jump_model(hem_solver::Gurobi_Solver)
+function get_new_jump_model(hem_solver::GurobiSolver)
     isnothing(hem_solver.attributes) && return Model(() -> _get_gurobi()(hem_solver.env))
     model = Model()
     make_jump_model(hem_solver.attributes)

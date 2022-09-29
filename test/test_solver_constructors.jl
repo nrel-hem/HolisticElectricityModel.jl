@@ -1,30 +1,30 @@
-@testset "Construct Ipopt_Solver default" begin
+@testset "Construct IpoptSolver default" begin
     import_ipopt()
-    solver = Ipopt_Solver()
+    solver = IpoptSolver()
     model = HEM.get_new_jump_model(solver)
     @test model isa JuMP.Model
 end
 
-@testset "Construct Ipopt_Solver with attributes" begin
+@testset "Construct IpoptSolver with attributes" begin
     import_ipopt()
     attr = JuMP.optimizer_with_attributes(Ipopt.Optimizer, "tol" => 1e-6, "print_level" => 0)
-    solver = Ipopt_Solver(attr)
+    solver = IpoptSolver(attr)
     model = HEM.get_new_jump_model(solver)
     @test model isa JuMP.Model
 end
 
 # This requires an Xpress license and so may need to be disabled.
-@testset "Construct Xpress_Solver default" begin
+@testset "Construct XpressSolver default" begin
     import_xpress()
-    solver = Xpress_Solver()
+    solver = XpressSolver()
     model = HEM.get_new_jump_model(solver)
     @test model isa JuMP.Model
 end
 
-@testset "Construct Xpress_Solver with attributes" begin
+@testset "Construct XpressSolver with attributes" begin
     import_xpress()
     attr = JuMP.optimizer_with_attributes(Xpress.Optimizer, "OUTPUTLOG" => 0)
-    solver = Xpress_Solver(attr)
+    solver = XpressSolver(attr)
     model = HEM.get_new_jump_model(solver)
     @test model isa JuMP.Model
 end

@@ -16,7 +16,7 @@ After this, you have some options:
 #### Local Set-up
 
 - [Install the Xpress solver](https://github.nrel.gov/dcutler/fico-xpress)
-- Each time vefore a model run, make sure the driver.jl file is set to use the Xpress_Solver
+- Each time before a model run, make sure the driver.jl file is set to use the XpressSolver
 
 #### NREL HPC - Eagle Set-Up
 
@@ -50,7 +50,7 @@ After this, you have some options:
     ```
     module load gurobi
     ```
-    and make sure the driver.jl file is set to use the Gurobi_Solver
+    and make sure the driver.jl file is set to use the GurobiSolver
   
     For example, to run in interactive mode on a debug node:
     ```bash

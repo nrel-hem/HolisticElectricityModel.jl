@@ -13,13 +13,35 @@ struct IPPOptions{T <: IPPAlgorithm} <: AbstractIPPOptions
 end
 
 """
-Construct IPPOptions with solvers defined as MOI.OptimizerWithAttributes instances.
+Construct IPPOptions with solvers defined as MOI.OptimizerWithAttributes instances or
+HEMSolver instances.
+
+Review the functions that call `get_new_jump_model` for Dict key requirements.
+
+# Examples
+```julia
+julia> ipp_opts = IPPOptions(
+    LagrangeDecomposition(),
+    Dict(
+        "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
+            Ipopt.Optimizer,
+            "print_level" => 0,
+        ),
+        "Lagrange_Sub_Dispatch_Cap" => JuMP.optimizer_with_attributes(
+            Xpress.Optimizer,
+        ),
+        "Lagrange_Feasible_Cap" => JuMP.optimizer_with_attributes(
+            Xpress.Optimizer,
+        )
+    )
+)
+```
 """
 function IPPOptions(algorithm::IPPAlgorithm, solvers::Dict)
     hem_solvers = Dict{String, HEMSolver}()
     for (key, val) in solvers
         if val isa MOI.OptimizerWithAttributes
-            hem_solvers[key] = Any_Solver(val)
+            hem_solvers[key] = AnySolver(val)
         else
             hem_solvers[key] = val
         end

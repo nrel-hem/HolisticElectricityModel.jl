@@ -7,9 +7,9 @@ module HolisticElectricityModel
 
 # Meta
 export HEMSolver
-export Xpress_Solver
-export Gurobi_Solver
-export Ipopt_Solver
+export XpressSolver
+export GurobiSolver
+export IpoptSolver
 export import_gurobi
 export import_ipopt
 export import_xpress
