@@ -20,35 +20,36 @@ After this, you have some options:
 
 #### NREL HPC - Eagle Set-Up
 
-- [Download](https://julialang.org/downloads/) julia linux binaries
-- Extract them
-- SCP to install on Eagle:
-    ```
-    scp -r /Users/$USER/Downloads/julia-1.5.2-linux-x86_64.tar.gz $USER@ed1.hpc.nrel.gov:/home/$USER/
-    ssh ed1.hpc.nrel.gov
-    cd ~
-    tar -xvzf julia-1.5.2-linux-x86_64.tar.gz
+- Go to https://julialang.org/downloads and copy the link to the latest Julia Linux image.
+- ssh to Eagle and download the image.
+    ```bash
+    $ ssh ed1.hpc.nrel.gov
+    $ wget https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-1.8.1-linux-x86_64.tar.gz
+    $ tar -xzf julia-1.8.1-linux-x86_64.tar.gz
     ```
 - Add lines analogous to these to your ~/.bashrc file on Eagle:
     ```
     # User specific aliases and functions
     alias julia="/home/ehale/julia-1.5.2/bin/julia"
     ```
+- Reload the file so that you can run `julia`.
+    ```bash
+    $ source ~/.bashrc
+    ```
 - Once on a login node, make it so the required packages will load by running the first part of the REPL code:
     ```bash
-    > module load gurobi
-    > julia
+    > module load gurobi/9.1.2
+    > julia --project=test
     ```
 
     ```julia
     julia> ]
-    pkg> activate .
     pkg> instantiate
     pkg> build Gurobi
     ```
 - Each time before a model run, be sure to load the Gurobi module:
     ```
-    module load gurobi
+    module load gurobi/9.1.2
     ```
     and make sure the driver.jl file is set to use the GurobiSolver
   
@@ -64,13 +65,17 @@ After this, you have some options:
 
 ### Run Style
 
+Note that a few solver packages are installed in the `test` project and not in the main HolisticElectricityModel
+package. The HolisticElectricityModel team used those solvers for test and development. The intention is to allow
+users to install any compatible solver in their own environment.
+
 #### REPL
 
 Open the REPL from the HolisticElectrictyModel.jl directory. Then:
 
 ```julia
 julia> ]
-pkg> activate .
+pkg> activate test
 # Hit Backspace
 julia> include("script/driver.jl")
 ```
