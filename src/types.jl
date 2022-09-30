@@ -151,6 +151,25 @@ function ParamArray(
     return ParamArray(name, prose_name, description, dims, vals)
 end
 
+function ParamArray(
+    name::AbstractString,
+    dims::NTuple{N, Dimension},
+    vals::Array{Float64, N}; # TODO: Replace with something more general than Float64
+    prose_name = "",
+    description = "",
+) where {N}
+    return ParamArray(
+        name,
+        prose_name,
+        description,
+        dims,
+        KeyedArray(
+            vals;
+            [get_pair(dim) for dim in dims]...
+        ),
+    )
+end
+
 @forward ParamArray.values Base.length, 
     Base.getindex,
     Base.setindex!,

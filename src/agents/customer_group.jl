@@ -215,17 +215,12 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ParamArray(
             "Bass_p",
             (model_data.index_h,),
-            KeyedArray(
-                [7.7E-07, 6.0E-04, 6.0E-04];
-                [get_pair(model_data.index_h)]...,
-            ),
+            [7.7E-07, 6.0E-04, 6.0E-04],
         ),
         ParamArray(
             "Bass_q",
             (model_data.index_h,),
-            KeyedArray(
-                [0.663, 0.133, 0.133]; 
-                [get_pair(model_data.index_h)]...),
+            [0.663, 0.133, 0.133],
         ),
     )
 
@@ -233,57 +228,43 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ParamArray(
             "Constant",
             (model_data.index_h,),
-            KeyedArray(
-                [0.0, 0.0, 0.0]; 
-                [get_pair(model_data.index_h)]...),
+            [0.0, 0.0, 0.0]; 
             description = "Constant in green power uptake function (regression parameter)",
         ),
         ParamArray(
             "GreenPowerPrice_coefficient",
             (model_data.index_h,),
-            KeyedArray(
-                [0.0, -0.55, -0.55]; 
-                [get_pair(model_data.index_h)]...),
+            [0.0, -0.55, -0.55];
             description = "Sum of PPA and REC prices (regression parameter)",
         ),
         ParamArray(
             "EnergyRate_coefficient",
             (model_data.index_h,),
-            KeyedArray(
-                [0.0, 0.0, 0.0]; 
-                [get_pair(model_data.index_h)]...),
+            [0.0, 0.0, 0.0]; 
             description = "Weighted mean C&I volumetric (\$/MWh) rate (regression parameter)",
         ),
         ParamArray(
             "WholesaleMarket_coefficient",
             (model_data.index_h,),
-            KeyedArray(
-                [0.0, 0.14, 0.14]; 
-                [get_pair(model_data.index_h)]...),
+            [0.0, 0.14, 0.14]; 
             description = "% of load served by an ISO (regression parameter)",
         ),
         ParamArray(
             "RetailCompetition_coefficient",
             (model_data.index_h,),
-            KeyedArray(
-                [0.0, 0.16, 0.16]; 
-                [get_pair(model_data.index_h)]...),
+            [0.0, 0.16, 0.16]; 
             description = "% of C&I customers that are eligible for retail choice (regression parameter)",
         ),
         ParamArray(
             "RPS_coefficient",
             (model_data.index_h,),
-            KeyedArray(
-                [0.0, 0.42, 0.42]; 
-                [get_pair(model_data.index_h)]...),
+            [0.0, 0.42, 0.42]; 
             description = "RPS percentage requirement in 2019 (regression parameter)",
         ),
         ParamArray(
             "WTP_coefficient",
             (model_data.index_h,),
-            KeyedArray(
-                [0.0, 0.0, 0.0]; 
-                [get_pair(model_data.index_h)]...),
+            [0.0, 0.0, 0.0]; 
             description = "% of customers willing to pay for renewable energy at the state level (regression parameter)",
         ),
     )
