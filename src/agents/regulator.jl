@@ -33,54 +33,54 @@ mutable struct Regulator <: AbstractRegulator
     r::ParamScalar
     "allowed return on investment (fraction)"
     z::ParamScalar
-    distribution_cost::ParamAxisArray
-    administration_cost::ParamAxisArray
-    transmission_cost::ParamAxisArray
-    interconnection_cost::ParamAxisArray
-    system_cost::ParamAxisArray
+    distribution_cost::ParamArray
+    administration_cost::ParamArray
+    transmission_cost::ParamArray
+    interconnection_cost::ParamArray
+    system_cost::ParamArray
     "other cost not related to the optimization problem"
-    othercost::ParamAxisArray
+    othercost::ParamArray
     "Renewable Energy Credits"
     REC::ParamScalar
 
     # Primal Variables
     "retail price"
-    p::ParamAxisArray
+    p::ParamArray
     "DER excess generation rate"
-    p_ex::ParamAxisArray
+    p_ex::ParamArray
     "retail price of import/export"
-    p_eximport::ParamAxisArray
+    p_eximport::ParamArray
     "green tariff rate"
-    p_green::ParamAxisArray
+    p_green::ParamArray
     "revenue (requirement) of utility company"
     revenue_req::ParamScalar
     "cost of utility company (without return on equity)"
     cost::ParamScalar
     "multi-year retail price"
-    p_my::ParamAxisArray
+    p_my::ParamArray
     "multi-year DER excess generation rate"
-    p_ex_my::ParamAxisArray
+    p_ex_my::ParamArray
     "multi-year retail price of import/export"
-    p_eximport_my::ParamAxisArray
+    p_eximport_my::ParamArray
     "revenue (requirement) of utility company by year"
-    revenue_req_my::ParamAxisArray
+    revenue_req_my::ParamArray
     "cost of utility company (without return on equity) by year"
-    cost_my::ParamAxisArray
+    cost_my::ParamArray
     "debt interest by year"
-    debt_interest_my::ParamAxisArray
+    debt_interest_my::ParamArray
     "income tax by year"
-    income_tax_my::ParamAxisArray
+    income_tax_my::ParamArray
     "operational cost by year"
-    operational_cost_my::ParamAxisArray
+    operational_cost_my::ParamArray
     "accounting depreciation by year"
-    depreciation_my::ParamAxisArray
+    depreciation_my::ParamArray
     "tax depreciation by year"
-    depreciation_tax_my::ParamAxisArray
+    depreciation_tax_my::ParamArray
 
-    p_regression::ParamAxisArray
-    p_my_regression::ParamAxisArray
-    p_td::ParamAxisArray
-    p_my_td::ParamAxisArray
+    p_regression::ParamArray
+    p_my_regression::ParamArray
+    p_td::ParamArray
+    p_my_td::ParamArray
 end
 
 function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
@@ -873,13 +873,13 @@ function solve_agent_problem!(
     )
 
     # compute the retail price
-    p_before = ParamAxisArray(regulator.p, "p_before")
+    p_before = ParamArray(regulator.p, "p_before")
     fill!(p_before, NaN)  # TODO DT: debug only
     for h in model_data.index_h, t in model_data.index_t
         p_before(h, t, :) .= regulator.p_my(reg_year_index, h, t)
     end
 
-    p_before_wavg = ParamAxisArray(regulator.p_td, "p_before_wavg")
+    p_before_wavg = ParamArray(regulator.p_td, "p_before_wavg")
     fill!(p_before_wavg, NaN)  # TODO DT: debug only
     for h in model_data.index_h
         p_before_wavg(h, :) .= 
@@ -887,7 +887,7 @@ function solve_agent_problem!(
             sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
     end
 
-    p_ex_before = ParamAxisArray(regulator.p_ex, "p_ex_before")
+    p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
     fill!(p_ex_before, NaN)
     for h in model_data.index_h, t in model_data.index_t
         p_ex_before(h, t, :) .= regulator.p_ex_my(reg_year_index, h, t)
@@ -946,7 +946,7 @@ function solve_agent_problem!(
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
-        regulator.p_ex = ParamAxisArray(regulator.p)
+        regulator.p_ex = ParamArray(regulator.p)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         fill!(regulator.p_ex, NaN)
         for h in model_data.index_h, t in model_data.index_t
@@ -969,7 +969,7 @@ function solve_agent_problem!(
         regulator.p_my_td(reg_year_index, h, :) .= regulator.p_td(h)
     end
 
-    p_after_wavg = ParamAxisArray(regulator.p_td, "p_after_wavg")
+    p_after_wavg = ParamArray(regulator.p_td, "p_after_wavg")
     fill!(p_after_wavg, NaN)  # TODO DT: debug only
     for h in model_data.index_h
         p_after_wavg(h, :) .= 
@@ -1462,13 +1462,13 @@ function solve_agent_problem!(
         [get_pair(model_data.index_t)]...
     )
 
-    p_before = ParamAxisArray(regulator.p, "p_before")
+    p_before = ParamArray(regulator.p, "p_before")
     fill!(p_before, NaN)
     for h in model_data.index_h, t in model_data.index_t
         p_before(h, t, :) .= regulator.p_my(reg_year_index, h, t)
     end
 
-    p_before_wavg = ParamAxisArray(regulator.p_td, "p_before_wavg")
+    p_before_wavg = ParamArray(regulator.p_td, "p_before_wavg")
     fill!(p_before_wavg, NaN)  # TODO DT: debug only
     for h in model_data.index_h
         p_before_wavg(h, :) .= 
@@ -1476,7 +1476,7 @@ function solve_agent_problem!(
             sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
     end
 
-    p_ex_before = ParamAxisArray(regulator.p_ex, "p_ex_before")
+    p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
     fill!(p_ex_before, NaN)
     for h in model_data.index_h, t in model_data.index_t
         p_ex_before(h, t, :) .= regulator.p_ex_my(reg_year_index, h, t)
@@ -1535,7 +1535,7 @@ function solve_agent_problem!(
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
-        regulator.p_ex = ParamAxisArray(regulator.p)
+        regulator.p_ex = ParamArray(regulator.p)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         fill!(regulator.p_ex, NaN)
         for h in model_data.index_h, t in model_data.index_t
@@ -1556,7 +1556,7 @@ function solve_agent_problem!(
         regulator.p_my_td(reg_year_index, h, :) .= regulator.p_td(h)
     end
 
-    p_after_wavg = ParamAxisArray(regulator.p_td, "p_after_wavg")
+    p_after_wavg = ParamArray(regulator.p_td, "p_after_wavg")
     fill!(p_after_wavg, NaN)  # TODO DT: debug only
     for h in model_data.index_h
         p_after_wavg(h, :) .= 

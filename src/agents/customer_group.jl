@@ -3,21 +3,21 @@
 DER_factor = 1.0    # A scaling factor applied to existing DER penetration level
 
 mutable struct PVAdoptionModel
-    Shape::ParamAxisArray
-    MeanPayback::ParamAxisArray
-    Bass_p::ParamAxisArray
-    Bass_q::ParamAxisArray
-    Rate::ParamAxisArray
+    Shape::ParamArray
+    MeanPayback::ParamArray
+    Bass_p::ParamArray
+    Bass_q::ParamArray
+    Rate::ParamArray
 end
 
 mutable struct GreenSubModel
-    Constant::ParamAxisArray
-    GreenPowerPrice_coefficient::ParamAxisArray
-    EnergyRate_coefficient::ParamAxisArray
-    WholesaleMarket_coefficient::ParamAxisArray
-    RetailCompetition_coefficient::ParamAxisArray
-    RPS_coefficient::ParamAxisArray
-    WTP_coefficient::ParamAxisArray
+    Constant::ParamArray
+    GreenPowerPrice_coefficient::ParamArray
+    EnergyRate_coefficient::ParamArray
+    WholesaleMarket_coefficient::ParamArray
+    RetailCompetition_coefficient::ParamArray
+    RPS_coefficient::ParamArray
+    WTP_coefficient::ParamArray
 end
 
 """
@@ -35,7 +35,7 @@ function PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
         MeanPayback,
         Bass_p,
         Bass_q,
-        ParamAxisArray("Rate", Shape.dims, vals), # Rate
+        ParamArray("Rate", Shape.dims, vals), # Rate
     )
 end
 
@@ -71,61 +71,61 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
 
     # Parameters
     "number of customers of type h"
-    gamma::ParamAxisArray
+    gamma::ParamArray
     "demand (MWh per representative agent per hour)"
-    d::ParamAxisArray
+    d::ParamArray
     "multi-year demand (MWh per representative agent per hour)"
-    d_my::ParamAxisArray
-    x_DG_E::ParamAxisArray
+    d_my::ParamArray
+    x_DG_E::ParamArray
     "Existing DER at year y. This is a cumulative number but without x_DG_new_my built by this module"
-    x_DG_E_my::ParamAxisArray
-    Opti_DG::ParamAxisArray
-    Opti_DG_E::ParamAxisArray
-    Opti_DG_my::ParamAxisArray
+    x_DG_E_my::ParamArray
+    Opti_DG::ParamArray
+    Opti_DG_E::ParamArray
+    Opti_DG_my::ParamArray
     # "DER generation by a representative customer h and DER technology m"
-    # DERGen::ParamAxisArray
-    CapEx_DG::ParamAxisArray
-    CapEx_DG_my::ParamAxisArray
-    FOM_DG::ParamAxisArray
-    FOM_DG_my::ParamAxisArray
-    rho_DG::ParamAxisArray
+    # DERGen::ParamArray
+    CapEx_DG::ParamArray
+    CapEx_DG_my::ParamArray
+    FOM_DG::ParamArray
+    FOM_DG_my::ParamArray
+    rho_DG::ParamArray
     "Annualization factor for net consumer surplus of PV installation"
     delta::ParamScalar
-    PeakLoad::ParamAxisArray
-    PeakLoad_my::ParamAxisArray
+    PeakLoad::ParamArray
+    PeakLoad_my::ParamArray
 
     # Primal Variables
-    x_DG_new::ParamAxisArray
-    x_DG_new_my::ParamAxisArray    # Annual new DER build (not cumulative)
-    x_green_sub::ParamAxisArray
-    x_green_sub_my::ParamAxisArray
-    x_green_sub_incremental_my::ParamAxisArray
+    x_DG_new::ParamArray
+    x_DG_new_my::ParamArray    # Annual new DER build (not cumulative)
+    x_green_sub::ParamArray
+    x_green_sub_my::ParamArray
+    x_green_sub_incremental_my::ParamArray
 
     # Auxiliary Variables
-    Payback::ParamAxisArray
-    MarketShare::ParamAxisArray
-    MaxDG::ParamAxisArray
-    F::ParamAxisArray
-    year::ParamAxisArray
-    A::ParamAxisArray
-    ConPVNetSurplus::ParamAxisArray
-    ConPVNetSurplus_my::ParamAxisArray
+    Payback::ParamArray
+    MarketShare::ParamArray
+    MaxDG::ParamArray
+    F::ParamArray
+    year::ParamArray
+    A::ParamArray
+    ConPVNetSurplus::ParamArray
+    ConPVNetSurplus_my::ParamArray
 
-    GreenTechIntercept::ParamAxisArray
-    GreenTechSlope::ParamAxisArray
+    GreenTechIntercept::ParamArray
+    GreenTechSlope::ParamArray
     pv_adoption_model::PVAdoptionModel
     green_sub_model::GreenSubModel
 
     pvf::Any
     rooftop::Any
-    MaxDG_my::ParamAxisArray
+    MaxDG_my::ParamArray
 
-    RetailCompetition::ParamAxisArray
-    WTP_green_power::ParamAxisArray
+    RetailCompetition::ParamArray
+    WTP_green_power::ParamArray
 
-    ConGreenPowerNetSurplus_pre_proportion_my::ParamAxisArray
-    ConGreenPowerNetSurplus_post_proportion_my::ParamAxisArray
-    ConGreenPowerNetSurplus_cumu_my::ParamAxisArray
+    ConGreenPowerNetSurplus_pre_proportion_my::ParamArray
+    ConGreenPowerNetSurplus_post_proportion_my::ParamArray
+    ConGreenPowerNetSurplus_cumu_my::ParamArray
 end
 
 function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
@@ -212,7 +212,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     pv_adoption_model = PVAdoptionModel(
         initialize_param("Shape", model_data.index_h, index_m, value = 1.7), # Shape
         initialize_param("MeanPayback", model_data.index_h, index_m, value = 8.8), # MeanPayback
-        ParamAxisArray(
+        ParamArray(
             "Bass_p",
             (model_data.index_h,),
             KeyedArray(
@@ -220,7 +220,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
                 [get_pair(model_data.index_h)]...,
             ),
         ),
-        ParamAxisArray(
+        ParamArray(
             "Bass_q",
             (model_data.index_h,),
             KeyedArray(
@@ -230,7 +230,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     )
 
     green_sub_model = GreenSubModel(
-        ParamAxisArray(
+        ParamArray(
             "Constant",
             (model_data.index_h,),
             KeyedArray(
@@ -238,7 +238,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
                 [get_pair(model_data.index_h)]...),
             description = "Constant in green power uptake function (regression parameter)",
         ),
-        ParamAxisArray(
+        ParamArray(
             "GreenPowerPrice_coefficient",
             (model_data.index_h,),
             KeyedArray(
@@ -246,7 +246,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
                 [get_pair(model_data.index_h)]...),
             description = "Sum of PPA and REC prices (regression parameter)",
         ),
-        ParamAxisArray(
+        ParamArray(
             "EnergyRate_coefficient",
             (model_data.index_h,),
             KeyedArray(
@@ -254,7 +254,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
                 [get_pair(model_data.index_h)]...),
             description = "Weighted mean C&I volumetric (\$/MWh) rate (regression parameter)",
         ),
-        ParamAxisArray(
+        ParamArray(
             "WholesaleMarket_coefficient",
             (model_data.index_h,),
             KeyedArray(
@@ -262,7 +262,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
                 [get_pair(model_data.index_h)]...),
             description = "% of load served by an ISO (regression parameter)",
         ),
-        ParamAxisArray(
+        ParamArray(
             "RetailCompetition_coefficient",
             (model_data.index_h,),
             KeyedArray(
@@ -270,7 +270,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
                 [get_pair(model_data.index_h)]...),
             description = "% of C&I customers that are eligible for retail choice (regression parameter)",
         ),
-        ParamAxisArray(
+        ParamArray(
             "RPS_coefficient",
             (model_data.index_h,),
             KeyedArray(
@@ -278,7 +278,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
                 [get_pair(model_data.index_h)]...),
             description = "RPS percentage requirement in 2019 (regression parameter)",
         ),
-        ParamAxisArray(
+        ParamArray(
             "WTP_coefficient",
             (model_data.index_h,),
             KeyedArray(
@@ -344,8 +344,8 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ),
         rho_DG,
         ParamScalar("delta", 0.05),
-        ParamAxisArray("PeakLoad", (model_data.index_h,), MaxLoad),
-        ParamAxisArray(
+        ParamArray("PeakLoad", (model_data.index_h,), MaxLoad),
+        ParamArray(
             "PeakLoad_my",
             Tuple(push!(copy([model_data.index_y]), model_data.index_h)),
             MaxLoad_my,
@@ -422,7 +422,7 @@ function solve_agent_problem!(
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
 
-    x_DG_before = ParamAxisArray(customers.x_DG_new, "x_DG_before")
+    x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
     for h in model_data.index_h, m in customers.index_m
         x_DG_before(h, m, :) .= customers.x_DG_new_my(reg_year_index, h, m)
@@ -552,7 +552,7 @@ function solve_agent_problem!(
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
 
-    x_green_sub_before = ParamAxisArray(customers.x_green_sub, "x_green_sub_before")
+    x_green_sub_before = ParamArray(customers.x_green_sub, "x_green_sub_before")
     fill!(x_green_sub_before, NaN)
     for h in model_data.index_h
         x_green_sub_before(h, :) .= customers.x_green_sub_my(reg_year_index, h)
@@ -644,7 +644,7 @@ function solve_agent_problem!(
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
 
-    x_DG_before = ParamAxisArray(customers.x_DG_new, "x_DG_before")
+    x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
     for h in model_data.index_h, m in customers.index_m
         x_DG_before(h, m, :) .= customers.x_DG_new_my(reg_year_index, h, m)
@@ -755,7 +755,7 @@ function solve_agent_problem!(
     # @info "Original new DG" x_DG_before
     # @info "New new DG" customers.x_DG_new
 
-    x_green_sub_before = ParamAxisArray(customers.x_green_sub, "x_green_sub_before")
+    x_green_sub_before = ParamArray(customers.x_green_sub, "x_green_sub_before")
     fill!(x_green_sub_before, NaN)
     for h in model_data.index_h
         x_green_sub_before(h, :) .= customers.x_green_sub_my(reg_year_index, h)

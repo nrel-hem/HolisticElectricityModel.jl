@@ -16,9 +16,9 @@ mutable struct HEMData
     index_j::Dimension # green tariff technologies
 
     # Parameters
-    omega::ParamAxisArray # number of hours per timeslice
-    year::ParamAxisArray
-    hour::ParamAxisArray
+    omega::ParamArray # number of hours per timeslice
+    year::ParamArray
+    hour::ParamArray
     year_start::ParamScalar
 end
 

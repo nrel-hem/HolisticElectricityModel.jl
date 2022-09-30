@@ -43,7 +43,7 @@ function read_param(
     description::AbstractString = "",
 )
     vals = read_record_file(KeyedArray, filename, sheetname, 1)
-    result = ParamAxisArray(
+    result = ParamArray(
         name,
         (index,),
         vals,
@@ -98,7 +98,7 @@ function read_param(
     end
     # TODO DT: make negative test to verify that conflicting inputs are rejected.
     result =
-        ParamAxisArray(name, dims, vals, prose_name = prose_name, description = description)
+        ParamArray(name, dims, vals, prose_name = prose_name, description = description)
     @debug "Loaded $sheetname" result
     return result
 end
@@ -302,7 +302,7 @@ function configure_logging(;
 end
 
 """
-Returns a ParamAxisArray with all values set to value.
+Returns a ParamArray with all values set to value.
 """
 function initialize_param(
     name::AbstractString,
@@ -311,7 +311,7 @@ function initialize_param(
     prose_name = "",
     description = "",
 )
-    return ParamAxisArray(
+    return ParamArray(
         name,
         (index,),
         initialize_keyed_array(index; value=value),
@@ -321,7 +321,7 @@ function initialize_param(
 end
 
 """
-Return a ParamAxisArray with all values set to value, and indices formed from
+Return a ParamArray with all values set to value, and indices formed from
 Iterators.product(indices...).
 """
 function initialize_param(
@@ -333,7 +333,7 @@ function initialize_param(
 )
     num_dims = length(indices)
     param = try
-        ParamAxisArray(
+        ParamArray(
             name,
             indices,
             initialize_keyed_array(indices...; value=value),

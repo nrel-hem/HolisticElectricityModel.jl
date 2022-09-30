@@ -5,9 +5,9 @@ mutable struct GreenDeveloper <: AbstractGreenDeveloper
     "internal rate of return"
     irr::ParamScalar
     "ppa price"
-    ppa_my::ParamAxisArray
+    ppa_my::ParamArray
     "annual green tech buildout (under PPA)"
-    green_tech_buildout_my::ParamAxisArray
+    green_tech_buildout_my::ParamArray
 end
 
 function GreenDeveloper(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
@@ -89,7 +89,7 @@ function solve_agent_problem!(
 
     optimize!(Green_Developer_model)
 
-    green_tech_buildout_before = ParamAxisArray(green_developer.green_tech_buildout_my, "green_tech_buildout_before")
+    green_tech_buildout_before = ParamArray(green_developer.green_tech_buildout_my, "green_tech_buildout_before")
 
     for j in model_data.index_j, h in model_data.index_h
         green_developer.green_tech_buildout_my(reg_year_index, j, h, :) .= value.(x_green[j, h])

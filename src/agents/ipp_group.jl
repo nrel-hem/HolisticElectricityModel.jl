@@ -23,80 +23,80 @@ mutable struct IPPGroup <: AbstractIPPGroup
 
     # Parameters
     "existing capacity (MW)"
-    x_E::ParamAxisArray
+    x_E::ParamArray
     "fixed cost of existing capacity (\$/MW-yr)"
-    f_E::ParamAxisArray
+    f_E::ParamArray
     "fixed cost of new capacity (\$/MW-yr)"
-    f_C::ParamAxisArray
+    f_C::ParamArray
     "variable cost of existing capacity (\$/MWh)"
-    v_E::ParamAxisArray
+    v_E::ParamArray
     "variable cost of new capacity (\$/MWh)"
-    v_C::ParamAxisArray
+    v_C::ParamArray
     "availability of existing capacity (fraction)"
-    rho_E::ParamAxisArray
+    rho_E::ParamArray
     "availability of new capacity (fraction)"
-    rho_C::ParamAxisArray
-    eximport::ParamAxisArray # net export (MWh)
+    rho_C::ParamArray
+    eximport::ParamArray # net export (MWh)
     Peak_eximport::ParamScalar
     "Big M Parameter"
     B1GM::ParamScalar{<:Integer}
     zeta::ParamScalar # offer price factor cap
 
     # Primal Variables
-    y_E::ParamAxisArray
-    y_C::ParamAxisArray
-    x_R::ParamAxisArray
-    x_C::ParamAxisArray
-    miu::ParamAxisArray
-    o_E::ParamAxisArray # offer price of existing capacity ($/MWh)
-    o_C::ParamAxisArray # offer price of new capacity ($/MWh)
-    LMP::ParamAxisArray
+    y_E::ParamArray
+    y_C::ParamArray
+    x_R::ParamArray
+    x_C::ParamArray
+    miu::ParamArray
+    o_E::ParamArray # offer price of existing capacity ($/MWh)
+    o_C::ParamArray # offer price of new capacity ($/MWh)
+    LMP::ParamArray
 
     # Parameters (multi-year)
-    x_E_my::ParamAxisArray # existing capacity (MW)
-    fom_E_my::ParamAxisArray # fixed O&M of existing capacity ($/MW-yr)
-    fom_C_my::ParamAxisArray # fixed O&M of new capacity ($/MW-yr)
-    CapEx_my::ParamAxisArray # capital expense of new capacity ($/MW)
-    v_E_my::ParamAxisArray # variable cost of existing capacity ($/MWh)
-    v_C_my::ParamAxisArray # variable cost of new capacity ($/MWh)
-    rho_E_my::ParamAxisArray # availability of existing capacity (fraction)
-    rho_C_my::ParamAxisArray # availability of new capacity (fraction)
-    eximport_my::ParamAxisArray # net export (MWh)
-    pvf_cap::ParamAxisArray # present value factor of capital expenses
-    pvf_onm::ParamAxisArray # present value factor of o&m expenses
-    CRF_default::ParamAxisArray
-    Tax::ParamAxisArray
-    DebtRatio::ParamAxisArray
-    COD::ParamAxisArray
-    COE::ParamAxisArray
+    x_E_my::ParamArray # existing capacity (MW)
+    fom_E_my::ParamArray # fixed O&M of existing capacity ($/MW-yr)
+    fom_C_my::ParamArray # fixed O&M of new capacity ($/MW-yr)
+    CapEx_my::ParamArray # capital expense of new capacity ($/MW)
+    v_E_my::ParamArray # variable cost of existing capacity ($/MWh)
+    v_C_my::ParamArray # variable cost of new capacity ($/MWh)
+    rho_E_my::ParamArray # availability of existing capacity (fraction)
+    rho_C_my::ParamArray # availability of new capacity (fraction)
+    eximport_my::ParamArray # net export (MWh)
+    pvf_cap::ParamArray # present value factor of capital expenses
+    pvf_onm::ParamArray # present value factor of o&m expenses
+    CRF_default::ParamArray
+    Tax::ParamArray
+    DebtRatio::ParamArray
+    COD::ParamArray
+    COE::ParamArray
 
     # Primal Variables (multi-year)
-    y_E_my::ParamAxisArray
-    y_C_my::ParamAxisArray
-    x_R_my::ParamAxisArray
-    x_C_my::ParamAxisArray
-    o_E_my::ParamAxisArray # offer price of existing capacity ($/MWh)
-    o_C_my::ParamAxisArray # offer price of new capacity ($/MWh)
+    y_E_my::ParamArray
+    y_C_my::ParamArray
+    x_R_my::ParamArray
+    x_C_my::ParamArray
+    o_E_my::ParamArray # offer price of existing capacity ($/MWh)
+    o_C_my::ParamArray # offer price of new capacity ($/MWh)
     # Dual Variables (multi-year)
-    miu_my::ParamAxisArray
-    LMP_my::ParamAxisArray
-    eta_my::ParamAxisArray
-    lambda_my::ParamAxisArray
-    u_y_E_my::ParamAxisArray
-    u_y_C_my::ParamAxisArray
-    u_miu_my::ParamAxisArray
-    u_eta_my::ParamAxisArray
-    u_lambda_my::ParamAxisArray
-    x_R_cumu::ParamAxisArray
-    x_C_cumu::ParamAxisArray
+    miu_my::ParamArray
+    LMP_my::ParamArray
+    eta_my::ParamArray
+    lambda_my::ParamArray
+    u_y_E_my::ParamArray
+    u_y_C_my::ParamArray
+    u_miu_my::ParamArray
+    u_eta_my::ParamArray
+    u_lambda_my::ParamArray
+    x_R_cumu::ParamArray
+    x_C_cumu::ParamArray
 
     # Lagrange multiplier
-    L_R::ParamAxisArray
-    L_C::ParamAxisArray
-    x_R_my_st1::ParamAxisArray
-    x_C_my_st1::ParamAxisArray
-    x_R_my_st2::ParamAxisArray
-    x_C_my_st2::ParamAxisArray
+    L_R::ParamArray
+    L_C::ParamArray
+    x_R_my_st1::ParamArray
+    x_C_my_st1::ParamArray
+    x_R_my_st2::ParamArray
+    x_C_my_st2::ParamArray
     # value of objective function
     obj_st1::ParamScalar
     obj_st2::ParamScalar
@@ -105,35 +105,35 @@ mutable struct IPPGroup <: AbstractIPPGroup
     obj_feasible::ParamScalar
 
     #temporary save_results
-    y_E_my_temp::ParamAxisArray
-    y_C_my_temp::ParamAxisArray
-    x_R_my_temp::ParamAxisArray
-    x_C_my_temp::ParamAxisArray
-    miu_my_temp::ParamAxisArray
-    LMP_my_temp::ParamAxisArray
+    y_E_my_temp::ParamArray
+    y_C_my_temp::ParamArray
+    x_R_my_temp::ParamArray
+    x_C_my_temp::ParamArray
+    miu_my_temp::ParamArray
+    LMP_my_temp::ParamArray
 
     # capacity market parameters
-    NetCONE::ParamAxisArray
-    DC_length::ParamAxisArray
-    capacity_credit_E_my::ParamAxisArray # capacity credit of existing resources
-    capacity_credit_C_my::ParamAxisArray # capacity credit of new resources
-    capacity_price::ParamAxisArray # $/MW-yr
-    capacity_price_my_temp::ParamAxisArray
+    NetCONE::ParamArray
+    DC_length::ParamArray
+    capacity_credit_E_my::ParamArray # capacity credit of existing resources
+    capacity_credit_C_my::ParamArray # capacity credit of new resources
+    capacity_price::ParamArray # $/MW-yr
+    capacity_price_my_temp::ParamArray
 
-    Net_Load_my::ParamAxisArray
-    Max_Net_Load_my::ParamAxisArray
-    Reserve_req_my::ParamAxisArray
-    Capacity_slope_my::ParamAxisArray
-    Capacity_intercept_my::ParamAxisArray
-    ucap_temp::ParamAxisArray
-    ucap::ParamAxisArray
+    Net_Load_my::ParamArray
+    Max_Net_Load_my::ParamArray
+    Reserve_req_my::ParamArray
+    Capacity_slope_my::ParamArray
+    Capacity_intercept_my::ParamArray
+    ucap_temp::ParamArray
+    ucap::ParamArray
 
     # RPS
-    RPS::ParamAxisArray
+    RPS::ParamArray
 
     # emission rate
-    emission_rate_E_my::ParamAxisArray
-    emission_rate_C_my::ParamAxisArray
+    emission_rate_E_my::ParamArray
+    emission_rate_C_my::ParamArray
 end
 
 function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
@@ -200,7 +200,7 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
             [index_p],
         ),
         read_param("f_E", input_filename, "FixedCostOldIPP", index_k_existing, [index_p]),
-        ParamAxisArray("f_C", Tuple(push!(copy([index_p]), index_k_new)), FixedCostNew),
+        ParamArray("f_C", Tuple(push!(copy([index_p]), index_k_new)), FixedCostNew),
         read_param(
             "v_E",
             input_filename,
@@ -316,17 +316,17 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
             model_data.index_t,
             [model_data.index_y],
         ),
-        ParamAxisArray(
+        ParamArray(
             "pvf_cap",
             Tuple(push!(copy([model_data.index_y]), index_p)),
             pvf_cap,
         ),
-        ParamAxisArray(
+        ParamArray(
             "pvf_onm",
             Tuple(push!(copy([model_data.index_y]), index_p)),
             pvf_onm,
         ),
-        ParamAxisArray("CRF_default", (index_p,), CRF_default),
+        ParamArray("CRF_default", (index_p,), CRF_default),
         tax_rate,
         debt_ratio,
         cost_of_debt,
@@ -2104,8 +2104,8 @@ function solve_agent_problem_ipp_cap(
     update!(ipp.obj_upper_bound, Inf)
     update!(ipp.obj_lower_bound, -Inf)
 
-    x_R_before = ParamAxisArray(ipp.x_R_my)
-    x_C_before = ParamAxisArray(ipp.x_C_my)
+    x_R_before = ParamArray(ipp.x_R_my)
+    x_C_before = ParamArray(ipp.x_C_my)
 
     while optimality_gap >= tol && lagrange_iter <= max_iter_ipp
         ipp.obj_st1 = Lagrange_Sub_Investment_Retirement_Cap(
@@ -2264,8 +2264,8 @@ function solve_agent_problem_ipp_cap(
     agent_store::AgentStore,
     w_iter,
 )
-    x_R_before = ParamAxisArray(ipp.x_R_my)
-    x_C_before = ParamAxisArray(ipp.x_C_my)
+    x_R_before = ParamArray(ipp.x_R_my)
+    x_C_before = ParamArray(ipp.x_C_my)
 
     utility = get_agent(Utility, agent_store)
     regulator = get_agent(Regulator, agent_store)

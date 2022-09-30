@@ -116,7 +116,7 @@ end
 
 update!(param::ParamScalar, value) = param.value = value
 
-mutable struct ParamAxisArray{N} <: HEMParameter
+mutable struct ParamArray{N} <: HEMParameter
     name::String
     prose_name::String
     description::String
@@ -124,7 +124,7 @@ mutable struct ParamAxisArray{N} <: HEMParameter
     values::KeyedArray
 end
 
-ParamAxisArray(param::ParamAxisArray) = ParamAxisArray(
+ParamArray(param::ParamArray) = ParamArray(
     param.name,
     param.prose_name,
     param.description,
@@ -132,26 +132,26 @@ ParamAxisArray(param::ParamAxisArray) = ParamAxisArray(
     copy(param.values),
 )
 
-function ParamAxisArray(
-    param::ParamAxisArray,
+function ParamArray(
+    param::ParamArray,
     name::AbstractString;
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
-    return ParamAxisArray(name, prose_name, description, param.dims, copy(param.values))
+    return ParamArray(name, prose_name, description, param.dims, copy(param.values))
 end
 
-function ParamAxisArray(
+function ParamArray(
     name::AbstractString,
     dims::NTuple{N, Dimension},
     vals::KeyedArray;
     prose_name = "",
     description = "",
 ) where {N}
-    return ParamAxisArray(name, prose_name, description, dims, vals)
+    return ParamArray(name, prose_name, description, dims, vals)
 end
 
-@forward ParamAxisArray.values Base.length, 
+@forward ParamArray.values Base.length, 
     Base.getindex,
     Base.setindex!,
     Base.iterate,
@@ -166,20 +166,20 @@ end
     Base.IndexStyle,
     AxisKeys.axiskeys
 
-Base.pointer(A::ParamAxisArray, i::Integer) = Base.pointer(A.values, i)
+Base.pointer(A::ParamArray, i::Integer) = Base.pointer(A.values, i)
 
-Base.stride(A::ParamAxisArray, d::Integer) = Base.stride(A.values, d)
+Base.stride(A::ParamArray, d::Integer) = Base.stride(A.values, d)
 
-AxisKeys.axiskeys(A::ParamAxisArray, d::Int) = AxisKeys.axiskeys(A.values, d)
+AxisKeys.axiskeys(A::ParamArray, d::Int) = AxisKeys.axiskeys(A.values, d)
 
-# implement KeyedArray callable syntax for ParamAxisArrays
-(P::ParamAxisArray)(args...) = P.values(args...)
+# implement KeyedArray callable syntax for ParamArrays
+(P::ParamArray)(args...) = P.values(args...)
 
-#Base.:+(x::ParamAxisArray, y::ParamAxisArray) = x.values + y.values
-#Base.:-(x::ParamAxisArray, y::ParamAxisArray) = x.values - y.values
-#Base.:*(x::ParamAxisArray, y::ParamAxisArray) = x.values * y.values
-#Base.:(*)(x::ParamAxisArray, y::ParamAxisArray) = x.values .* y.values
-#Base.:(*)(x::Matrix, y::ParamAxisArray) = x .* y.values
+#Base.:+(x::ParamArray, y::ParamArray) = x.values + y.values
+#Base.:-(x::ParamArray, y::ParamArray) = x.values - y.values
+#Base.:*(x::ParamArray, y::ParamArray) = x.values * y.values
+#Base.:(*)(x::ParamArray, y::ParamArray) = x.values .* y.values
+#Base.:(*)(x::Matrix, y::ParamArray) = x .* y.values
 
 # TODO PERF: turn off fill_nan when we are confident in the code.
 """

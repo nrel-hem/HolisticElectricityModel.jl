@@ -31,7 +31,7 @@ abstract type AbstractDistributionUtility <: AgentGroup end
 
 mutable struct DistributionUtility <: AbstractDistributionUtility
     id::String
-    SAIDI::ParamAxisArray
+    SAIDI::ParamArray
     distribution_capex_balance_model::DistributionCapexBalanceModel
     distribution_capex_addition_model::DistributionCapexAdditionModel
     distribution_om_cost_model::DistributionOMCostModel
@@ -39,14 +39,14 @@ mutable struct DistributionUtility <: AbstractDistributionUtility
     capex_addition_norm_inputs::DataFrame
     om_cost_norm_inputs::DataFrame
     beginning_balance_lifetime::Float64
-    DistCumuTaxDepre_new_my::ParamAxisArray # cumulative tax depreciation of new capacity (%)
-    DistCumuAccoutDepre_new_my::ParamAxisArray # cumulative accounting depreciation of new capacity (%)
-    DistITC_new_my::ParamAxisArray # ITC of new capacity (%)
-    DistCumuITCAmort_new_my::ParamAxisArray # ITC amortization of new capacity (%)
-    DistAnnualAccoutDepre_new_my::ParamAxisArray # annual accounting depreciation of new capacity (%)
-    DistAnnualTaxDepre_new_my::ParamAxisArray # annual tax depreciation of new capacity (%) 
-    DistCapExAddition_new_my::ParamAxisArray
-    DistOMCost_new_my::ParamAxisArray
+    DistCumuTaxDepre_new_my::ParamArray # cumulative tax depreciation of new capacity (%)
+    DistCumuAccoutDepre_new_my::ParamArray # cumulative accounting depreciation of new capacity (%)
+    DistITC_new_my::ParamArray # ITC of new capacity (%)
+    DistCumuITCAmort_new_my::ParamArray # ITC amortization of new capacity (%)
+    DistAnnualAccoutDepre_new_my::ParamArray # annual accounting depreciation of new capacity (%)
+    DistAnnualTaxDepre_new_my::ParamArray # annual tax depreciation of new capacity (%) 
+    DistCapExAddition_new_my::ParamArray
+    DistOMCost_new_my::ParamArray
     Tax::ParamScalar
     DaysofWC::ParamScalar
     DebtRatio::ParamScalar

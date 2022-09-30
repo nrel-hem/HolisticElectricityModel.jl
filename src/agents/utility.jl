@@ -14,51 +14,51 @@ mutable struct Utility <: AbstractUtility
 
     # Parameters
     "existing capacity (MW)"
-    x_E::ParamAxisArray
+    x_E::ParamArray
     "fixed cost of existing capacity (\$/MW-yr)"
-    f_E::ParamAxisArray
+    f_E::ParamArray
     "fixed cost of new capacity (\$/MW-yr)"
-    f_C::ParamAxisArray
+    f_C::ParamArray
     "variable cost of existing capacity (\$/MWh)"
-    v_E::ParamAxisArray
+    v_E::ParamArray
     "variable cost of new capacity (\$/MWh)"
-    v_C::ParamAxisArray
+    v_C::ParamArray
     "availability of existing capacity (fraction)"
-    rho_E::ParamAxisArray
+    rho_E::ParamArray
     "availability of new capacity (fraction)"
-    rho_C::ParamAxisArray
+    rho_C::ParamArray
     "net export (MWh)"
-    eximport::ParamAxisArray
+    eximport::ParamArray
     "peak export"
     Peak_eximport::ParamScalar
 
     # Primal Variables
-    y_E::ParamAxisArray
-    y_C::ParamAxisArray
-    x_R::ParamAxisArray
-    x_C::ParamAxisArray
+    y_E::ParamArray
+    y_C::ParamArray
+    x_R::ParamArray
+    x_C::ParamArray
     # Dual Variables
-    miu::ParamAxisArray
+    miu::ParamArray
 
     # Finance Related Parameters
-    CapEx_existing::ParamAxisArray # capital cost of existing capacity ($/MW)
-    CumuTaxDepre_existing::ParamAxisArray # cumulative tax depreciation of existing capacity (%)
-    CumuAccoutDepre_existing::ParamAxisArray # cumulative accounting depreciation of existing capacity (%)
-    AnnualAccoutDepre_existing::ParamAxisArray # annual accounting depreciation of existing capacity (%)
-    ITC_existing::ParamAxisArray # ITC of existing capacity (%)
-    CumuITCAmort_existing::ParamAxisArray # ITC amortization of existing capacity (%)
-    ADIT_existing::ParamAxisArray # accumulated deferred income taxes ($/MW)
-    RateBaseNoWC_existing::ParamAxisArray # rate base (excluding working capital) ($/MW)
+    CapEx_existing::ParamArray # capital cost of existing capacity ($/MW)
+    CumuTaxDepre_existing::ParamArray # cumulative tax depreciation of existing capacity (%)
+    CumuAccoutDepre_existing::ParamArray # cumulative accounting depreciation of existing capacity (%)
+    AnnualAccoutDepre_existing::ParamArray # annual accounting depreciation of existing capacity (%)
+    ITC_existing::ParamArray # ITC of existing capacity (%)
+    CumuITCAmort_existing::ParamArray # ITC amortization of existing capacity (%)
+    ADIT_existing::ParamArray # accumulated deferred income taxes ($/MW)
+    RateBaseNoWC_existing::ParamArray # rate base (excluding working capital) ($/MW)
 
-    CapEx_new::ParamAxisArray # capital cost of new capacity ($/MW)
-    CumuTaxDepre_new::ParamAxisArray # cumulative tax depreciation of new capacity (%)
-    CumuAccoutDepre_new::ParamAxisArray # cumulative accounting depreciation of new capacity (%)
-    ITC_new::ParamAxisArray # ITC of new capacity (%)
-    CumuITCAmort_new::ParamAxisArray # ITC amortization of new capacity (%)
-    ADIT_new::ParamAxisArray # accumulated deferred income taxes ($/MW)
-    FOM_new::ParamAxisArray # fixed O&M of new capacity ($/MW-yr)
-    Lifetime_new::ParamAxisArray # lifetime of new capacity (yrs)
-    RateBaseNoWC_new::ParamAxisArray # rate base (excluding working capital) ($/MW)
+    CapEx_new::ParamArray # capital cost of new capacity ($/MW)
+    CumuTaxDepre_new::ParamArray # cumulative tax depreciation of new capacity (%)
+    CumuAccoutDepre_new::ParamArray # cumulative accounting depreciation of new capacity (%)
+    ITC_new::ParamArray # ITC of new capacity (%)
+    CumuITCAmort_new::ParamArray # ITC amortization of new capacity (%)
+    ADIT_new::ParamArray # accumulated deferred income taxes ($/MW)
+    FOM_new::ParamArray # fixed O&M of new capacity ($/MW-yr)
+    Lifetime_new::ParamArray # lifetime of new capacity (yrs)
+    RateBaseNoWC_new::ParamArray # rate base (excluding working capital) ($/MW)
 
     DebtRatio::ParamScalar
     COD::ParamScalar
@@ -67,81 +67,81 @@ mutable struct Utility <: AbstractUtility
     DaysofWC::ParamScalar
 
     # Parameters (multi-year)
-    x_E_my::ParamAxisArray # existing capacity (MW)
-    fom_E_my::ParamAxisArray # fixed O&M of existing capacity ($/MW-yr)
-    fom_C_my::ParamAxisArray # fixed O&M of new capacity ($/MW-yr)
-    CapEx_my::ParamAxisArray # capital expense of new capacity ($/MW)
-    v_E_my::ParamAxisArray # variable cost of existing capacity ($/MWh)
-    v_C_my::ParamAxisArray # variable cost of new capacity ($/MWh)
-    rho_E_my::ParamAxisArray # availability of existing capacity (fraction)
-    rho_C_my::ParamAxisArray # availability of new capacity (fraction)
-    eximport_my::ParamAxisArray # net export (MWh)
-    pvf_cap::ParamAxisArray # present value factor of capital expenses
-    pvf_onm::ParamAxisArray # present value factor of o&m expenses
+    x_E_my::ParamArray # existing capacity (MW)
+    fom_E_my::ParamArray # fixed O&M of existing capacity ($/MW-yr)
+    fom_C_my::ParamArray # fixed O&M of new capacity ($/MW-yr)
+    CapEx_my::ParamArray # capital expense of new capacity ($/MW)
+    v_E_my::ParamArray # variable cost of existing capacity ($/MWh)
+    v_C_my::ParamArray # variable cost of new capacity ($/MWh)
+    rho_E_my::ParamArray # availability of existing capacity (fraction)
+    rho_C_my::ParamArray # availability of new capacity (fraction)
+    eximport_my::ParamArray # net export (MWh)
+    pvf_cap::ParamArray # present value factor of capital expenses
+    pvf_onm::ParamArray # present value factor of o&m expenses
     CRF_default::ParamScalar
-    Peak_eximport_my::ParamAxisArray
+    Peak_eximport_my::ParamArray
 
     # Primal Variables (multi-year)
-    y_E_my::ParamAxisArray
-    y_C_my::ParamAxisArray
-    x_R_my::ParamAxisArray
-    x_C_my::ParamAxisArray
+    y_E_my::ParamArray
+    y_C_my::ParamArray
+    x_R_my::ParamArray
+    x_C_my::ParamArray
     # Dual Variables (multi-year)
-    miu_my::ParamAxisArray
+    miu_my::ParamArray
 
     # Finance Related Parameters (multi-year)
-    CapEx_existing_my::ParamAxisArray # capital cost of existing capacity ($/MW)
-    CumuTaxDepre_existing_my::ParamAxisArray # cumulative tax depreciation of existing capacity (%)
-    CumuAccoutDepre_existing_my::ParamAxisArray # cumulative accounting depreciation of existing capacity (%)
-    AnnualAccoutDepre_existing_my::ParamAxisArray # annual accounting depreciation of existing capacity (%)
-    AnnualTaxDepre_existing_my::ParamAxisArray # annual tax depreciation of existing capacity (%)
-    ITC_existing_my::ParamAxisArray # ITC of existing capacity (%)
-    CumuITCAmort_existing_my::ParamAxisArray # ITC amortization of existing capacity (%)
-    AnnualITCAmort_existing_my::ParamAxisArray # ITC amortization of existing capacity (%)
-    ADIT_existing_my::ParamAxisArray # accumulated deferred income taxes ($/MW)
-    RateBaseNoWC_existing_my::ParamAxisArray # rate base (excluding working capital) ($/MW)
+    CapEx_existing_my::ParamArray # capital cost of existing capacity ($/MW)
+    CumuTaxDepre_existing_my::ParamArray # cumulative tax depreciation of existing capacity (%)
+    CumuAccoutDepre_existing_my::ParamArray # cumulative accounting depreciation of existing capacity (%)
+    AnnualAccoutDepre_existing_my::ParamArray # annual accounting depreciation of existing capacity (%)
+    AnnualTaxDepre_existing_my::ParamArray # annual tax depreciation of existing capacity (%)
+    ITC_existing_my::ParamArray # ITC of existing capacity (%)
+    CumuITCAmort_existing_my::ParamArray # ITC amortization of existing capacity (%)
+    AnnualITCAmort_existing_my::ParamArray # ITC amortization of existing capacity (%)
+    ADIT_existing_my::ParamArray # accumulated deferred income taxes ($/MW)
+    RateBaseNoWC_existing_my::ParamArray # rate base (excluding working capital) ($/MW)
 
-    CumuTaxDepre_new_my::ParamAxisArray # cumulative tax depreciation of new capacity (%)
-    CumuAccoutDepre_new_my::ParamAxisArray # cumulative accounting depreciation of new capacity (%)
-    ITC_new_my::ParamAxisArray # ITC of new capacity (%)
-    CumuITCAmort_new_my::ParamAxisArray # ITC amortization of new capacity (%)
-    AnnualITCAmort_new_my::ParamAxisArray # ITC amortization of new capacity (%)
-    AnnualAccoutDepre_new_my::ParamAxisArray # annual accounting depreciation of new capacity (%)
-    AnnualTaxDepre_new_my::ParamAxisArray # annual tax depreciation of new capacity (%) 
+    CumuTaxDepre_new_my::ParamArray # cumulative tax depreciation of new capacity (%)
+    CumuAccoutDepre_new_my::ParamArray # cumulative accounting depreciation of new capacity (%)
+    ITC_new_my::ParamArray # ITC of new capacity (%)
+    CumuITCAmort_new_my::ParamArray # ITC amortization of new capacity (%)
+    AnnualITCAmort_new_my::ParamArray # ITC amortization of new capacity (%)
+    AnnualAccoutDepre_new_my::ParamArray # annual accounting depreciation of new capacity (%)
+    AnnualTaxDepre_new_my::ParamArray # annual tax depreciation of new capacity (%) 
 
-    x_R_cumu::ParamAxisArray
-    x_C_cumu::ParamAxisArray
+    x_R_cumu::ParamArray
+    x_C_cumu::ParamArray
 
     # capacity
-    capacity_credit_E_my::ParamAxisArray # capacity credit of existing resources
-    capacity_credit_C_my::ParamAxisArray # capacity credit of new resources
-    Net_Load_my::ParamAxisArray
-    Max_Net_Load_my::ParamAxisArray
-    Reserve_req_my::ParamAxisArray
+    capacity_credit_E_my::ParamArray # capacity credit of existing resources
+    capacity_credit_C_my::ParamArray # capacity credit of new resources
+    Net_Load_my::ParamArray
+    Max_Net_Load_my::ParamArray
+    Reserve_req_my::ParamArray
 
     # RPS
-    RPS::ParamAxisArray
-    rec_my::ParamAxisArray
+    RPS::ParamArray
+    rec_my::ParamArray
 
     # distribution loss
     loss_dist::ParamScalar
 
     # emission rate
-    emission_rate_E_my::ParamAxisArray
-    emission_rate_C_my::ParamAxisArray
+    emission_rate_E_my::ParamArray
+    emission_rate_C_my::ParamArray
 
     # Lagrange decomposition
-    x_R_feasible::ParamAxisArray
-    x_C_feasible::ParamAxisArray
+    x_R_feasible::ParamArray
+    x_C_feasible::ParamArray
     obj_feasible::ParamScalar
     obj_upper_bound::ParamScalar
     obj_lower_bound::ParamScalar
-    L_R_my::ParamAxisArray
-    L_C_my::ParamAxisArray
-    x_R_my_decomp::ParamAxisArray
-    x_C_my_decomp::ParamAxisArray
-    obj_my::ParamAxisArray
-    obj_my_feasible::ParamAxisArray
+    L_R_my::ParamArray
+    L_C_my::ParamArray
+    x_R_my_decomp::ParamArray
+    x_C_my_decomp::ParamArray
+    obj_my::ParamArray
+    obj_my_feasible::ParamArray
 end
 
 function Utility(
@@ -439,7 +439,7 @@ function Utility(
             index_k_existing,
             description = "fixed cost of existing capacity (\$/MW-yr)",
         ),
-        ParamAxisArray("f_C", (index_k_new,), FixedCostNew),
+        ParamArray("f_C", (index_k_new,), FixedCostNew),
         read_param(
             "v_E",
             input_filename,
@@ -495,17 +495,17 @@ function Utility(
         AnnualAccoutDepreOld,
         ITCOld,
         CumuITCAmortOld,
-        ParamAxisArray("ADIT_existing", (index_k_existing,), ADITOld),
-        ParamAxisArray("RateBaseNoWC_existing", (index_k_existing,), RateBaseNoWCOld),
+        ParamArray("ADIT_existing", (index_k_existing,), ADITOld),
+        ParamArray("RateBaseNoWC_existing", (index_k_existing,), RateBaseNoWCOld),
         CapExNew,
         CumuTaxDepreNew,
         CumuAccoutDepreNew,
         ITCNew,
         CumuITCAmortNew,
-        ParamAxisArray("ADIT_new", (index_k_existing,), ADITNew),
+        ParamArray("ADIT_new", (index_k_existing,), ADITNew),
         FOMNew,
         LifetimeNew,
-        ParamAxisArray("RateBaseNoWC_new", (index_k_existing,), RateBaseNoWCNew),
+        ParamArray("RateBaseNoWC_new", (index_k_existing,), RateBaseNoWCNew),
         debt_ratio,
         cost_of_debt,
         cost_of_equity,
@@ -562,10 +562,10 @@ function Utility(
             [index_k_new],
         ),
         eximport_my,
-        ParamAxisArray("pvf_cap", (model_data.index_y,), pvf_cap),
-        ParamAxisArray("pvf_onm", (model_data.index_y,), pvf_onm),
+        ParamArray("pvf_cap", (model_data.index_y,), pvf_cap),
+        ParamArray("pvf_onm", (model_data.index_y,), pvf_onm),
         ParamScalar("CRF_default", CRF_default, description = "capital recovery factor"),
-        ParamAxisArray("Peak_eximport_my", (model_data.index_y,), peak_eximport_my),
+        ParamArray("Peak_eximport_my", (model_data.index_y,), peak_eximport_my),
         initialize_param(
             "y_E_my",
             model_data.index_y,
@@ -584,12 +584,12 @@ function Utility(
         ITCOld_my,
         CumuITCAmortOld_my,
         AnnualITCAmortOld_my,
-        ParamAxisArray(
+        ParamArray(
             "ADIT_existing_my",
             Tuple(push!(copy([model_data.index_y]), index_k_existing)),
             ADITOld_my,
         ),
-        ParamAxisArray(
+        ParamArray(
             "RateBaseNoWC_existing_my",
             Tuple(push!(copy([model_data.index_y]), index_k_existing)),
             RateBaseNoWCOld_my,
@@ -986,8 +986,8 @@ function solve_agent_problem!(
         utility.y_C_my(y, k, t, :) .= value.(y_C[y, k, t])
     end
 
-    x_R_before = ParamAxisArray(utility.x_R_my)
-    x_C_before = ParamAxisArray(utility.x_C_my)
+    x_R_before = ParamArray(utility.x_R_my)
+    x_C_before = ParamArray(utility.x_C_my)
     for y in model_data.index_y, k in utility.index_k_existing
         utility.x_R_my(y, k, :) .= value.(x_R[y, k])
     end
