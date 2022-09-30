@@ -65,4 +65,6 @@ function run_hem(
     finally
         close(logger)
     end
+    
+    return output_dir
 end

@@ -1,15 +1,17 @@
+#driver_name = "driver_gurobi.jl"
+driver_name = "driver_xpress.jl"
+
 @testset "Test driver" begin
-    script_filename = joinpath(BASE_DIR, "script", "driver.jl")
-    output_dir = joinpath(DATA_DIR, "outputs")
-    for file in [x for x in readdir(output_dir, join = true) if splitext(x) == ".csv"]
-        isfile(file) && rm(file)
-    end
+    script_filename = joinpath(BASE_DIR, "script", driver_name)
 
     include(script_filename)
+    scenario_dir = basename(dirname(output_dir))
+    results_dir = basename(output_dir)
 
-    expected_results_dir = joinpath(BASE_DIR, "test", "driver_outputs")
+    expected_results_dir = joinpath(BASE_DIR, "test", "driver_outputs", scenario_dir, results_dir)
     for exp_file in readdir(expected_results_dir, join = true)
-        actual = sort!(read_dataframe(joinpath(DATA_DIR, "outputs", basename(exp_file))))
+        !(splitext(exp_file)[2] == ".csv") && continue
+        actual = sort!(read_dataframe(joinpath(output_dir, basename(exp_file))))
         expected = sort!(read_dataframe(exp_file))
         for col in names(expected)
             actual_data = actual[!, col]

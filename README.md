@@ -69,6 +69,32 @@ Note that a few solver packages are installed in the `test` project and not in t
 package. The HolisticElectricityModel team used those solvers for test and development. The intention is to allow
 users to install any compatible solver in their own environment.
 
+To set up the `test` environment before running in either of the manners described below, complete the following 
+set-up steps.
+
+First, if you don't have Gurobi installed on your system, set the GUROBI_JL_SKIP_LIB_CHECK environment variable:
+
+*Linux/Mac*
+```bash
+$ export GUROBI_JL_SKIP_LIB_CHECK=1
+```
+
+*Windows*
+```
+> set GUROBI_JL_SKIP_LIB_CHECK=1
+```
+
+Second, install HolisticElectricityModel.jl in the test project:
+
+```bash
+> julia
+```
+```julia
+julia> ]
+pkg> activate test
+pkg> dev .
+```
+
 #### REPL
 
 Open the REPL from the HolisticElectrictyModel.jl directory. Then:
@@ -77,6 +103,19 @@ Open the REPL from the HolisticElectrictyModel.jl directory. Then:
 julia> ]
 pkg> activate test
 # Hit Backspace
+julia> include("script/driver.jl")
+```
+
+or, if you specify the test project when you open the REPL:
+
+```bash
+> cd ~/HolisticElectricityModel.jl
+> julia --project=test
+```
+
+then you can simply:
+
+```julia
 julia> include("script/driver.jl")
 ```
 

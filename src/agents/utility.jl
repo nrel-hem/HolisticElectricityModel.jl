@@ -719,7 +719,7 @@ function solve_agent_problem!(
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
 
-    VIUDER_Utility = get_new_jump_model(utility_ops.solvers)
+    VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
 
     # Define positive variables
     @variable(VIUDER_Utility, x_C[model_data.index_y, utility.index_k_new] >= 0)
@@ -1129,7 +1129,7 @@ function solve_agent_problem_decomposition_by_year(
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
 
-    VIUDER_Utility = get_new_jump_model(utility_ops.solvers)
+    VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
 
     Number_of_years =
         Int(model_data.year[year] - model_data.year[first(model_data.index_y)] + 1)
@@ -1470,7 +1470,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
 
-    VIUDER_Utility = get_new_jump_model(utility_ops.solvers)
+    VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
 
     Number_of_years =
         Int(model_data.year[year] - model_data.year[first(model_data.index_y)] + 1)
@@ -1826,7 +1826,7 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
     # solve the original problem with feasible investment and retirement fixed
     customers = get_agent(CustomerGroup, agent_store)
 
-    VIUDER_Utility_feasible = get_new_jump_model(utility_ops.solvers)
+    VIUDER_Utility_feasible = get_new_jump_model(utility_opts.solvers)
 
     # Define positive variables
     @variable(
