@@ -104,58 +104,6 @@ function read_param(
 end
 
 """
-Return an AxisArray from an N-dimensional array flattened in a CSV file.
-
-If there is one dimension then the file must have a single row with dimension names.
-If there is more than one dimension then it must conform to the following format:
-
-The header row consists of dimension names for the first N-1 dimensions followed by the last
-dimension's element ids pivoted out to form data column headers.
-
-The data rows contain dimension element ids in the first N-1 columns followed by parameter
-values in the remaining columns. Each value maps to the dimension element ids listed in the
-row's first N-1 columns plus the dimension element id found in that value's column.
-
-3-dimension example:
-
-d1_variable_name,d2_variable_name,d3_name1,d3_name2,d3_name3
-d1_name1,d2_name1,1.0,1.0,1.0
-d1_name2,d2_name2,1.0,1.0,1.0
-"""
-function read_axis_array(filename::AbstractString, num_dims::Int)
-    @debug "read_axis_array" filename num_dims
-    file = open(filename) do io
-        CSV.File(io)
-    end
-
-    isempty(file) && error("$filename is empty")
-    return read_axis_array(file, num_dims)
-end
-
-function read_axis_array(file::CSV.File, num_dims)
-    if num_dims == 1
-        data = [getproperty(file, x)[1] for x in file.names]
-        return AxisArray(data, file.names)
-    end
-
-    index_names = Vector{Vector{Symbol}}(undef, num_dims)
-    for i in 1:(num_dims - 1)
-        index_names[i] = Symbol.(unique(file.columns[i]))
-    end
-    index_names[num_dims] = Symbol.(file.names[num_dims:end])
-
-    data =
-        AxisArray(Array{Float64, num_dims}(undef, length.(index_names)...), index_names...)
-    for i in 1:(file.rows)
-        indices = [Symbol(file.columns[j][i]) for j in 1:(num_dims - 1)]
-        data[indices...] =
-            [file.columns[x + num_dims - 1][i] for x in 1:length(index_names[end])]
-    end
-
-    return data
-end
-
-"""
 Return a KeyedArray from an N-dimensional array flattened in a CSV file.
 
 If there is one dimension then the file must have a single row with dimension names.
@@ -222,21 +170,6 @@ function read_record_file(::Type{DataFrame}, filename, sheetname)
     return read_dataframe(record_file)
 end
 
-function read_record_file(::Type{AxisArray}, filename, sheetname, num_dims)
-    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
-    workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
-    record_file = joinpath(workbook_dir, sheetname * ".csv")
-    # ETH@20220928 - Testing that we can deprecate this code
-    # if !isfile(record_file)
-    #     df = DataFrame(XLSX.readtable(filename, sheetname)...)
-    #     mkpath(workbook_dir)
-    #     to_csv(df, record_file)
-    #     @info "Converted $filename $sheetname to $record_file"
-    # end
-
-    return read_axis_array(record_file, num_dims)
-end
-
 function read_record_file(::Type{KeyedArray}, filename, sheetname, num_dims)
     base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
     workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
@@ -287,8 +220,8 @@ function compute_difference_one_norm(before_after_pairs)
     result = 0.0
     for (before, after) in before_after_pairs
         result += sum((
-            abs(after[i...] - before[i...]) for
-            i in Iterators.product(AxisArrays.axes(before)...)
+            abs(after(i...) - before(i...)) for
+            i in Iterators.product(AxisKeyes.axiskeys(before)...)
         ))
     end
     return result
@@ -298,8 +231,8 @@ function compute_difference_percentage_one_norm(before_after_pairs)
     result_vec = []
     for (before, after) in before_after_pairs
         result_one = sum((
-            before[i...] == 0.0 ? abs(after[i...] - before[i...]) : abs(after[i...] - before[i...]) / before[i...] for
-            i in Iterators.product(AxisArrays.axes(before)...)
+            before(i...) == 0.0 ? abs(after(i...) - before(i...)) : abs(after(i...) - before(i...)) / before(i...) for
+            i in Iterators.product(AxisKeys.axiskeys(before)...)
         ))
         push!(result_vec, result_one)
     end
@@ -388,7 +321,7 @@ function initialize_param(
 end
 
 """
-Return an AxisArray with all values set to value, and indices formed from
+Return a ParamAxisArray with all values set to value, and indices formed from
 Iterators.product(indices...).
 """
 function initialize_param(

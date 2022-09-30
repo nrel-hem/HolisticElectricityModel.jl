@@ -5,7 +5,6 @@ version = "0.1.0"
 
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-AxisArrays = "39de3d68-74b9-583c-8d2d-e117c070f3a9"
 AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
 CSV = "336ed68f-0bac-5ca0-87d4-7b16caf5d00b"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -29,7 +28,6 @@ XLSX = "fdbf4ff8-1666-58a4-91e7-1b58723a45e0"
 Xpress = "9e70acf3-d6c9-5be6-b5bd-4e2c73e3e054"
 
 [compat]
-AxisArrays = "~0.4"
 CSV = "~0.8"
 DataFrames = "1"
 DataStructures = "~0.18"

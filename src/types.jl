@@ -151,14 +151,26 @@ function ParamAxisArray(
     return ParamAxisArray(name, prose_name, description, dims, vals)
 end
 
-@forward ParamAxisArray.values Base.getindex,
-Base.setindex!,
-Base.findmax,
-Base.fill!,
-Base.length,
-Base.iterate,
-Base.transpose,
-AxisArrays.axes
+@forward ParamAxisArray.values Base.length, 
+    Base.getindex,
+    Base.setindex!,
+    Base.iterate,
+    Base.findmax,
+    Base.fill!,
+    Base.size,
+    Base.axes,
+    Base.eachindex,
+    Base.keys,
+    Base.strides,
+    Base.transpose,
+    Base.IndexStyle,
+    AxisKeys.axiskeys
+
+Base.pointer(A::ParamAxisArray, i::Integer) = Base.pointer(A.values, i)
+
+Base.stride(A::ParamAxisArray, d::Integer) = Base.stride(A.values, d)
+
+AxisKeys.axiskeys(A::ParamAxisArray, d::Int) = AxisKeys.axiskeys(A.values, d)
 
 # implement KeyedArray callable syntax for ParamAxisArrays
 (P::ParamAxisArray)(args...) = P.values(args...)
@@ -170,18 +182,6 @@ AxisArrays.axes
 #Base.:(*)(x::Matrix, y::ParamAxisArray) = x .* y.values
 
 # TODO PERF: turn off fill_nan when we are confident in the code.
-"""
-Return an uninitialized AxisArray from any number of Dimension values.
-"""
-function make_axis_array(indices...; fill_nan = true)
-    array = AxisArray(
-        Array{Float64, length(indices)}(undef, length.(indices)...),
-        [getproperty(x, :elements) for x in indices]...,
-    )
-    fill_nan && fill!(array.data, NaN)
-    return array
-end
-
 """
 Return an uninitialized KeyedArray from any number of Dimension values.
 """

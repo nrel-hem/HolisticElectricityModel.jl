@@ -71,8 +71,6 @@ using Logging
 using JuMP
 using XLSX
 using Lazy: @forward
-import AxisArrays
-import AxisArrays: AxisArray
 import AxisKeys
 import AxisKeys: KeyedArray
 import CSV
