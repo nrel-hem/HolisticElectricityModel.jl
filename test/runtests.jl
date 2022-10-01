@@ -1,6 +1,7 @@
 using Logging
 using Test
 using TestSetExtensions
+using JuMP
 import InfrastructureSystems
 const IS = InfrastructureSystems
 using HolisticElectricityModel

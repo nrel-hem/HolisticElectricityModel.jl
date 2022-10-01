@@ -1,0 +1,305 @@
+┌ Info: 2022-09-30T15:43:15.209 [37072:1]: Output directory: C:\projects\HolisticElectricityModel.jl\test\driver_outputs\ba_1_base_2018_future_2_ipps_1\Results_DERUseCase_NullUseCase_VerticallyIntegratedUtility_TOU_ExcessZero_REC30.0
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\run_hem.jl:56
+┌ Info: 2022-09-30T15:43:16.092 [37072:1]: Utility, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:23.136 [37072:1]: IPPGroup, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:23.146 [37072:1]: Regulator, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:45.932 [37072:1]: Original retail price
+│   p_before = HolisticElectricityModel.ParamAxisArray{2}("p_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0; 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0; 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:979
+┌ Info: 2022-09-30T15:44:46.447 [37072:1]: Original DER excess rate
+│   p_ex_before = HolisticElectricityModel.ParamAxisArray{2}("p_ex_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0; 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0; 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:980
+┌ Info: 2022-09-30T15:44:47.012 [37072:1]: New retail price
+│   regulator.p = HolisticElectricityModel.ParamAxisArray{2}("p", "", "retail price", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [103.07865603427518 92.51268251769582 96.4707625768227 102.25568931823435 103.34298605863532 95.95508346162228 96.59739560062266 103.83929664383658 103.34298605863532 97.57092065383365 96.81075097073571 103.620217120654 103.34298605863532 91.79706756004734 91.71595608191603 102.56533069080444 97.3435510984043; 80.14883974455196 69.555399836078 73.600111062933 79.32247652785239 80.41562917251028 73.26269035807141 73.76598495380753 80.9105587103335 80.41562917251028 74.87086082461872 74.14565434854231 80.69286023452895 80.41562917251028 68.71274852836466 68.6760099571367 79.63144237432292 74.42293756167587; 68.40631694530987 57.817307132800195 61.86232576981191 67.58037740096336 68.67346640604806 61.524335503706965 62.02629855841507 69.1683706130506 68.67346640604806 63.13170959057572 62.40482656964887 68.95069746806675 68.67346640604806 56.97336155428806 56.93530341966339 67.88909303494076 62.685032363840016])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:981
+┌ Info: 2022-09-30T15:44:47.541 [37072:1]: New DER excess rate
+│   regulator.p_ex = HolisticElectricityModel.ParamAxisArray{2}("p_ex", "", "DER excess generation rate", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:982
+┌ Info: 2022-09-30T15:44:47.954 [37072:1]: CustomerGroup, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:49.915 [37072:1]: GreenDeveloper, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:49.941 [37072:1]: DistributionUtility, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:51.551 [37072:1]: Existing Distribution Balance: 1.4875166086687887e9
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:318
+┌ Info: 2022-09-30T15:44:51.551 [37072:1]: Existing Distribution Annual Depreciation: 1.6527962318542096e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:319
+┌ Info: 2022-09-30T15:44:51.551 [37072:1]: Existing Distribution Balance per MWh: 48.46835921072371
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:320
+┌ Info: 2022-09-30T15:44:53.513 [37072:1]: New Distribution Rate Base: 2.0879918207556507e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:438
+┌ Info: 2022-09-30T15:44:53.513 [37072:1]: New Distribution Annual Accounting Depreciation: 1.0427692722979797e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:439
+┌ Info: 2022-09-30T15:44:53.514 [37072:1]: New Distribution Annual Tax Depreciation: 7.820769542234846e6
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:440
+┌ Info: 2022-09-30T15:44:53.514 [37072:1]: New Distribution Rate Base per MWh: 6.805376441919322
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:441
+┌ Info: 2022-09-30T15:44:53.831 [37072:1]: Iteration 1 value: 824.9654781850678
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:300
+┌ Info: 2022-09-30T15:44:53.848 [37072:1]: Utility, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:53.888 [37072:1]: IPPGroup, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:53.889 [37072:1]: Regulator, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:53.921 [37072:1]: Original retail price
+│   p_before = HolisticElectricityModel.ParamAxisArray{2}("p_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [103.07865603427518 92.51268251769582 96.4707625768227 102.25568931823435 103.34298605863532 95.95508346162228 96.59739560062266 103.83929664383658 103.34298605863532 97.57092065383365 96.81075097073571 103.620217120654 103.34298605863532 91.79706756004734 91.71595608191603 102.56533069080444 97.3435510984043; 80.14883974455196 69.555399836078 73.600111062933 79.32247652785239 80.41562917251028 73.26269035807141 73.76598495380753 80.9105587103335 80.41562917251028 74.87086082461872 74.14565434854231 80.69286023452895 80.41562917251028 68.71274852836466 68.6760099571367 79.63144237432292 74.42293756167587; 68.40631694530987 57.817307132800195 61.86232576981191 67.58037740096336 68.67346640604806 61.524335503706965 62.02629855841507 69.1683706130506 68.67346640604806 63.13170959057572 62.40482656964887 68.95069746806675 68.67346640604806 56.97336155428806 56.93530341966339 67.88909303494076 62.685032363840016])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:979
+┌ Info: 2022-09-30T15:44:53.923 [37072:1]: Original DER excess rate
+│   p_ex_before = HolisticElectricityModel.ParamAxisArray{2}("p_ex_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:980
+┌ Info: 2022-09-30T15:44:53.926 [37072:1]: New retail price
+│   regulator.p = HolisticElectricityModel.ParamAxisArray{2}("p", "", "retail price", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [106.98292557303603 95.852455462053 100.15727558007674 106.16011856204369 107.24718261507348 99.0682925483751 100.18423479336766 107.74413246119654 107.24718261507347 100.94345875279816 100.00654471698533 107.52513889655086 107.24718261507347 94.3748285048547 94.72032298606094 106.46971198630362 101.18035332513267; 82.94194502750659 72.34400050225054 76.39291121745396 82.11593991660752 83.20857803452309 76.05547271994354 76.55887689843986 83.70419871558039 83.20857803452309 77.66439235672017 76.93867122566513 83.48653431600047 83.2085780345231 71.50038306720666 71.4635001577534 82.42480043694468 77.21618600241365; 70.66514161149159 60.07060187211253 64.11966872743412 69.83936171466951 70.93221809979165 63.78143003459765 64.28375686862854 71.42776152605099 70.93221809979165 65.3898311093759 64.66253388214217 71.21017438126904 70.93221809979165 59.225507309344806 59.187399897899 70.14802940662035 64.94290676812939])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:981
+┌ Info: 2022-09-30T15:44:53.929 [37072:1]: New DER excess rate
+│   regulator.p_ex = HolisticElectricityModel.ParamAxisArray{2}("p_ex", "", "DER excess generation rate", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:982
+┌ Info: 2022-09-30T15:44:53.931 [37072:1]: CustomerGroup, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:53.935 [37072:1]: GreenDeveloper, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:53.935 [37072:1]: DistributionUtility, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:53.936 [37072:1]: Existing Distribution Balance: 1.4875166086687887e9
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:318
+┌ Info: 2022-09-30T15:44:53.937 [37072:1]: Existing Distribution Annual Depreciation: 1.6527962318542096e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:319
+┌ Info: 2022-09-30T15:44:53.938 [37072:1]: Existing Distribution Balance per MWh: 48.46835921072371
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:320
+┌ Info: 2022-09-30T15:44:53.941 [37072:1]: New Distribution Rate Base: 2.0879941557822576e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:438
+┌ Info: 2022-09-30T15:44:53.942 [37072:1]: New Distribution Annual Accounting Depreciation: 1.0427702920467652e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:439
+┌ Info: 2022-09-30T15:44:53.943 [37072:1]: New Distribution Annual Tax Depreciation: 7.820777190350737e6
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:440
+┌ Info: 2022-09-30T15:44:53.944 [37072:1]: New Distribution Rate Base per MWh: 6.805454687670221
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:441
+┌ Info: 2022-09-30T15:44:53.944 [37072:1]: Iteration 2 value: 0.10793736738535514
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:300
+┌ Info: 2022-09-30T15:44:53.946 [37072:1]: Utility, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:53.984 [37072:1]: IPPGroup, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:53.985 [37072:1]: Regulator, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.019 [37072:1]: Original retail price
+│   p_before = HolisticElectricityModel.ParamAxisArray{2}("p_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [106.98292557303603 95.852455462053 100.15727558007674 106.16011856204369 107.24718261507348 99.0682925483751 100.18423479336766 107.74413246119654 107.24718261507347 100.94345875279816 100.00654471698533 107.52513889655086 107.24718261507347 94.3748285048547 94.72032298606094 106.46971198630362 101.18035332513267; 82.94194502750659 72.34400050225054 76.39291121745396 82.11593991660752 83.20857803452309 76.05547271994354 76.55887689843986 83.70419871558039 83.20857803452309 77.66439235672017 76.93867122566513 83.48653431600047 83.2085780345231 71.50038306720666 71.4635001577534 82.42480043694468 77.21618600241365; 70.66514161149159 60.07060187211253 64.11966872743412 69.83936171466951 70.93221809979165 63.78143003459765 64.28375686862854 71.42776152605099 70.93221809979165 65.3898311093759 64.66253388214217 71.21017438126904 70.93221809979165 59.225507309344806 59.187399897899 70.14802940662035 64.94290676812939])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:979
+┌ Info: 2022-09-30T15:44:54.022 [37072:1]: Original DER excess rate
+│   p_ex_before = HolisticElectricityModel.ParamAxisArray{2}("p_ex_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:980
+┌ Info: 2022-09-30T15:44:54.025 [37072:1]: New retail price
+│   regulator.p = HolisticElectricityModel.ParamAxisArray{2}("p", "", "retail price", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [106.98408501221212 95.85342840895316 100.15838332787729 106.16128367545318 107.24833946146373 99.06939483845696 100.18534698872384 107.74531201794116 107.24833946146373 100.944594299827 100.00766687688983 107.52632150672396 107.24833946146373 94.37577966934771 94.7212630134227 106.47087539603102 101.1814791513884; 82.94196334090026 72.34385868709856 76.39291873621472 82.1159709551499 83.20859079068963 76.05547963112713 76.55888767768417 83.70423602538955 83.20859079068963 77.66442586604096 76.9386864347509 83.48657283594986 83.20859079068963 71.50020690816646 71.46331885460046 82.42482773235184 77.2162094473421; 70.6658134911165 60.0710771389924 64.12028794275025 69.84003926648404 70.93288738698189 63.782040418364296 64.28438018459428 71.4284535221154 70.93288738698189 65.39047799988745 64.66316604955941 71.21086943224213 70.93288738698189 59.22594170945665 59.1878325452378 70.14870525497611 64.94354487503469])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:981
+┌ Info: 2022-09-30T15:44:54.029 [37072:1]: New DER excess rate
+│   regulator.p_ex = HolisticElectricityModel.ParamAxisArray{2}("p_ex", "", "DER excess generation rate", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:982
+┌ Info: 2022-09-30T15:44:54.030 [37072:1]: CustomerGroup, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.034 [37072:1]: GreenDeveloper, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.035 [37072:1]: DistributionUtility, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.036 [37072:1]: Existing Distribution Balance: 1.4875166086687887e9
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:318
+┌ Info: 2022-09-30T15:44:54.037 [37072:1]: Existing Distribution Annual Depreciation: 1.6527962318542096e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:319
+┌ Info: 2022-09-30T15:44:54.037 [37072:1]: Existing Distribution Balance per MWh: 48.46835921072371
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:320
+┌ Info: 2022-09-30T15:44:54.039 [37072:1]: New Distribution Rate Base: 2.0879941557268387e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:438
+┌ Info: 2022-09-30T15:44:54.040 [37072:1]: New Distribution Annual Accounting Depreciation: 1.0427702920225628e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:439
+┌ Info: 2022-09-30T15:44:54.040 [37072:1]: New Distribution Annual Tax Depreciation: 7.820777190169219e6
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:440
+┌ Info: 2022-09-30T15:44:54.042 [37072:1]: New Distribution Rate Base per MWh: 6.805454685813138
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:441
+┌ Info: 2022-09-30T15:44:54.043 [37072:1]: Iteration 3 value: 9.288567615090853e-5
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:300
+┌ Info: 2022-09-30T15:44:54.043 [37072:1]: Problem solved!
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:309
+┌ Info: 2022-09-30T15:44:54.044 [37072:1]: Utility, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.096 [37072:1]: IPPGroup, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.097 [37072:1]: Regulator, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.137 [37072:1]: Original retail price
+│   p_before = HolisticElectricityModel.ParamAxisArray{2}("p_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0; 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0; 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:979
+┌ Info: 2022-09-30T15:44:54.140 [37072:1]: Original DER excess rate
+│   p_ex_before = HolisticElectricityModel.ParamAxisArray{2}("p_ex_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0; 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0; 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0 10.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:980
+┌ Info: 2022-09-30T15:44:54.143 [37072:1]: New retail price
+│   regulator.p = HolisticElectricityModel.ParamAxisArray{2}("p", "", "retail price", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [87.2208478698847 76.71437063435755 80.77657237971118 86.47030511429833 87.45818113621652 79.70728051709578 80.79348793338846 87.93217439435588 87.44304427227797 81.47607668403373 80.60149190680369 87.67706449064259 87.4753954623324 75.28456637875952 75.63282646626801 86.73260049707329 81.75694667281607; 68.36852588274422 58.36504941140108 62.18547944738941 67.61496281843978 68.60809972826776 61.82256416989305 62.333396671847645 69.08084019011076 68.5929628643292 63.34101393543453 62.66574497544742 68.82698308269383 68.62531405438364 57.52921992618425 57.520053473047255 67.87657274162791 62.97726196241926; 58.74246257538758 48.742167364355765 52.562738938297755 57.98910519746151 58.982457953727916 52.19905312331748 52.708883389378364 59.455123757272204 58.96732108978936 53.71702470894856 53.04027558087763 59.201341308153985 58.99967227984379 47.90493057138295 47.89461643796623 58.25053535520321 53.35449245876606])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:981
+┌ Info: 2022-09-30T15:44:54.148 [37072:1]: New DER excess rate
+│   regulator.p_ex = HolisticElectricityModel.ParamAxisArray{2}("p_ex", "", "DER excess generation rate", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:982
+┌ Info: 2022-09-30T15:44:54.149 [37072:1]: CustomerGroup, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.381 [37072:1]: GreenDeveloper, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.381 [37072:1]: DistributionUtility, iteration 1
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.382 [37072:1]: Existing Distribution Balance: 1.322236985483368e9
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:318
+┌ Info: 2022-09-30T15:44:54.383 [37072:1]: Existing Distribution Annual Depreciation: 1.6527962318542096e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:319
+┌ Info: 2022-09-30T15:44:54.384 [37072:1]: Existing Distribution Balance per MWh: 43.08298596508775
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:320
+┌ Info: 2022-09-30T15:44:54.387 [37072:1]: New Distribution Rate Base: 3.964948791295962e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:438
+┌ Info: 2022-09-30T15:44:54.388 [37072:1]: New Distribution Annual Accounting Depreciation: 2.0884286891537935e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:439
+┌ Info: 2022-09-30T15:44:54.389 [37072:1]: New Distribution Annual Tax Depreciation: 2.289795545470599e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:440
+┌ Info: 2022-09-30T15:44:54.390 [37072:1]: New Distribution Rate Base per MWh: 12.826418927752373
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:441
+┌ Info: 2022-09-30T15:44:54.392 [37072:1]: Iteration 1 value: 65.87711857587973
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:300
+┌ Info: 2022-09-30T15:44:54.393 [37072:1]: Utility, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.436 [37072:1]: IPPGroup, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.437 [37072:1]: Regulator, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.475 [37072:1]: Original retail price
+│   p_before = HolisticElectricityModel.ParamAxisArray{2}("p_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [87.2208478698847 76.71437063435755 80.77657237971118 86.47030511429833 87.45818113621652 79.70728051709578 80.79348793338846 87.93217439435588 87.44304427227797 81.47607668403373 80.60149190680369 87.67706449064259 87.4753954623324 75.28456637875952 75.63282646626801 86.73260049707329 81.75694667281607; 68.36852588274422 58.36504941140108 62.18547944738941 67.61496281843978 68.60809972826776 61.82256416989305 62.333396671847645 69.08084019011076 68.5929628643292 63.34101393543453 62.66574497544742 68.82698308269383 68.62531405438364 57.52921992618425 57.520053473047255 67.87657274162791 62.97726196241926; 58.74246257538758 48.742167364355765 52.562738938297755 57.98910519746151 58.982457953727916 52.19905312331748 52.708883389378364 59.455123757272204 58.96732108978936 53.71702470894856 53.04027558087763 59.201341308153985 58.99967227984379 47.90493057138295 47.89461643796623 58.25053535520321 53.35449245876606])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:979
+┌ Info: 2022-09-30T15:44:54.477 [37072:1]: Original DER excess rate
+│   p_ex_before = HolisticElectricityModel.ParamAxisArray{2}("p_ex_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:980
+┌ Info: 2022-09-30T15:44:54.480 [37072:1]: New retail price
+│   regulator.p = HolisticElectricityModel.ParamAxisArray{2}("p", "", "retail price", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [90.49048422184123 80.06162528037271 84.10762536202617 89.73056754846279 90.73663512017401 83.07721524194173 84.12977479078575 91.20548709415979 90.73768690863895 84.83165495607791 83.95220975873679 90.98118136041508 90.7226386020183 78.66573202480345 78.9976069593676 90.01576992105501 85.07312215411409; 70.64454044780962 60.705987978996745 64.51398227444102 69.88182476586552 70.89282396350889 64.17986859460825 64.66489612803102 71.36048725089924 70.89387575197384 65.68690840822102 65.00303638049613 71.13737020374995 70.87882744535318 59.89508478273297 59.87478578437321 70.16629899948867 65.29375685350104; 60.54453987887773 50.60826118145584 54.41627254185495 59.78186257553494 60.79330640536023 54.08121627245712 54.565465268207674 61.26085347119243 60.79435819382516 55.588015588459314 54.90277012548171 61.037852645601305 60.779309887204526 49.795831373892284 49.7744815254147 60.066207252940956 55.19608601965122])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:981
+┌ Info: 2022-09-30T15:44:54.482 [37072:1]: New DER excess rate
+│   regulator.p_ex = HolisticElectricityModel.ParamAxisArray{2}("p_ex", "", "DER excess generation rate", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:982
+┌ Info: 2022-09-30T15:44:54.484 [37072:1]: CustomerGroup, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.487 [37072:1]: GreenDeveloper, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.488 [37072:1]: DistributionUtility, iteration 2
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.489 [37072:1]: Existing Distribution Balance: 1.322236985483368e9
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:318
+┌ Info: 2022-09-30T15:44:54.489 [37072:1]: Existing Distribution Annual Depreciation: 1.6527962318542096e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:319
+┌ Info: 2022-09-30T15:44:54.491 [37072:1]: Existing Distribution Balance per MWh: 43.08298596508775
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:320
+┌ Info: 2022-09-30T15:44:54.492 [37072:1]: New Distribution Rate Base: 3.9649525256500465e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:438
+┌ Info: 2022-09-30T15:44:54.493 [37072:1]: New Distribution Annual Accounting Depreciation: 2.0884303200144574e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:439
+┌ Info: 2022-09-30T15:44:54.493 [37072:1]: New Distribution Annual Tax Depreciation: 2.289796768616097e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:440
+┌ Info: 2022-09-30T15:44:54.494 [37072:1]: New Distribution Rate Base per MWh: 12.826642330471499
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:441
+┌ Info: 2022-09-30T15:44:54.495 [37072:1]: Iteration 2 value: 0.10862224030978664
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:300
+┌ Info: 2022-09-30T15:44:54.496 [37072:1]: Utility, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.538 [37072:1]: IPPGroup, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.540 [37072:1]: Regulator, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.568 [37072:1]: Original retail price
+│   p_before = HolisticElectricityModel.ParamAxisArray{2}("p_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [90.49048422184123 80.06162528037271 84.10762536202617 89.73056754846279 90.73663512017401 83.07721524194173 84.12977479078575 91.20548709415979 90.73768690863895 84.83165495607791 83.95220975873679 90.98118136041508 90.7226386020183 78.66573202480345 78.9976069593676 90.01576992105501 85.07312215411409; 70.64454044780962 60.705987978996745 64.51398227444102 69.88182476586552 70.89282396350889 64.17986859460825 64.66489612803102 71.36048725089924 70.89387575197384 65.68690840822102 65.00303638049613 71.13737020374995 70.87882744535318 59.89508478273297 59.87478578437321 70.16629899948867 65.29375685350104; 60.54453987887773 50.60826118145584 54.41627254185495 59.78186257553494 60.79330640536023 54.08121627245712 54.565465268207674 61.26085347119243 60.79435819382516 55.588015588459314 54.90277012548171 61.037852645601305 60.779309887204526 49.795831373892284 49.7744815254147 60.066207252940956 55.19608601965122])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:979
+┌ Info: 2022-09-30T15:44:54.571 [37072:1]: Original DER excess rate
+│   p_ex_before = HolisticElectricityModel.ParamAxisArray{2}("p_ex_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:980
+┌ Info: 2022-09-30T15:44:54.573 [37072:1]: New retail price
+│   regulator.p = HolisticElectricityModel.ParamAxisArray{2}("p", "", "retail price", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [90.49190644084737 80.06276813460931 84.10896833967091 89.73199724166453 90.73805367009601 83.07854952840846 84.13112447077359 91.20690838693588 90.7391053795105 84.83303981472952 83.9535748533127 90.98260601961842 90.72405820389234 78.6668402522066 78.998699771437 90.01719742880412 85.07449210075; 70.64449810752407 60.705705790124696 64.51392161798746 69.88180037546562 70.8927735556181 64.17980649738439 64.66484040185452 71.36044232294932 70.8938252650326 65.68688690784269 65.00298786468584 71.13732590514051 70.87877808941442 59.8947493434201 59.87444389899424 70.16626939024454 65.29371994157455; 60.5453655231147 50.608792778861726 54.417017571129705 59.782695690643365 60.794128381548504 54.0819476947222 54.56621650366961 61.2616781897963 60.79518009096299 55.58880237416352 54.90353523730093 61.03868073107091 60.780132915344836 49.796300157276406 49.77494880593433 60.067038182693395 55.19685918271704])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:981
+┌ Info: 2022-09-30T15:44:54.574 [37072:1]: New DER excess rate
+│   regulator.p_ex = HolisticElectricityModel.ParamAxisArray{2}("p_ex", "", "DER excess generation rate", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:982
+┌ Info: 2022-09-30T15:44:54.576 [37072:1]: CustomerGroup, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.578 [37072:1]: GreenDeveloper, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.579 [37072:1]: DistributionUtility, iteration 3
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.580 [37072:1]: Existing Distribution Balance: 1.322236985483368e9
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:318
+┌ Info: 2022-09-30T15:44:54.581 [37072:1]: Existing Distribution Annual Depreciation: 1.6527962318542096e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:319
+┌ Info: 2022-09-30T15:44:54.581 [37072:1]: Existing Distribution Balance per MWh: 43.08298596508775
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:320
+┌ Info: 2022-09-30T15:44:54.583 [37072:1]: New Distribution Rate Base: 3.964952525387654e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:438
+┌ Info: 2022-09-30T15:44:54.584 [37072:1]: New Distribution Annual Accounting Depreciation: 2.088430319899866e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:439
+┌ Info: 2022-09-30T15:44:54.585 [37072:1]: New Distribution Annual Tax Depreciation: 2.2897967685301535e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:440
+┌ Info: 2022-09-30T15:44:54.586 [37072:1]: New Distribution Rate Base per MWh: 12.826642314773956
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:441
+┌ Info: 2022-09-30T15:44:54.586 [37072:1]: Iteration 3 value: 0.0022782061368982775
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:300
+┌ Info: 2022-09-30T15:44:54.587 [37072:1]: Utility, iteration 4
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.644 [37072:1]: IPPGroup, iteration 4
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.675 [37072:1]: Regulator, iteration 4
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.718 [37072:1]: Original retail price
+│   p_before = HolisticElectricityModel.ParamAxisArray{2}("p_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [90.49190644084737 80.06276813460931 84.10896833967091 89.73199724166453 90.73805367009601 83.07854952840846 84.13112447077359 91.20690838693588 90.7391053795105 84.83303981472952 83.9535748533127 90.98260601961842 90.72405820389234 78.6668402522066 78.998699771437 90.01719742880412 85.07449210075; 70.64449810752407 60.705705790124696 64.51392161798746 69.88180037546562 70.8927735556181 64.17980649738439 64.66484040185452 71.36044232294932 70.8938252650326 65.68688690784269 65.00298786468584 71.13732590514051 70.87877808941442 59.8947493434201 59.87444389899424 70.16626939024454 65.29371994157455; 60.5453655231147 50.608792778861726 54.417017571129705 59.782695690643365 60.794128381548504 54.0819476947222 54.56621650366961 61.2616781897963 60.79518009096299 55.58880237416352 54.90353523730093 61.03868073107091 60.780132915344836 49.796300157276406 49.77494880593433 60.067038182693395 55.19685918271704])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:979
+┌ Info: 2022-09-30T15:44:54.720 [37072:1]: Original DER excess rate
+│   p_ex_before = HolisticElectricityModel.ParamAxisArray{2}("p_ex_before", "", "", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:980
+┌ Info: 2022-09-30T15:44:54.723 [37072:1]: New retail price
+│   regulator.p = HolisticElectricityModel.ParamAxisArray{2}("p", "", "retail price", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [90.49190634091374 80.06276805430595 84.10896824530526 89.73199714120571 90.73805357042016 83.07854943465351 84.13112437593698 91.20690828706731 90.7391052798402 84.83303971742102 83.95357475739297 90.9826059195133 90.72405810414259 78.66684017433646 78.99869969465007 90.01719732849885 85.07449200448933; 70.64449811050332 60.70570580995734 64.51392162225342 69.8818003771836 70.8927735591642 64.17980650175143 64.66484040577406 71.36044232611037 70.89382526858427 65.68688690935731 65.00298786809878 71.13732590825734 70.87877809288662 59.894749366994496 59.874443923021644 70.16626939232921 65.2937199441721; 60.5453654651 50.60879274150897 54.41701751877951 59.78269563210372 60.794128323791526 54.081947643328135 54.56621645088333 61.26167813184662 60.795180033211565 55.58880231887923 54.903535183539596 61.03868067288467 60.780132857513934 49.796300124337534 49.77494877310106 60.06703812430729 55.196859128389974])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:981
+┌ Info: 2022-09-30T15:44:54.726 [37072:1]: New DER excess rate
+│   regulator.p_ex = HolisticElectricityModel.ParamAxisArray{2}("p_ex", "", "DER excess generation rate", (HolisticElectricityModel.Dimension("index_h", "customer group index h", "customer groups", [:Residential, :Commercial, :Industrial]), HolisticElectricityModel.Dimension("index_t", "time index t", "ReEDS 17 timeslices representation", [:h1, :h2, :h3, :h4, :h5, :h6, :h7, :h8, :h9, :h10, :h11, :h12, :h13, :h14, :h15, :h16, :h17])), [0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0])
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\regulator.jl:982
+┌ Info: 2022-09-30T15:44:54.729 [37072:1]: CustomerGroup, iteration 4
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.731 [37072:1]: GreenDeveloper, iteration 4
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.732 [37072:1]: DistributionUtility, iteration 4
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:287
+┌ Info: 2022-09-30T15:44:54.734 [37072:1]: Existing Distribution Balance: 1.322236985483368e9
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:318
+┌ Info: 2022-09-30T15:44:54.734 [37072:1]: Existing Distribution Annual Depreciation: 1.6527962318542096e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:319
+┌ Info: 2022-09-30T15:44:54.735 [37072:1]: Existing Distribution Balance per MWh: 43.08298596508775
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:320
+┌ Info: 2022-09-30T15:44:54.738 [37072:1]: New Distribution Rate Base: 3.964952525387671e8
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:438
+┌ Info: 2022-09-30T15:44:54.738 [37072:1]: New Distribution Annual Accounting Depreciation: 2.0884303198998738e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:439
+┌ Info: 2022-09-30T15:44:54.739 [37072:1]: New Distribution Annual Tax Depreciation: 2.2897967685301594e7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:440
+┌ Info: 2022-09-30T15:44:54.739 [37072:1]: New Distribution Rate Base per MWh: 12.826642314775055
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\distribution_utility.jl:441
+┌ Info: 2022-09-30T15:44:54.740 [37072:1]: Iteration 4 value: 1.6041921054908566e-7
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:300
+┌ Info: 2022-09-30T15:44:54.740 [37072:1]: Problem solved!
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:309
+┌ Info: 2022-09-30T15:44:59.827 [37072:1]: No results defined for IPPGroup agents when HEMOptions{VerticallyIntegratedUtility, DERUseCase, NullUseCase}(VerticallyIntegratedUtility(), DERUseCase(), NullUseCase()) and IPPOptions{LagrangeDecomposition}(LagrangeDecomposition(), Dict{String, HEMSolver}("Lagrange_Sub_Investment_Retirement_Cap" => HolisticElectricityModel.AnySolver(MathOptInterface.OptimizerWithAttributes(Ipopt.Optimizer, Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[MathOptInterface.RawOptimizerAttribute("print_level") => 0])), "Lagrange_Sub_Dispatch_Cap" => HolisticElectricityModel.AnySolver(MathOptInterface.OptimizerWithAttributes(var"#23#25"(), Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[])), "Lagrange_Feasible_Cap" => HolisticElectricityModel.AnySolver(MathOptInterface.OptimizerWithAttributes(var"#24#26"(), Pair{MathOptInterface.AbstractOptimizerAttribute, Any}[]))))
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:261
+┌ Info: 2022-09-30T15:45:00.482 [37072:1]: No results defined for GreenDeveloper agents when HEMOptions{VerticallyIntegratedUtility, DERUseCase, NullUseCase}(VerticallyIntegratedUtility(), DERUseCase(), NullUseCase()) and NullAgentOptions()
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:261
+┌ Info: 2022-09-30T15:45:00.517 [37072:1]: No results defined for DistributionUtility agents when HEMOptions{VerticallyIntegratedUtility, DERUseCase, NullUseCase}(VerticallyIntegratedUtility(), DERUseCase(), NullUseCase()) and NullAgentOptions()
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:261
+┌ Info: 2022-09-30T15:45:12.478 [37072:1]: 
+│  ────────────────────────────────────────────────────────────────────────────────
+│                                         Time                    Allocations      
+│                                ───────────────────────   ────────────────────────
+│        Tot / % measured:             116s /  84.8%           4.13GiB /  82.1%    
+│ 
+│  Section               ncalls     time    %tot     avg     alloc    %tot      avg
+│  ────────────────────────────────────────────────────────────────────────────────
+│  solve_equilibrium_...      1    98.7s  100.0%   98.7s   3.39GiB  100.0%  3.39GiB
+│    solve_agent_prob...     42    98.5s   99.9%   2.35s   3.39GiB  100.0%  82.6MiB
+│      optimize! VIUD...      7    16.4s   16.7%   2.35s    625MiB   18.0%  89.3MiB
+│  ────────────────────────────────────────────────────────────────────────────────
+└ @ HolisticElectricityModel C:\projects\HolisticElectricityModel.jl\src\agents\common.jl:389

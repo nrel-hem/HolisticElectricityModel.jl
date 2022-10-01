@@ -1579,19 +1579,18 @@ function save_results(
     regulator_opts::RegulatorOptions,
     hem_opts::HEMOptions{<:MarketStructure},
     export_file_path::AbstractString,
-    fileprefix::AbstractString,
 )
     # Primal Variables
     save_param(
         regulator.p_my.values,
         [:Year, :CustomerType, :Time],
         :Price,
-        joinpath(export_file_path, "$(fileprefix)_p.csv"),
+        joinpath(export_file_path, "p.csv"),
     )
     save_param(
         regulator.p_ex_my.values,
         [:Year, :CustomerType, :Time],
         :Price,
-        joinpath(export_file_path, "$(fileprefix)_p_ex.csv"),
+        joinpath(export_file_path, "p_ex.csv"),
     )
 end

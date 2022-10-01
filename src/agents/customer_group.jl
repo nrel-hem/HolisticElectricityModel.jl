@@ -817,7 +817,6 @@ function save_results(
     customers_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     export_file_path::AbstractString,
-    fileprefix::AbstractString,
 )
 
     # Primal Variables
@@ -825,7 +824,7 @@ function save_results(
         customers.x_DG_new_my.values,
         [:Year, :CustomerType, :DERTech],
         :Capacity_MW,
-        joinpath(export_file_path, "$(fileprefix)_x_DG.csv"),
+        joinpath(export_file_path, "x_DG.csv"),
     )
 end
 
@@ -834,7 +833,6 @@ function save_results(
     customers_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
     export_file_path::AbstractString,
-    fileprefix::AbstractString,
 )
 
     # Primal Variables
@@ -842,7 +840,7 @@ function save_results(
         customers.x_green_sub_my.values,
         [:Year, :CustomerType],
         :Subscription_MWh,
-        joinpath(export_file_path, "$(fileprefix)_x_green_sub.csv"),
+        joinpath(export_file_path, "x_green_sub.csv"),
     )
 end
 
@@ -851,7 +849,6 @@ function save_results(
     customers_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
     export_file_path::AbstractString,
-    fileprefix::AbstractString,
 )
 
     # Primal Variables
@@ -859,14 +856,14 @@ function save_results(
         customers.x_DG_new_my.values,
         [:Year, :CustomerType, :DERTech],
         :Capacity_MW,
-        joinpath(export_file_path, "$(fileprefix)_x_DG.csv"),
+        joinpath(export_file_path, "x_DG.csv"),
     )
 
     save_param(
         customers.x_green_sub_my.values,
         [:Year, :CustomerType],
         :Subscription_MWh,
-        joinpath(export_file_path, "$(fileprefix)_x_green_sub.csv"),
+        joinpath(export_file_path, "x_green_sub.csv"),
     )
 end
 

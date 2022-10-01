@@ -4,45 +4,43 @@
 #         Iterables can be tricky--go with duck typing when you can in that case
 
 """
-    read_set(filename, sheetname)
+    read_set(filename, filename)
 
-Reads the column names of Excel filename, sheetname in as symbols.
+Reads the column names of csv dirname/filename in as symbols.
 """
 function read_set(
+    dirname::AbstractString,
     filename::AbstractString,
-    sheetname::AbstractString,
     name::AbstractString;
     prose_name = "",
     description = "",
 )
-    vals = read_record_file(DataFrame, filename, sheetname)
+    vals = read_record_file(DataFrame, dirname, filename)
     result = Dimension(
         name,
         Symbol.(names(DataFrame(vals))),
         prose_name = prose_name,
         description = description,
     )
-    @info "Loaded $sheetname = $result" result
+    @info "Loaded $filename = $result" result
     return result
 end
 
 """
-Reads parameter data from the Excel workbook at filename. Assumes the data is
-in sheetname, with a single header row, and that the column_index dimension is
-expressed in the column names.
+Reads parameter data from the csv file at dirname/filename. Assumes the data has a 
+single header row, and that the index elements comprise the column names.
 
-Returns the data loaded into a Dict with the Symbol values in column_index as its keys.
+Returns the data loaded into a ParamAxisArray.
 """
-
 function read_param(
     name::AbstractString,
+    dirname::AbstractString,
     filename::AbstractString,
-    sheetname::AbstractString,
     index::Dimension;
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
-    vals = read_record_file(KeyedArray, filename, sheetname, 1)
+    vals = read_record_file(KeyedArray, dirname, filename, 1)
     result = ParamArray(
         name,
         (index,),
@@ -50,32 +48,30 @@ function read_param(
         prose_name = prose_name,
         description = description,
     )
-    @debug "Loaded $sheetname" result
+    @debug "Loaded $filename" result
     return result
 end
 
 """
-Reads parameter data from the Excel workbook at filename. Assumes the data is
-in sheetname, with a single header row, and that the column_index dimension is
-expressed in the column names. All other data dimension values are listed in the 
-first length(row_indices) columns of sheetname, corresonding one-to-one and in 
-the same order as the row_indices.
+Reads parameter data from the csv file at dirname/filename. Assumes the data has 
+a single header row, and that the column_index elements are the right-most column 
+names. All other data dimension values are listed in the first length(row_indices) 
+columns of the file, corresonding one-to-one and in the same order as the row_indices.
 
-Returns the data loaded into a Dict. The Dict keys are tuples of
-length(row_indices) + 1, and with values taken from each of the row_indices in
-turn, plus a column_index value.
+Returns the data loaded into a ParamAxisArray with dimensions 
+(row_indices..., column_index).
 """
 function read_param(
     name::AbstractString,
+    dirname::AbstractString,
     filename::AbstractString,
-    sheetname::AbstractString,
     column_index::Dimension,
     row_indices::Vector{Dimension};
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
     dims = Tuple(push!(copy(row_indices), column_index))
-    vals = read_record_file(KeyedArray, filename, sheetname, length(dims))
+    vals = read_record_file(KeyedArray, dirname, filename, length(dims))
     ar_axes = AxisKeys.axiskeys(vals)
     if length(ar_axes) != length(dims)
         throw(
@@ -87,7 +83,6 @@ function read_param(
 
     for (i, ax) in enumerate(ar_axes)
         elements = dims[i].elements
-        # compare the sets TODO DT
         if ax != elements
             throw(
                 ArgumentError(
@@ -99,7 +94,7 @@ function read_param(
     # TODO DT: make negative test to verify that conflicting inputs are rejected.
     result =
         ParamArray(name, dims, vals, prose_name = prose_name, description = description)
-    @debug "Loaded $sheetname" result
+    @debug "Loaded $filename" result
     return result
 end
 
@@ -140,47 +135,35 @@ function read_keyed_array(file::CSV.File, num_dims)
 
     index_names = Vector{Vector{Symbol}}(undef, num_dims)
     for i in 1:(num_dims - 1)
-        index_names[i] = Symbol.(unique(file.columns[i]))
+        index_names[i] = Symbol.(unique(Tables.getcolumn(file, i)))
     end
     index_names[num_dims] = Symbol.(file.names[num_dims:end])
 
     data =
         KeyedArray(Array{Float64, num_dims}(undef, length.(index_names)...), Tuple(index_names))
     for i in 1:(file.rows)
-        indices = [Symbol(file.columns[j][i]) for j in 1:(num_dims - 1)]
+        indices = [Symbol(Tables.getcolumn(file, j)[i]) for j in 1:(num_dims - 1)]
         data(indices...,:,:) .=
-            [file.columns[x + num_dims - 1][i] for x in 1:length(index_names[end])]
+            [Tables.getcolumn(file, x + num_dims - 1)[i] for x in 1:length(index_names[end])]
     end
 
     return data
 end
 
-function read_record_file(::Type{DataFrame}, filename, sheetname)
-    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
-    workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
-    record_file = joinpath(workbook_dir, sheetname * ".csv")
-    # ETH@20220928 - Testing that we can deprecate this code
-    # if !isfile(record_file)
-    #     df = DataFrame(XLSX.readtable(filename, sheetname)...)
-    #     mkpath(workbook_dir)
-    #     to_csv(df, record_file)
-    #     @info "Converted $filename $sheetname to $record_file"
-    # end
+function read_record_file(::Type{DataFrame}, dirname, filename)
+    record_file = joinpath(dirname, filename * ".csv")
+    if !isfile(record_file)
+        @error "Missing $record_file"
+    end
 
     return read_dataframe(record_file)
 end
 
-function read_record_file(::Type{KeyedArray}, filename, sheetname, num_dims)
-    base_dir = joinpath("..", "HolisticElectricityModel-Data", "inputs")
-    workbook_dir = joinpath(base_dir, splitext(basename(filename))[1])
-    record_file = joinpath(workbook_dir, sheetname * ".csv")
-    # ETH@20220928 - Testing that we can deprecate this code
-    # if !isfile(record_file)
-    #     df = DataFrame(XLSX.readtable(filename, sheetname)...)
-    #     mkpath(workbook_dir)
-    #     to_csv(df, record_file)
-    #     @info "Converted $filename $sheetname to $record_file"
-    # end
+function read_record_file(::Type{KeyedArray}, dirname, filename, num_dims)
+    record_file = joinpath(dirname, filename * ".csv")
+    if !isfile(record_file)
+        @error "Missing $record_file"
+    end
 
     return read_keyed_array(record_file, num_dims)
 end

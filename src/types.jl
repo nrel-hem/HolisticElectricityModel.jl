@@ -226,34 +226,3 @@ function initialize_keyed_array(indices...; value=0.0)
     fill!(array.data, value)
     return array
 end
-
-# ------------------------------------------------------------------------------
-# Optimization Solvers
-# ------------------------------------------------------------------------------
-
-abstract type HEMSolver end
-
-struct XpressSolver <: HEMSolver
-    solver::Any
-end
-
-function get_new_jump_model(hem_solver::XpressSolver)
-    return Model(hem_solver.solver.Optimizer)
-end
-
-struct Gurobi_Solver <: HEMSolver
-    solver::Any
-    env::Any
-end
-
-function get_new_jump_model(hem_solver::Gurobi_Solver)
-    return Model(() -> hem_solver.solver.Optimizer(hem_solver.env))
-end
-
-struct Ipopt_Solver <: HEMSolver
-    solver::Any
-end
-
-function get_new_jump_model(hem_solver::Ipopt_Solver)
-    return Model(hem_solver.solver.Optimizer)
-end
