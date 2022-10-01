@@ -1,4 +1,11 @@
+# This file defines the data and functions associated with the green developer
+
 abstract type AbstractGreenDeveloper <: Agent end
+
+struct GreenDeveloperOptions <: AgentOptions
+    solvers::HEMSolver
+    # solvers::Union{HEMSolver, Dict{String, <:HEMSolver}}
+end
 
 mutable struct GreenDeveloper <: AbstractGreenDeveloper
     id::String
@@ -50,7 +57,7 @@ function solve_agent_problem!(
     reg_year = model_data.year[first(model_data.index_y)]
     reg_year_index = Symbol(Int(reg_year))
 
-    Green_Developer_model = get_new_jump_model(hem_opts.MIP_solver)
+    Green_Developer_model = get_new_jump_model(green_developer_opts.solvers)
 
     # x_green is the annual PPA buildout (x_green is indexed by h for rate-making purpose)
     @variable(Green_Developer_model, x_green[model_data.index_j, model_data.index_h] >= 0)
@@ -60,8 +67,8 @@ function solve_agent_problem!(
         if reg_year == model_data.year[first(model_data.index_y_fix)]
             x_green_cumu[j, h] = 0.0
         else
-            x_green_cumu[j, h] = sum(green_developer.green_tech_buildout_my[y, j, h] 
-                for y in model_data.year[first(model_data.index_y_fix)]:(reg_year - 1))
+            x_green_cumu[j, h] = sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] 
+                for y_symbol in model_data.year[first(model_data.index_y_fix)]:(reg_year - 1))
         end
     end
 

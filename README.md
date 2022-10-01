@@ -44,6 +44,7 @@ After this, you have some options:
 
     ```julia
     julia> ]
+    pkg> dev .
     pkg> instantiate
     pkg> build Gurobi
     ```
@@ -58,7 +59,7 @@ After this, you have some options:
     > salloc -N 1 -t 60 --account=mpafess --partition=debug
     # ... Wait for a compute node
     > cd HolisticElectricityModel.jl
-    > module load gurobi
+    > module load gurobi/9.1.2
     > julia --project=test script/driver.jl
     ```
 
@@ -82,6 +83,18 @@ $ export GUROBI_JL_SKIP_LIB_CHECK=1
 *Windows*
 ```
 > set GUROBI_JL_SKIP_LIB_CHECK=1
+```
+
+Or, if you don't have Xpress installed on your system, set the XPRESS_JL_SKIP_LIB_CHECK environment variable:
+
+*Linux/Mac*
+```bash
+$ export XPRESS_JL_SKIP_LIB_CHECK=1
+```
+
+*Windows*
+```
+> set XPRESS_JL_SKIP_LIB_CHECK=1
 ```
 
 Second, install HolisticElectricityModel.jl in the test project:

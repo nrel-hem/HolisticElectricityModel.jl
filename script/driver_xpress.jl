@@ -74,6 +74,13 @@ utility_opts = UtilityOptions(
         # "OUTPUTLOG" => 0,
     ),
 )
+
+green_developer_opts = UtilityOptions(
+    JuMP.optimizer_with_attributes(
+        () -> Xpress.Optimizer(),
+        # "OUTPUTLOG" => 0,
+    ),
+)
 # ------------------------------------------------------------------------------
 
 # Run HEM ----------------------------------------------------------------------
@@ -82,7 +89,7 @@ output_dir = run_hem(
     hem_opts,
     regulator_options=regulator_opts,
     ipp_options=ipp_opts,
-    utility_options=utility_opts;
-    force=true
+    utility_options=utility_opts,
+    green_developer_options=green_developer_opts
 )
 # ------------------------------------------------------------------------------

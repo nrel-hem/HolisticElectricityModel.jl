@@ -1,5 +1,5 @@
-#driver_name = "driver_gurobi.jl"
-driver_name = "driver_xpress.jl"
+driver_name = "driver_gurobi.jl"
+#driver_name = "driver_xpress.jl"
 
 @testset "Test driver" begin
     script_filename = joinpath(BASE_DIR, "script", driver_name)

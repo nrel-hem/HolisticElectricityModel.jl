@@ -18,6 +18,7 @@ function run_hem(
     ipp_options=NullAgentOptions(),
     regulator_options=NullAgentOptions(),
     utility_options=NullAgentOptions(),
+    green_developer_options=NullAgentOptions(),
     max_iterations=100,
     window_length=1,
     force=false,
@@ -34,7 +35,7 @@ function run_hem(
         AgentAndOptions(ipp, ipp_options),
         AgentAndOptions(regulator, regulator_options),
         AgentAndOptions(customers, NullAgentOptions()),
-        AgentAndOptions(green_developer, NullAgentOptions()),
+        AgentAndOptions(green_developer, green_developer_options),
         AgentAndOptions(distribution_utility, NullAgentOptions()),
     ]
 
