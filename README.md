@@ -39,7 +39,7 @@ After this, you have some options:
 - Once on a login node, make it so the required packages will load by running the first part of the REPL code:
     ```bash
     > module load gurobi/9.1.2
-    > julia --project=test
+    > julia --project=runner
     ```
 
     ```julia
@@ -60,17 +60,17 @@ After this, you have some options:
     # ... Wait for a compute node
     > cd HolisticElectricityModel.jl
     > module load gurobi/9.1.2
-    > julia --project=test script/driver.jl
+    > julia --project=runner script/driver.jl
     ```
 
 
 ### Run Style
 
-Note that a few solver packages are installed in the `test` project and not in the main HolisticElectricityModel
+Note that a few solver packages are installed in the `runner` project and not in the main HolisticElectricityModel
 package. The HolisticElectricityModel team used those solvers for test and development. The intention is to allow
 users to install any compatible solver in their own environment.
 
-To set up the `test` environment before running in either of the manners described below, complete the following 
+To set up the `runner` environment before running in either of the manners described below, complete the following
 set-up steps.
 
 First, if you don't have Gurobi installed on your system, set the GUROBI_JL_SKIP_LIB_CHECK environment variable:
@@ -97,14 +97,14 @@ $ export XPRESS_JL_SKIP_LIB_CHECK=1
 > set XPRESS_JL_SKIP_LIB_CHECK=1
 ```
 
-Second, install HolisticElectricityModel.jl in the test project:
+Second, install HolisticElectricityModel.jl in the runner project:
 
 ```bash
 > julia
 ```
 ```julia
 julia> ]
-pkg> activate test
+pkg> activate runner
 pkg> dev .
 ```
 
@@ -114,16 +114,16 @@ Open the REPL from the HolisticElectrictyModel.jl directory. Then:
 
 ```julia
 julia> ]
-pkg> activate test
+pkg> activate runner
 # Hit Backspace
 julia> include("script/driver.jl")
 ```
 
-or, if you specify the test project when you open the REPL:
+or, if you specify the runner project when you open the REPL:
 
 ```bash
 > cd ~/HolisticElectricityModel.jl
-> julia --project=test
+> julia --project=runner
 ```
 
 then you can simply:
@@ -136,5 +136,14 @@ julia> include("script/driver.jl")
 
 ```bash
 > cd ~/HolisticElectricityModel.jl
-> julia --project=test script/driver.jl
+> julia --project=runner script/driver.jl
+```
+
+### Tests
+
+In order to run all tests:
+```bash
+> julia --project
+julia> ]
+pkg> test
 ```
