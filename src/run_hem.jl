@@ -15,10 +15,10 @@ Solve the problem with the given inputs.
 function run_hem(
     input_dir::AbstractString,
     options::HEMOptions;
-    ipp_options=NullAgentOptions(),
-    regulator_options=NullAgentOptions(),
-    utility_options=NullAgentOptions(),
-    green_developer_options=NullAgentOptions(),
+    ipp_options::Union{IPPOptions, NullAgentOptions}=NullAgentOptions(),
+    regulator_options::Union{RegulatorOptions, NullAgentOptions}=NullAgentOptions(),
+    utility_options::Union{UtilityOptions, NullAgentOptions}=NullAgentOptions(),
+    green_developer_options::Union{GreenDeveloperOptions, NullAgentOptions}=NullAgentOptions(),
     max_iterations=100,
     window_length=1,
     force=false,

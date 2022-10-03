@@ -79,7 +79,7 @@ utility_opts = UtilityOptions(
     ),
 )
 
-green_developer_opts = UtilityOptions(
+green_developer_opts = GreenDeveloperOptions(
     JuMP.optimizer_with_attributes(
         () -> Gurobi.Optimizer(GUROBI_ENV),
         # "OUTPUTLOG" => 0,
@@ -94,6 +94,7 @@ output_dir = run_hem(
     regulator_options=regulator_opts,
     ipp_options=ipp_opts,
     utility_options=utility_opts,
-    green_developer_options=green_developer_opts
+    green_developer_options=green_developer_opts,
+    force=true,
 )
 # ------------------------------------------------------------------------------

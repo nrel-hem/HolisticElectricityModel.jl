@@ -7,6 +7,13 @@ struct GreenDeveloperOptions <: AgentOptions
     # solvers::Union{HEMSolver, Dict{String, <:HEMSolver}}
 end
 
+"""
+Construct GreenDeveloperOptions with an MOI.OptimizerWithAttributes instance.
+"""
+function GreenDeveloperOptions(attributes::MOI.OptimizerWithAttributes)
+    return GreenDeveloperOptions(AnySolver(attributes))
+end
+
 mutable struct GreenDeveloper <: AbstractGreenDeveloper
     id::String
     "internal rate of return"
