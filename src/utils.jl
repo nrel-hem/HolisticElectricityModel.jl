@@ -6,16 +6,16 @@
 """
     read_set(filename, filename)
 
-Reads the column names of csv dirname/filename in as symbols.
+Reads the column names of csv dirpath/filename in as symbols.
 """
 function read_set(
-    dirname::AbstractString,
+    dirpath::AbstractString,
     filename::AbstractString,
     name::AbstractString;
     prose_name = "",
     description = "",
 )
-    vals = read_record_file(DataFrame, dirname, filename)
+    vals = read_record_file(DataFrame, dirpath, filename)
     result = Dimension(
         name,
         Symbol.(names(DataFrame(vals))),
@@ -27,20 +27,20 @@ function read_set(
 end
 
 """
-Reads parameter data from the csv file at dirname/filename. Assumes the data has a 
+Reads parameter data from the csv file at dirpath/filename. Assumes the data has a 
 single header row, and that the index elements comprise the column names.
 
 Returns the data loaded into a ParamAxisArray.
 """
 function read_param(
     name::AbstractString,
-    dirname::AbstractString,
+    dirpath::AbstractString,
     filename::AbstractString,
     index::Dimension;
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
-    vals = read_record_file(AxisArray, dirname, filename, 1)
+    vals = read_record_file(AxisArray, dirpath, filename, 1)
     result = ParamAxisArray(
         name,
         (index,),
@@ -53,7 +53,7 @@ function read_param(
 end
 
 """
-Reads parameter data from the csv file at dirname/filename. Assumes the data has 
+Reads parameter data from the csv file at dirpath/filename. Assumes the data has 
 a single header row, and that the column_index elements are the right-most column 
 names. All other data dimension values are listed in the first length(row_indices) 
 columns of the file, corresonding one-to-one and in the same order as the row_indices.
@@ -63,7 +63,7 @@ Returns the data loaded into a ParamAxisArray with dimensions
 """
 function read_param(
     name::AbstractString,
-    dirname::AbstractString,
+    dirpath::AbstractString,
     filename::AbstractString,
     column_index::Dimension,
     row_indices::Vector{Dimension};
@@ -71,7 +71,7 @@ function read_param(
     description::AbstractString = "",
 )
     dims = Tuple(push!(copy(row_indices), column_index))
-    vals = read_record_file(AxisArray, dirname, filename, length(dims))
+    vals = read_record_file(AxisArray, dirpath, filename, length(dims))
     ar_axes = AxisArrays.axes(vals)
     if length(ar_axes) != length(dims)
         throw(
@@ -150,8 +150,8 @@ function read_axis_array(file::CSV.File, num_dims)
     return data
 end
 
-function read_record_file(::Type{DataFrame}, dirname, filename)
-    record_file = joinpath(dirname, filename * ".csv")
+function read_record_file(::Type{DataFrame}, dirpath, filename)
+    record_file = joinpath(dirpath, filename * ".csv")
     if !isfile(record_file)
         @error "Missing $record_file"
     end
@@ -159,8 +159,8 @@ function read_record_file(::Type{DataFrame}, dirname, filename)
     return read_dataframe(record_file)
 end
 
-function read_record_file(::Type{AxisArray}, dirname, filename, num_dims)
-    record_file = joinpath(dirname, filename * ".csv")
+function read_record_file(::Type{AxisArray}, dirpath, filename, num_dims)
+    record_file = joinpath(dirpath, filename * ".csv")
     if !isfile(record_file)
         @error "Missing $record_file"
     end
