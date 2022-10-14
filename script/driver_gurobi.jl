@@ -1,5 +1,5 @@
-using Logging
 using HolisticElectricityModel
+import HolisticElectricityModelData
 using JuMP
 
 # This is the driver script
@@ -10,17 +10,16 @@ using Gurobi
 const GUROBI_ENV = Gurobi.Env()
 # ------------------------------------------------------------------------------
 
+const HEMData = HolisticElectricityModelData
+
 # Define the model run ---------------------------------------------------------
 
 # File locations
 base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
-hem_data_dir = joinpath(base_dir, "..", "HolisticElectricityModel-Data")
+hem_data_dir = dirname(dirname(Base.find_package("HolisticElectricityModelData")))
 test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
 # Create input data
-include(joinpath(hem_data_dir, "inputs", "input_data_parsing.jl"))
-
-#                                                # Test inputs
 input_path = joinpath(hem_data_dir, "inputs")
 ba = ["p13"]                                     # p13
 ba_len = length(ba)
@@ -28,7 +27,7 @@ base_year = 2018                                 # 2018
 future_years = [2019, 2020]                      # [2019, 2020]
 future_years_len = length(future_years)
 ipp_number = 1                                   # 1
-scenario = DataSelection(ba, base_year, future_years, ipp_number)
+scenario = HEMData.DataSelection(ba, base_year, future_years, ipp_number)
 
 # need to run in julia: run(#ba, PROFILES_DIRECTORY, "nguo", HOSTNAME, DATABASE, PORT) to get residential and commercial profiles
 # also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
@@ -37,7 +36,7 @@ input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 mkpath(input_dir)
 
-main(input_path, input_dir, scenario)
+HEMData.parse_inputs(input_path, input_dir, scenario)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(

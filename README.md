@@ -44,7 +44,7 @@ After this, you have some options:
 
     ```julia
     julia> ]
-    pkg> dev .
+    pkg> dev . ../HolisticElectricityModelData.jl
     pkg> instantiate
     pkg> build Gurobi
     ```
@@ -97,7 +97,7 @@ $ export XPRESS_JL_SKIP_LIB_CHECK=1
 > set XPRESS_JL_SKIP_LIB_CHECK=1
 ```
 
-Second, install HolisticElectricityModel.jl in the runner project:
+Second, install HolisticElectricityModel.jl and HolisticElectricityModelData.jl in the runner project:
 
 ```bash
 > julia
@@ -105,7 +105,7 @@ Second, install HolisticElectricityModel.jl in the runner project:
 ```julia
 julia> ]
 pkg> activate runner
-pkg> dev .
+pkg> dev . ../HolisticElectricityModelData.jl
 ```
 
 #### REPL
@@ -143,7 +143,9 @@ julia> include("script/driver.jl")
 
 In order to run all tests:
 ```bash
-> julia --project
+> julia --project=test
 julia> ]
-pkg> test
+pkg> dev . ../HolisticElectricityModelData.jl
+# Hit Backspace
+julia> include("test/runtests.jl")
 ```
