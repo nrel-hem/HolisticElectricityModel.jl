@@ -10,6 +10,8 @@ const HEM = HolisticElectricityModel
 import Aqua
 Aqua.test_unbound_args(HolisticElectricityModel)
 Aqua.test_undefined_exports(HolisticElectricityModel)
+# EH: This next test is failing and I don't know how to fix. 
+#     I would expect all tests to run and then tell me which ones failed?
 #Aqua.test_ambiguities(HolisticElectricityModel)
 Aqua.test_stale_deps(HolisticElectricityModel; ignore=[:JuliaFormatter,:Aqua,:TestSetExtensions,:Xpress,:Gurobi,:Revise])
 # EH: This next test is failing and I don't know how to fix. 
@@ -17,7 +19,7 @@ Aqua.test_stale_deps(HolisticElectricityModel; ignore=[:JuliaFormatter,:Aqua,:Te
 #Aqua.test_deps_compat(HolisticElectricityModel)
 
 BASE_DIR = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
-DATA_DIR = joinpath(BASE_DIR, "..", "HolisticElectricityModel-Data")
+DATA_DIR = joinpath(BASE_DIR, "..", "HolisticElectricityModelData.jl")
 
 LOG_FILE = "hem.log"
 LOG_LEVELS = Dict(

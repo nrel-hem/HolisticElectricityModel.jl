@@ -5,7 +5,7 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
 ## Start-Up Instructions
 
 - Clone this repository
-- Clone the [HolisticElectricityModel-Data repository](https://github.nrel.gov/HEM/HolisticElectricityModel-Data)
+- Clone the [HolisticElectricityModelData.jl repository](https://github.nrel.gov/HEM/HolisticElectricityModelData.jl)
 
 After this, you have some options:
 - [Computational Environment](#computational-environment): Local or NREL High-Performance Computing (HPC)
@@ -126,22 +126,35 @@ or, if you specify the runner project when you open the REPL:
 > julia --project=runner
 ```
 
-then you can simply:
+and if the runner environment is already set up then you can simply:
 
 ```julia
-julia> include("script/driver_xpress.jl")
+julia> include("script/driver_xpress.jl") # or include("script/driver_gurobi.jl")
 ```
 
 #### Command Line
 
 ```bash
 > cd ~/HolisticElectricityModel.jl
-> julia --project=runner script/driver.jl
+> julia --project=runner script/driver_xpress.jl # or script/driver_gurobi.jl
 ```
 
 ### Tests
 
-In order to run all tests:
+Specify a scenario you want to test by setting `driver_name` as desired at the top of `test/test_driver.jl` and then editing the driver file accordingly. Currently the model outputs available to test against are in the `test/driver_outputs/ba_1_base_2018_future_2_ipps_1` directory created with input parameters:
+
+```
+ba = ["p13"]
+ba_len = length(ba)
+base_year = 2018
+future_years = [2019, 2020]
+future_years_len = length(future_years)
+ipp_number = 1
+```
+
+The option names printed in the `test/driver_outputs/ba_1_base_2018_future_2_ipps_1/Results_...` directory names indicate what sets of HEMOptions and RegulatoryOptions can be tested against.
+
+Then, to run all tests:
 ```bash
 > julia --project=test
 julia> ]
