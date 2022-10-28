@@ -39,6 +39,7 @@ export DistributionUtility
 # Agent Options
 export RegulatorOptions
 # export CustomerOptions
+export GreenDeveloperOptions
 export IPPOptions
 export UtilityOptions
 

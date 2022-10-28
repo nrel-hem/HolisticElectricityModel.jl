@@ -4,6 +4,7 @@
 deps/deps.jl
 hem.log
 driver.log
+runner/Manifest.toml
 test/Manifest.toml
 docs/Manifest.toml
 docs/build/*
