@@ -40,8 +40,8 @@ function read_param(
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
-    vals = read_record_file(AxisArray, dirpath, filename, 1)
-    result = ParamAxisArray(
+    vals = read_record_file(KeyedArray, dirpath, filename, 1)
+    result = ParamArray(
         name,
         (index,),
         vals,
@@ -71,35 +71,35 @@ function read_param(
     description::AbstractString = "",
 )
     dims = Tuple(push!(copy(row_indices), column_index))
-    vals = read_record_file(AxisArray, dirpath, filename, length(dims))
-    ar_axes = AxisArrays.axes(vals)
+    vals = read_record_file(KeyedArray, dirpath, filename, length(dims))
+    ar_axes = AxisKeys.axiskeys(vals)
     if length(ar_axes) != length(dims)
         throw(
             ArgumentError(
-                "dimension length of AxisArray ($(length(ar_axes))) does not match passed dimensions ($(length(dims)))",
+                "dimension length of KeyedArray ($(length(ar_axes))) does not match passed dimensions ($(length(dims)))",
             ),
         )
     end
 
     for (i, ax) in enumerate(ar_axes)
         elements = dims[i].elements
-        if ax.val != elements
+        if ax != elements
             throw(
                 ArgumentError(
-                    "dimension elements of AxisArray ($ax) does not match passed dimension ($elements)",
+                    "dimension elements of KeyedArray axis $i ($ax) does not match passed dimension $i's ($elements)",
                 ),
             )
         end
     end
     # TODO DT: make negative test to verify that conflicting inputs are rejected.
     result =
-        ParamAxisArray(name, dims, vals, prose_name = prose_name, description = description)
+        ParamArray(name, dims, vals, prose_name = prose_name, description = description)
     @debug "Loaded $filename" result
     return result
 end
 
 """
-Return an AxisArray from an N-dimensional array flattened in a CSV file.
+Return a KeyedArray from an N-dimensional array flattened in a CSV file.
 
 If there is one dimension then the file must have a single row with dimension names.
 If there is more than one dimension then it must conform to the following format:
@@ -117,20 +117,20 @@ d1_variable_name,d2_variable_name,d3_name1,d3_name2,d3_name3
 d1_name1,d2_name1,1.0,1.0,1.0
 d1_name2,d2_name2,1.0,1.0,1.0
 """
-function read_axis_array(filename::AbstractString, num_dims::Int)
-    @debug "read_axis_array" filename num_dims
+function read_keyed_array(filename::AbstractString, num_dims::Int)
+    @debug "read_keyed_array" filename num_dims
     file = open(filename) do io
         CSV.File(io)
     end
 
     isempty(file) && error("$filename is empty")
-    return read_axis_array(file, num_dims)
+    return read_keyed_array(file, num_dims)
 end
 
-function read_axis_array(file::CSV.File, num_dims)
+function read_keyed_array(file::CSV.File, num_dims)
     if num_dims == 1
         data = [getproperty(file, x)[1] for x in file.names]
-        return AxisArray(data, file.names)
+        return KeyedArray(data, (file.names,))
     end
 
     index_names = Vector{Vector{Symbol}}(undef, num_dims)
@@ -140,10 +140,10 @@ function read_axis_array(file::CSV.File, num_dims)
     index_names[num_dims] = Symbol.(file.names[num_dims:end])
 
     data =
-        AxisArray(Array{Float64, num_dims}(undef, length.(index_names)...), index_names...)
+        KeyedArray(Array{Float64, num_dims}(undef, length.(index_names)...), Tuple(index_names))
     for i in 1:(file.rows)
         indices = [Symbol(Tables.getcolumn(file, j)[i]) for j in 1:(num_dims - 1)]
-        data[indices...] =
+        data(indices...,:,:) .=
             [Tables.getcolumn(file, x + num_dims - 1)[i] for x in 1:length(index_names[end])]
     end
 
@@ -159,17 +159,17 @@ function read_record_file(::Type{DataFrame}, dirpath, filename)
     return read_dataframe(record_file)
 end
 
-function read_record_file(::Type{AxisArray}, dirpath, filename, num_dims)
+function read_record_file(::Type{KeyedArray}, dirpath, filename, num_dims)
     record_file = joinpath(dirpath, filename * ".csv")
     if !isfile(record_file)
         @error "Missing $record_file"
     end
 
-    return read_axis_array(record_file, num_dims)
+    return read_keyed_array(record_file, num_dims)
 end
 
 function save_param(
-    vals::AxisArray,
+    vals::KeyedArray,
     set_names::Array,
     value_name::Symbol,
     filepath::AbstractString,
@@ -178,7 +178,7 @@ function save_param(
 
     # make sure we always have the same order
     indices =
-        sort!(reshape(collect(Iterators.product(AxisArrays.axes(vals)...)), length(vals)))
+        sort!(reshape(collect(Iterators.product(AxisKeys.axiskeys(vals)...)), length(vals)))
 
     # get categorical data
     result = DataFrame()
@@ -191,7 +191,7 @@ function save_param(
     end
 
     # get values
-    data = [vals[x...] for x in indices]
+    data = [vals(x...) for x in indices]
     result[!, value_name] = data
 
     # save out
@@ -203,8 +203,8 @@ function compute_difference_one_norm(before_after_pairs)
     result = 0.0
     for (before, after) in before_after_pairs
         result += sum((
-            abs(after[i...] - before[i...]) for
-            i in Iterators.product(AxisArrays.axes(before)...)
+            abs(after(i...) - before(i...)) for
+            i in Iterators.product(AxisKeyes.axiskeys(before)...)
         ))
     end
     return result
@@ -214,8 +214,8 @@ function compute_difference_percentage_one_norm(before_after_pairs)
     result_vec = []
     for (before, after) in before_after_pairs
         result_one = sum((
-            before[i...] == 0.0 ? abs(after[i...] - before[i...]) : abs(after[i...] - before[i...]) / before[i...] for
-            i in Iterators.product(AxisArrays.axes(before)...)
+            before(i...) == 0.0 ? abs(after(i...) - before(i...)) : abs(after(i...) - before(i...)) / before(i...) for
+            i in Iterators.product(AxisKeys.axiskeys(before)...)
         ))
         push!(result_vec, result_one)
     end
@@ -285,7 +285,7 @@ function configure_logging(;
 end
 
 """
-Returns a ParamAxisArray with all values set to value.
+Returns a ParamArray with all values set to value.
 """
 function initialize_param(
     name::AbstractString,
@@ -294,20 +294,17 @@ function initialize_param(
     prose_name = "",
     description = "",
 )
-    return ParamAxisArray(
+    return ParamArray(
         name,
         (index,),
-        AxisArray(
-            fill!(Vector{Float64}(undef, length(index.elements)), value),
-            index.elements,
-        ),
+        initialize_keyed_array(index; value=value),
         prose_name = prose_name,
         description = description,
     )
 end
 
 """
-Return an AxisArray with all values set to value, and indices formed from
+Return a ParamArray with all values set to value, and indices formed from
 Iterators.product(indices...).
 """
 function initialize_param(
@@ -318,16 +315,19 @@ function initialize_param(
     description = "",
 )
     num_dims = length(indices)
-    return ParamAxisArray(
-        name,
-        indices,
-        AxisArray(
-            fill!(Array{Float64, num_dims}(undef, (length(x) for x in indices)...), value),
-            (x.elements for x in indices)...,
-        ),
-        prose_name = prose_name,
-        description = description,
-    )
+    param = try
+        ParamArray(
+            name,
+            indices,
+            initialize_keyed_array(indices...; value=value),
+            prose_name = prose_name,
+            description = description,
+        )
+    catch e
+        @info "Failed to initialize parameter $name"
+        rethrow(e)
+    end
+    return param
 end
 
 function read_dataframe(filename::AbstractString)

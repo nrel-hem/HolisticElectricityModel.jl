@@ -50,6 +50,8 @@ function Dimension(
     return Dimension(name, prose_name, description, elements)
 end
 
+get_pair(dim::Dimension) = Pair(get_symbol(dim), getproperty(dim, :elements))
+
 @forward Dimension.elements Base.IteratorSize,
 Base.IteratorEltype,
 Base.size,
@@ -85,21 +87,20 @@ function ParamScalar(name::AbstractString, value::Number; prose_name = "", descr
     return ParamScalar(name, prose_name, description, value)
 end
 
-@forward ParamScalar.value Base.isless, Base.isgreater, Base.:+, Base.:*, Base.:-, Base.:/
+@forward ParamScalar.value Base.isless, 
+Base.isgreater, 
+Base.:+, 
+Base.:*, 
+Base.:-, 
+Base.:/
 
 Base.:+(x::Number, y::ParamScalar) = x + y.value
-# Base.:+(x::Ref{Float64}, y::Number) = x[] + y
 Base.:-(x::Number, y::ParamScalar) = x - y.value
 Base.:*(x::Number, y::ParamScalar) = x * y.value
 Base.:*(x::ParamScalar, y::ParamScalar) = x.value * y.value
-# Base.:*(x::Ref{Float64}, y::ParamScalar) = x[] * y.value
-# Base.:*(x::Ref{Float64}, y::Number) = x[] * y
-# Base.:*(x::Ref{Int64}, y::JuMP.VariableRef) = x[] * y
 Base.:/(x::Number, y::ParamScalar) = x / y.value
 Base.:/(x::ParamScalar, y::ParamScalar) = x.value / y.value
-# Base.:/(x::Ref{Float64}, y::Number) = x[] / y
 Base.isless(x::Number, y::ParamScalar) = isless(x, y.value)
-# Base.zero(x::ParamScalar) = zero(x.value[])
 
 ParamScalar(param::ParamScalar) =
     ParamScalar(param.name, param.prose_name, param.description, param.value)
@@ -115,21 +116,15 @@ end
 
 update!(param::ParamScalar, value) = param.value = value
 
-# There is debate in the Julia community on which package to use for arrays with named
-# dimensions. Refer to https://github.com/JuliaCollections/AxisArraysFuture/issues/1.
-# That thread discusses how AxisArrays.jl may be supplanted by a new package that combines
-# AxisKeys.jl and NamedDims.jl. AxisKeys.jl is almost a drop-in replacement for AxisArrays.
-# Indexing works like A(:a, :b) instead of A[:a, :b].
-
-mutable struct ParamAxisArray{N} <: HEMParameter
+mutable struct ParamArray{N} <: HEMParameter
     name::String
     prose_name::String
     description::String
     dims::NTuple{N, Dimension}
-    values::AxisArray
+    values::KeyedArray
 end
 
-ParamAxisArray(param::ParamAxisArray) = ParamAxisArray(
+ParamArray(param::ParamArray) = ParamArray(
     param.name,
     param.prose_name,
     param.description,
@@ -137,41 +132,97 @@ ParamAxisArray(param::ParamAxisArray) = ParamAxisArray(
     copy(param.values),
 )
 
-function ParamAxisArray(
-    param::ParamAxisArray,
+function ParamArray(
+    param::ParamArray,
     name::AbstractString;
     prose_name::AbstractString = "",
     description::AbstractString = "",
 )
-    return ParamAxisArray(name, prose_name, description, param.dims, copy(param.values))
+    return ParamArray(name, prose_name, description, param.dims, copy(param.values))
 end
 
-function ParamAxisArray(
+function ParamArray(
     name::AbstractString,
     dims::NTuple{N, Dimension},
-    vals::AxisArray;
+    vals::KeyedArray;
     prose_name = "",
     description = "",
 ) where {N}
-    return ParamAxisArray(name, prose_name, description, dims, vals)
+    return ParamArray(name, prose_name, description, dims, vals)
 end
 
-@forward ParamAxisArray.values Base.getindex,
-Base.setindex!,
-Base.findmax,
-Base.fill!,
-Base.length,
-AxisArrays.axes
+function ParamArray(
+    name::AbstractString,
+    dims::NTuple{N, Dimension},
+    vals::Array{Float64, N}; # TODO: Replace with something more general than Float64
+    prose_name = "",
+    description = "",
+) where {N}
+    return ParamArray(
+        name,
+        prose_name,
+        description,
+        dims,
+        KeyedArray(
+            vals;
+            [get_pair(dim) for dim in dims]...
+        ),
+    )
+end
+
+@forward ParamArray.values Base.length, 
+    Base.getindex,
+    Base.setindex!,
+    Base.iterate,
+    Base.findmax,
+    Base.fill!,
+    Base.size,
+    Base.axes,
+    Base.eachindex,
+    Base.keys,
+    Base.strides,
+    Base.transpose,
+    Base.IndexStyle,
+    AxisKeys.axiskeys
+
+Base.pointer(A::ParamArray, i::Integer) = Base.pointer(A.values, i)
+
+Base.stride(A::ParamArray, d::Integer) = Base.stride(A.values, d)
+
+AxisKeys.axiskeys(A::ParamArray, d::Int) = AxisKeys.axiskeys(A.values, d)
+
+# implement KeyedArray callable syntax for ParamArrays
+(P::ParamArray)(args...) = P.values(args...)
+
+#Base.:+(x::ParamArray, y::ParamArray) = x.values + y.values
+#Base.:-(x::ParamArray, y::ParamArray) = x.values - y.values
+#Base.:*(x::ParamArray, y::ParamArray) = x.values * y.values
+#Base.:(*)(x::ParamArray, y::ParamArray) = x.values .* y.values
+#Base.:(*)(x::Matrix, y::ParamArray) = x .* y.values
 
 # TODO PERF: turn off fill_nan when we are confident in the code.
 """
-Return an uninitialized AxisArray from any number of Dimension values.
+Return an uninitialized KeyedArray from any number of Dimension values.
 """
-function make_axis_array(indices...; fill_nan = true)
-    array = AxisArray(
-        Array{Float64, length(indices)}(undef, length.(indices)...),
-        [getproperty(x, :elements) for x in indices]...,
+function make_keyed_array(indices...; fill_nan = true)
+    array = KeyedArray(
+        Array{Float64, length(indices)}(undef, length.(indices)...);
+        [get_pair(x) for x in indices]...,
     )
     fill_nan && fill!(array.data, NaN)
+    return array
+end
+
+function initialize_keyed_array(indices...; value=0.0)
+    array = try
+        KeyedArray(
+            Array{Float64, length(indices)}(undef, length.(indices)...);
+            [get_pair(x) for x in indices]...,
+        )
+    catch e
+        @info "Error encountered in initialize_keyed_array with indices" indices length(indices) length.(indices) [get_pair(x) for x in indices]
+        rethrow(e)
+    end
+    fill!(array.data, value)
     return array
 end

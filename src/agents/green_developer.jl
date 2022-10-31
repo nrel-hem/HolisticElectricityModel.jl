@@ -19,9 +19,9 @@ mutable struct GreenDeveloper <: AbstractGreenDeveloper
     "internal rate of return"
     irr::ParamScalar
     "ppa price"
-    ppa_my::ParamAxisArray
+    ppa_my::ParamArray
     "annual green tech buildout (under PPA)"
-    green_tech_buildout_my::ParamAxisArray
+    green_tech_buildout_my::ParamArray
 end
 
 function GreenDeveloper(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
@@ -61,7 +61,7 @@ function solve_agent_problem!(
     customers = get_agent(CustomerGroup, agent_store)
 
     # the year green developer is solving PPA investment problem
-    reg_year = model_data.year[first(model_data.index_y)]
+    reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
 
     Green_Developer_model = get_new_jump_model(green_developer_opts.solvers)
@@ -69,22 +69,22 @@ function solve_agent_problem!(
     # x_green is the annual PPA buildout (x_green is indexed by h for rate-making purpose)
     @variable(Green_Developer_model, x_green[model_data.index_j, model_data.index_h] >= 0)
 
-    x_green_cumu = make_axis_array(model_data.index_j, model_data.index_h)
+    x_green_cumu = make_keyed_array(model_data.index_j, model_data.index_h)
     for j in model_data.index_j, h in model_data.index_h
-        if reg_year == model_data.year[first(model_data.index_y_fix)]
+        if reg_year == model_data.year(first(model_data.index_y_fix))
             x_green_cumu[j, h] = 0.0
         else
-            x_green_cumu[j, h] = sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] 
-                for y_symbol in model_data.year[first(model_data.index_y_fix)]:(reg_year - 1))
+            x_green_cumu[j, h] = sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) 
+                for y_symbol in model_data.year(first(model_data.index_y_fix)):(reg_year - 1))
         end
     end
 
     objective_function = begin
         sum(
             # fixed o&m
-            utility.fom_C_my[reg_year_index, j] * x_green[j, h] / (green_developer.irr * (1 + green_developer.irr)^20 / ((1 + green_developer.irr)^20 - 1)) +
+            utility.fom_C_my(reg_year_index, j) * x_green[j, h] / (green_developer.irr * (1 + green_developer.irr)^20 / ((1 + green_developer.irr)^20 - 1)) +
             # capital costs
-            utility.CapEx_my[reg_year_index, j] * x_green[j, h] for j in model_data.index_j, h in model_data.index_h
+            utility.CapEx_my(reg_year_index, j) * x_green[j, h] for j in model_data.index_j, h in model_data.index_h
         )
     end
 
@@ -94,28 +94,28 @@ function solve_agent_problem!(
         Green_Developer_model,
         Eq_ppa[h in model_data.index_h],
         sum(
-            model_data.omega[t] * utility.rho_C_my[j, t] * (x_green[j, h] + x_green_cumu[j, h]) for
+            model_data.omega(t) * utility.rho_C_my(j, t) * (x_green[j, h] + x_green_cumu[j, h]) for
             j in model_data.index_j, t in model_data.index_t
         ) -
-        customers.x_green_sub_my[reg_year_index, h] / (1 - utility.loss_dist) >=
+        customers.x_green_sub_my(reg_year_index, h) / (1 - utility.loss_dist) >=
         0
     )
 
     optimize!(Green_Developer_model)
 
-    green_tech_buildout_before = ParamAxisArray(green_developer.green_tech_buildout_my, "green_tech_buildout_before")
+    green_tech_buildout_before = ParamArray(green_developer.green_tech_buildout_my, "green_tech_buildout_before")
 
     for j in model_data.index_j, h in model_data.index_h
-        green_developer.green_tech_buildout_my[reg_year_index, j, h] = value.(x_green[j, h])
+        green_developer.green_tech_buildout_my(reg_year_index, j, h, :) .= value.(x_green[j, h])
     end
 
     for h in model_data.index_h
-        if sum(green_developer.green_tech_buildout_my[reg_year_index, j, h] for j in model_data.index_j) > 0.0
-            green_developer.ppa_my[reg_year_index, h] = (sum(sum(utility.fom_C_my[reg_year_index, j] * green_developer.green_tech_buildout_my[reg_year_index, j, h] for j in model_data.index_j) / (1+green_developer.irr)^n for n in 1:20) +
-            sum(utility.CapEx_my[reg_year_index, j] * green_developer.green_tech_buildout_my[reg_year_index, j, h] * (1 - utility.ITC_new_my[reg_year_index, j]) for j in model_data.index_j)) /
-            (sum(customers.x_green_sub_incremental_my[reg_year_index, h] / ((1+green_developer.irr)^n) for n in 1:20))
+        if sum(green_developer.green_tech_buildout_my(reg_year_index, j, h) for j in model_data.index_j) > 0.0
+            green_developer.ppa_my(reg_year_index, h, :) .= (sum(sum(utility.fom_C_my(reg_year_index, j) * green_developer.green_tech_buildout_my(reg_year_index, j, h) for j in model_data.index_j) / (1+green_developer.irr)^n for n in 1:20) +
+            sum(utility.CapEx_my(reg_year_index, j) * green_developer.green_tech_buildout_my(reg_year_index, j, h) * (1 - utility.ITC_new_my(reg_year_index, j)) for j in model_data.index_j)) /
+            (sum(customers.x_green_sub_incremental_my(reg_year_index, h) / ((1+green_developer.irr)^n) for n in 1:20))
         else
-            green_developer.ppa_my[reg_year_index, h] = 0.0
+            green_developer.ppa_my(reg_year_index, h, :) .= 0.0
         end
     end
 
@@ -170,161 +170,161 @@ function welfare_calculation!(
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
 
-    green_developer_Revenue = AxisArray(
+    green_developer_Revenue = KeyedArray(
         [
-            sum(green_developer.ppa_my[Symbol(Int(y_symbol)), h] * customers.x_green_sub_incremental_my[Symbol(Int(y_symbol)), h]
-            for y_symbol in model_data.year[first(model_data.index_y_fix)]:model_data.year[y], h in model_data.index_h)
+            sum(green_developer.ppa_my(Symbol(Int(y_symbol)), h) * customers.x_green_sub_incremental_my(Symbol(Int(y_symbol)), h)
+            for y_symbol in model_data.year(first(model_data.index_y_fix)):model_data.year(y), h in model_data.index_h)
             for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements,
+        ];
+        [get_pair(model_data.index_y_fix)]...,
     )
 
-    energy_cost = AxisArray(
+    energy_cost = KeyedArray(
         [ 
             0.0
             for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements,
+        ];
+        [get_pair(model_data.index_y_fix)]...,
     )
-    fixed_om = AxisArray(
+    fixed_om = KeyedArray(
         [
-            sum(utility.fom_C_my[Symbol(Int(y_symbol)), j] * green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h]
-            for y_symbol in model_data.year[first(model_data.index_y_fix)]:model_data.year[y], h in model_data.index_h, j in model_data.index_j)
+            sum(utility.fom_C_my(Symbol(Int(y_symbol)), j) * green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h)
+            for y_symbol in model_data.year(first(model_data.index_y_fix)):model_data.year(y), h in model_data.index_h, j in model_data.index_j)
             for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements
+        ];
+        [get_pair(model_data.index_y_fix)]...
     )
-    operational_cost = AxisArray(
+    operational_cost = KeyedArray(
         [ 
-            energy_cost[y] + fixed_om[y] for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements
+            energy_cost(y) + fixed_om(y) for y in model_data.index_y_fix
+        ];
+        [get_pair(model_data.index_y_fix)]...
     )
-    working_capital = AxisArray(
+    working_capital = KeyedArray(
         [ 
-            utility.DaysofWC / 365 * operational_cost[y] 
+            utility.DaysofWC / 365 * operational_cost(y) 
             for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements
+        ];
+        [get_pair(model_data.index_y_fix)]...
     )
 
     # assume the green developer's new depreciation schedule is the same as utility's
-    ADITNew = make_axis_array(model_data.index_y_fix, model_data.index_j)
+    ADITNew = make_keyed_array(model_data.index_y_fix, model_data.index_j)
     for y in model_data.index_y_fix, j in model_data.index_j
         ADITNew[y, j] = sum(
-            utility.CapEx_my[Symbol(Int(y_symbol)), j] *
-            sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
+            utility.CapEx_my(Symbol(Int(y_symbol)), j) *
+            sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for h in model_data.index_h) *
             (
-                utility.CumuTaxDepre_new_my[
-                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                utility.CumuTaxDepre_new_my(
+                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
                     j,
-                ] - utility.CumuAccoutDepre_new_my[
-                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                ) - utility.CumuAccoutDepre_new_my(
+                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
                     j,
-                ]
+                )
             ) *
             utility.Tax +
-            utility.ITC_new_my[Symbol(Int(y_symbol)), j] *
-            utility.CapEx_my[Symbol(Int(y_symbol)), j] *
-            sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
+            utility.ITC_new_my(Symbol(Int(y_symbol)), j) *
+            utility.CapEx_my(Symbol(Int(y_symbol)), j) *
+            sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for h in model_data.index_h) *
             (
-                1 - utility.CumuITCAmort_new_my[
-                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                1 - utility.CumuITCAmort_new_my(
+                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
                     j,
-                ]
+                )
             ) for y_symbol in
-                model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
         )
     end
-    RateBaseNoWC_new = make_axis_array(model_data.index_y_fix, model_data.index_j)
+    RateBaseNoWC_new = make_keyed_array(model_data.index_y_fix, model_data.index_j)
     for y in model_data.index_y_fix, j in model_data.index_j
         RateBaseNoWC_new[y, j] =
             sum(
-                utility.CapEx_my[Symbol(Int(y_symbol)), j] *
-                sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
+                utility.CapEx_my(Symbol(Int(y_symbol)), j) *
+                sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for h in model_data.index_h) *
                 (
-                    1 - utility.CumuAccoutDepre_new_my[
-                        Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                    1 - utility.CumuAccoutDepre_new_my(
+                        Symbol(Int(model_data.year(y) - y_symbol + 1)),
                         j,
-                    ]
+                    )
                 ) for y_symbol in
-                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y]
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
             ) - ADITNew[y, j]
     end
 
-    rate_base = AxisArray(
+    rate_base = KeyedArray(
         [
             sum(RateBaseNoWC_new[y, j] for j in model_data.index_j) +
-            working_capital[y] for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements,
+            working_capital(y) for y in model_data.index_y_fix
+        ];
+        [get_pair(model_data.index_y_fix)]...,
     )
-    debt_interest = AxisArray(
+    debt_interest = KeyedArray(
         [ 
-            rate_base[y] * utility.DebtRatio * utility.COD 
+            rate_base(y) * utility.DebtRatio * utility.COD 
             for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements
+        ];
+        [get_pair(model_data.index_y_fix)]...
     )
 
-    depreciation = AxisArray(
+    depreciation = KeyedArray(
         [
             sum(
-                utility.CapEx_my[Symbol(Int(y_symbol)), j] *
-                sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
-                utility.AnnualAccoutDepre_new_my[
-                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                utility.CapEx_my(Symbol(Int(y_symbol)), j) *
+                sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for h in model_data.index_h) *
+                utility.AnnualAccoutDepre_new_my(
+                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
                     j,
-                ] for y_symbol in
-                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y],
+                 ) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y),
                     j in model_data.index_j
             ) for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements
+        ];
+        [get_pair(model_data.index_y_fix)]...
     )
 
-    depreciation_tax = AxisArray(
+    depreciation_tax = KeyedArray(
         [
             sum(
-                utility.CapEx_my[Symbol(Int(y_symbol)), j] *
-                sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
-                utility.AnnualTaxDepre_new_my[
-                    Symbol(Int(model_data.year[y] - y_symbol + 1)),
+                utility.CapEx_my(Symbol(Int(y_symbol)), j) *
+                sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for h in model_data.index_h) *
+                utility.AnnualTaxDepre_new_my(
+                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
                     j,
-                ] for y_symbol in
-                    model_data.year[first(model_data.index_y_fix)]:model_data.year[y],
+                ) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y),
                     j in model_data.index_j
             ) for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements
+        ];
+        [get_pair(model_data.index_y_fix)]...
     )
 
-    income_tax = AxisArray(
+    income_tax = KeyedArray(
         [
             (
-                green_developer_Revenue[y] - debt_interest[y] - operational_cost[y] -
-                depreciation_tax[y]
+                green_developer_Revenue(y) - debt_interest(y) - operational_cost(y) -
+                depreciation_tax(y)
             ) * utility.Tax - 
             sum(
-                utility.ITC_new_my[Symbol(Int(y_symbol)), j] *
-                utility.CapEx_my[Symbol(Int(y_symbol)), j] *
-                sum(green_developer.green_tech_buildout_my[Symbol(Int(y_symbol)), j, h] for h in model_data.index_h) *
-                utility.AnnualITCAmort_new_my[Symbol(Int(model_data.year[y] - y_symbol + 1)), j] for
-                y_symbol in model_data.year[first(model_data.index_y_fix)]:model_data.year[y], j in model_data.index_j
+                utility.ITC_new_my(Symbol(Int(y_symbol)), j) *
+                utility.CapEx_my(Symbol(Int(y_symbol)), j) *
+                sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for h in model_data.index_h) *
+                utility.AnnualITCAmort_new_my(Symbol(Int(model_data.year(y) - y_symbol + 1)), j) for
+                y_symbol in model_data.year(first(model_data.index_y_fix)):model_data.year(y), j in model_data.index_j
             )
             for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements,
+        ];
+        [get_pair(model_data.index_y_fix)]...
     )
 
-    green_developer_Cost = AxisArray(
+    green_developer_Cost = KeyedArray(
         [
-            debt_interest[y] +
-            income_tax[y] +
-            operational_cost[y] +
-            depreciation[y] for y in model_data.index_y_fix
-        ],
-        model_data.index_y_fix.elements,
+            debt_interest(y) +
+            income_tax(y) +
+            operational_cost(y) +
+            depreciation(y) for y in model_data.index_y_fix
+        ];
+        [get_pair(model_data.index_y_fix)]...
     )
 
     return green_developer_Revenue,

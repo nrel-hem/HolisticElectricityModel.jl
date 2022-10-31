@@ -13,7 +13,7 @@ their entirety, from the points of view of all key stakeholders.
 ### Installation
 
 Clone the [source repository](https://github.nrel.gov/HEM/HolisticElectricityModel.jl)
-Clone the [data repository](https://github.nrel.gov/HEM/HolisticElectricityModel-Data)
+Clone the [data repository](https://github.nrel.gov/HEM/HolisticElectricityModelData.jl)
 
 ```
 $ cd HolisticElectricityModel.jl
