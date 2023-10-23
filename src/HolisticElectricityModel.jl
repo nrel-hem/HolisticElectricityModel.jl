@@ -24,6 +24,7 @@ export read_dataframe
 export AgentStore
 export iter_agents_and_options
 export get_file_prefix
+export ParamAxisArray
 
 # Agents
 export Regulator
@@ -44,7 +45,7 @@ export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
 export NullUseCase, DERUseCase, SupplyChoiceUseCase
 # export DERAdoption, SupplyChoice                        # consumer decisions
-export LagrangeDecomposition, MIQP                      # ipp algorithms
+export LagrangeDecomposition, MIQP, MPPDCMER                      # ipp algorithms
 
 # Solvers
 export solve_equilibrium_problem!
