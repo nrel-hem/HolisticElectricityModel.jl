@@ -21,10 +21,10 @@ test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
 # Create input data
 input_path = joinpath(hem_data_dir, "inputs")
-ba = ["p13"]                                     # p13
+ba = ["p129", "p130", "p131", "p132", "p133", "p134"]                                     # p13
 ba_len = length(ba)
-base_year = 2018                                 # 2018
-future_years = [2019]                      # [2019, 2020]
+base_year = 2020                                 # 2018
+future_years = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030]                      # [2019, 2020]
 future_years_len = length(future_years)
 ipp_number = 1                                   # 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
@@ -51,7 +51,7 @@ regulator_opts = RegulatorOptions(
 )
 
 ipp_opts = IPPOptions(
-    MIQP(),          # LagrangeDecomposition(), MIQP()
+    MPPDCMER(),          # LagrangeDecomposition(), MIQP(), MPPDCMER()
     Dict(
         "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
             Ipopt.Optimizer,
@@ -70,7 +70,17 @@ ipp_opts = IPPOptions(
         ),
         "solve_agent_problem_ipp_cap" => JuMP.optimizer_with_attributes(
             () -> Gurobi.Optimizer(GUROBI_ENV),
-            "Presolve" => 0,
+            "Presolve" => 1,
+            # "OUTPUTLOG" => 0,
+        ),
+        "solve_agent_problem_ipp_mppdc" => JuMP.optimizer_with_attributes(
+            () -> Gurobi.Optimizer(GUROBI_ENV),
+            "Presolve" => 1,
+            # "OUTPUTLOG" => 0,
+        ),
+        "solve_agent_problem_ipp_mppdc_mccormic_lower" => JuMP.optimizer_with_attributes(
+            () -> Gurobi.Optimizer(GUROBI_ENV),
+            "Presolve" => 1,
             # "OUTPUTLOG" => 0,
         )
     )

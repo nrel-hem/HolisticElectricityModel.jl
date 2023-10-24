@@ -20,7 +20,7 @@ function run_hem(
     utility_options::Union{UtilityOptions, NullAgentOptions}=NullAgentOptions(),
     green_developer_options::Union{GreenDeveloperOptions, NullAgentOptions}=NullAgentOptions(),
     max_iterations=100,
-    window_length=1,
+    window_length=10,
     force=false,
 )
     model_data = HEMData(input_dir)
@@ -36,7 +36,7 @@ function run_hem(
         AgentAndOptions(regulator, regulator_options),
         AgentAndOptions(customers, NullAgentOptions()),
         AgentAndOptions(green_developer, green_developer_options),
-        AgentAndOptions(distribution_utility, NullAgentOptions()),
+        # AgentAndOptions(distribution_utility, NullAgentOptions()),
     ]
 
     output_dir = joinpath(input_dir, get_file_prefix(options, agents_and_opts))
