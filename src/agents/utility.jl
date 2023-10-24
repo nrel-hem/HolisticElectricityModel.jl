@@ -1203,12 +1203,12 @@ function solve_agent_problem_decomposition_by_year(
 
     # define Lagrange terms
     if (model_data.year(year) == model_data.year(first(model_data.index_y))) &&
-       (model_data.year(year) == model_data.year(last(model_data.index_y)))
+       (model_data.year(year) == model_data.year(last(model_data.index_y.elements)))
         Lagrange_terms = begin
             0
         end
     elseif (model_data.year(year) == model_data.year(first(model_data.index_y))) &&
-           (model_data.year(year) < model_data.year(last(model_data.index_y)))
+           (model_data.year(year) < model_data.year(last(model_data.index_y.elements)))
         Lagrange_terms = begin
             sum(
                 utility.L_R_my(year, Symbol(Int(y_decision)), k) * x_R[year, k] for
@@ -1224,7 +1224,7 @@ function solve_agent_problem_decomposition_by_year(
                 )), k in utility.index_k_new
             )
         end
-    elseif (model_data.year(year) == model_data.year(last(model_data.index_y))) &&
+    elseif (model_data.year(year) == model_data.year(last(model_data.index_y.elements))) &&
            (model_data.year(year) > model_data.year(first(model_data.index_y)))
         Lagrange_terms = begin
             -sum(
@@ -1296,7 +1296,7 @@ function solve_agent_problem_decomposition_by_year(
             x_C[y, k] *
             sum(
                 utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
-                model_data.year(y):model_data.year(last(model_data.index_y))
+                model_data.year(y):model_data.year(last(model_data.index_y.elements))
             ) for k in utility.index_k_new
         ) +
         # capital costs
@@ -1565,12 +1565,12 @@ function solve_agent_problem_decomposition_by_year_feasible(
 
     # define Lagrange terms
     if (model_data.year(year) == model_data.year(first(model_data.index_y))) &&
-       (model_data.year(year) == model_data.year(last(model_data.index_y)))
+       (model_data.year(year) == model_data.year(last(model_data.index_y.elements)))
         Lagrange_terms = begin
             0
         end
     elseif (model_data.year(year) == model_data.year(first(model_data.index_y))) &&
-           (model_data.year(year) < model_data.year(last(model_data.index_y)))
+           (model_data.year(year) < model_data.year(last(model_data.index_y.elements)))
         Lagrange_terms = begin
             sum(
                 utility.L_R_my(year, Symbol(Int(y_decision)), k) * x_R[year, k] for
@@ -1586,7 +1586,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
                 )), k in utility.index_k_new
             )
         end
-    elseif (model_data.year(year) == model_data.year(last(model_data.index_y))) &&
+    elseif (model_data.year(year) == model_data.year(last(model_data.index_y.elements))) &&
            (model_data.year(year) > model_data.year(first(model_data.index_y)))
         Lagrange_terms = begin
             -sum(
@@ -1658,7 +1658,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
             x_C[y, k] *
             sum(
                 utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
-                model_data.year(y):model_data.year(last(model_data.index_y))
+                model_data.year(y):model_data.year(last(model_data.index_y.elements))
             ) for k in utility.index_k_new
         ) +
         # capital costs
@@ -1874,7 +1874,7 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
                 utility.x_C_feasible(y, k) *
                 sum(
                     utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
-                    model_data.year(y):model_data.year(last(model_data.index_y))
+                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
                 ) for k in utility.index_k_new
             ) +
             # capital costs
@@ -2115,7 +2115,7 @@ function solve_agent_problem_decomposition_by_year_master(
             model_data.index_y.elements,
         )) - 1)
             for y_decision in
-                (y_inv_ret + 1):model_data.year(last(model_data.index_y))
+                (y_inv_ret + 1):model_data.year(last(model_data.index_y.elements))
                 alpha_denominator =
                     alpha_denominator +
                     sum(
@@ -2151,9 +2151,9 @@ function solve_agent_problem_decomposition_by_year_master(
             rho * (utility.obj_upper_bound - utility.obj_lower_bound) / alpha_denominator
 
         for y_inv_ret in
-            model_data.year(first(model_data.index_y)):(model_data.year(last(model_data.index_y)) - 1)
+            model_data.year(first(model_data.index_y)):(model_data.year(last(model_data.index_y.elements)) - 1)
             for y_decision in
-                (y_inv_ret + 1):model_data.year(last(model_data.index_y))
+                (y_inv_ret + 1):model_data.year(last(model_data.index_y.elements))
                 for k in utility.index_k_existing
                     utility.L_R_my(Symbol(Int(y_inv_ret)), Symbol(Int(y_decision)), k, :) .=
                         utility.L_R_my(Symbol(Int(y_inv_ret)), Symbol(Int(y_decision)), k) +

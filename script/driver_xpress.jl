@@ -9,7 +9,7 @@ using Xpress
 using Ipopt
 # ------------------------------------------------------------------------------
 
-const HEMData = HolisticElectricityModelData
+const HEMDataRepo = HolisticElectricityModelData
 
 # Define the model run ---------------------------------------------------------
 
@@ -26,17 +26,17 @@ base_year = 2018
 future_years = [2019, 2020]
 future_years_len = length(future_years)
 ipp_number = 1
-scenario = HEMData.DataSelection(ba, base_year, future_years, ipp_number)
+scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
 input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 mkpath(input_dir)
 
-HEMData.parse_inputs(input_path, input_dir, scenario)
+HEMDataRepo.parse_inputs(input_path, input_dir, scenario)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERUseCase(),                     # DERUseCase(), NullUseCase()
     NullUseCase(),                    # SupplyChoiceUseCase(), NullUseCase()
 )
@@ -61,6 +61,11 @@ ipp_opts = IPPOptions(
         ),
         "Lagrange_Feasible_Cap" => JuMP.optimizer_with_attributes(
             () -> Xpress.Optimizer()
+        ),
+        "solve_agent_problem_ipp_cap" => JuMP.optimizer_with_attributes(
+            () -> Gurobi.Optimizer(GUROBI_ENV),
+            "Presolve" => 0,
+            # "OUTPUTLOG" => 0,
         )
     )
 )
