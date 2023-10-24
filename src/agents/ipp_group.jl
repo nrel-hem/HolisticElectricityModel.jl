@@ -4,6 +4,7 @@
 abstract type IPPAlgorithm end
 struct LagrangeDecomposition <: IPPAlgorithm end
 struct MIQP <: IPPAlgorithm end
+struct MPPDCMER <: IPPAlgorithm end
 
 abstract type AbstractIPPOptions <: AgentOptions end
 
@@ -644,7 +645,7 @@ function Lagrange_Sub_Investment_Retirement_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.capacity_credit_C_my(y, k) * (
@@ -653,7 +654,7 @@ function Lagrange_Sub_Investment_Retirement_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 )
             end
     else
@@ -740,7 +741,7 @@ function Lagrange_Sub_Investment_Retirement_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.capacity_credit_C_my(y, k) * (
@@ -749,7 +750,7 @@ function Lagrange_Sub_Investment_Retirement_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) -
                 # net_load plus planning reserve
                 ipp.Reserve_req_my(y)
@@ -810,7 +811,7 @@ function Lagrange_Sub_Investment_Retirement_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.rho_C_my(p, k, t) * (
@@ -819,7 +820,7 @@ function Lagrange_Sub_Investment_Retirement_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) -
                 # net_load plus planning reserve
                 (1 + regulator.r) * (
@@ -1227,7 +1228,7 @@ function Lagrange_Sub_Dispatch_Cap(
             WMDER_IPP,
             Eq_eta_p_other_1[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_existing,
                 t in model_data.index_t,
             ],
@@ -1237,7 +1238,7 @@ function Lagrange_Sub_Dispatch_Cap(
             WMDER_IPP,
             Eq_eta_p_other_2[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_existing,
                 t in model_data.index_t,
             ],
@@ -1252,7 +1253,7 @@ function Lagrange_Sub_Dispatch_Cap(
             WMDER_IPP,
             Eq_eta_p_other_3[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_existing,
                 t in model_data.index_t,
             ],
@@ -1307,7 +1308,7 @@ function Lagrange_Sub_Dispatch_Cap(
             WMDER_IPP,
             Eq_lambda_p_other_1[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_new,
                 t in model_data.index_t,
             ],
@@ -1317,7 +1318,7 @@ function Lagrange_Sub_Dispatch_Cap(
             WMDER_IPP,
             Eq_lambda_p_other_2[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_new,
                 t in model_data.index_t,
             ],
@@ -1332,7 +1333,7 @@ function Lagrange_Sub_Dispatch_Cap(
             WMDER_IPP,
             Eq_lambda_p_other_3[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_new,
                 t in model_data.index_t,
             ],
@@ -1373,7 +1374,7 @@ function Lagrange_Sub_Dispatch_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.rho_C_my(p, k, t) * (
@@ -1382,7 +1383,7 @@ function Lagrange_Sub_Dispatch_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) -
                 # net_load plus planning reserve
                 (1 + regulator.r) * (
@@ -1471,7 +1472,7 @@ function Lagrange_Sub_Dispatch_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.capacity_credit_C_my(y, k) * (
@@ -1480,7 +1481,7 @@ function Lagrange_Sub_Dispatch_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) -
                 # net_load plus planning reserve
                 ipp.Reserve_req_my(y)
@@ -1884,7 +1885,7 @@ function Lagrange_Feasible_Cap(
             WMDER_IPP,
             Eq_eta_p_other_1[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_existing,
                 t in model_data.index_t,
             ],
@@ -1894,7 +1895,7 @@ function Lagrange_Feasible_Cap(
             WMDER_IPP,
             Eq_eta_p_other_2[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_existing,
                 t in model_data.index_t,
             ],
@@ -1909,7 +1910,7 @@ function Lagrange_Feasible_Cap(
             WMDER_IPP,
             Eq_eta_p_other_3[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_existing,
                 t in model_data.index_t,
             ],
@@ -1964,7 +1965,7 @@ function Lagrange_Feasible_Cap(
             WMDER_IPP,
             Eq_lambda_p_other_1[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_new,
                 t in model_data.index_t,
             ],
@@ -1974,7 +1975,7 @@ function Lagrange_Feasible_Cap(
             WMDER_IPP,
             Eq_lambda_p_other_2[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_new,
                 t in model_data.index_t,
             ],
@@ -1989,7 +1990,7 @@ function Lagrange_Feasible_Cap(
             WMDER_IPP,
             Eq_lambda_p_other_3[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_new,
                 t in model_data.index_t,
             ],
@@ -2050,7 +2051,7 @@ function Lagrange_Feasible_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.capacity_credit_C_my(y, k) * (
@@ -2059,7 +2060,7 @@ function Lagrange_Feasible_Cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) for y in model_data.index_y
             ];
             [get_pair(model_data.index_y)]...
@@ -2453,7 +2454,7 @@ function solve_agent_problem_ipp_cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.capacity_credit_C_my(y, k) * (
@@ -2462,7 +2463,7 @@ function solve_agent_problem_ipp_cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 # green technology subscription
                 sum(
@@ -2784,7 +2785,7 @@ function solve_agent_problem_ipp_cap(
             WMDER_IPP,
             Eq_eta_p_other_1[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_existing,
                 t in model_data.index_t,
             ],
@@ -2794,7 +2795,7 @@ function solve_agent_problem_ipp_cap(
             WMDER_IPP,
             Eq_eta_p_other_2[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_existing,
                 t in model_data.index_t,
             ],
@@ -2809,7 +2810,7 @@ function solve_agent_problem_ipp_cap(
             WMDER_IPP,
             Eq_eta_p_other_3[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_existing,
                 t in model_data.index_t,
             ],
@@ -2864,7 +2865,7 @@ function solve_agent_problem_ipp_cap(
             WMDER_IPP,
             Eq_lambda_p_other_1[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_new,
                 t in model_data.index_t,
             ],
@@ -2874,7 +2875,7 @@ function solve_agent_problem_ipp_cap(
             WMDER_IPP,
             Eq_lambda_p_other_2[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_new,
                 t in model_data.index_t,
             ],
@@ -2889,7 +2890,7 @@ function solve_agent_problem_ipp_cap(
             WMDER_IPP,
             Eq_lambda_p_other_3[
                 y in model_data.index_y,
-                p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))],
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
                 k in ipp.index_k_new,
                 t in model_data.index_t,
             ],
@@ -2929,7 +2930,7 @@ function solve_agent_problem_ipp_cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.rho_C_my(p, k, t) * (
@@ -2938,7 +2939,7 @@ function solve_agent_problem_ipp_cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 # green technology subscription
                 sum(
@@ -3039,7 +3040,7 @@ function solve_agent_problem_ipp_cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.capacity_credit_C_my(y, k) * (
@@ -3048,7 +3049,7 @@ function solve_agent_problem_ipp_cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 # green technology subscription
                 sum(
@@ -3182,7 +3183,7 @@ function solve_agent_problem_ipp_cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) - ipp.x_R_cumu(p, k)
                     ) for k in ipp.index_k_existing,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 sum(
                     ipp.capacity_credit_C_my(y, k) * (
@@ -3191,7 +3192,7 @@ function solve_agent_problem_ipp_cap(
                             model_data.year(first(model_data.index_y)):model_data.year(y)
                         ) + ipp.x_C_cumu(p, k)
                     ) for k in ipp.index_k_new,
-                    p in ipp.index_p[Not(findall(x -> x == p_star, ipp.index_p))]
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
                 ) +
                 # green technology subscription
                 sum(
@@ -3222,11 +3223,1528 @@ function solve_agent_problem_ipp_cap(
         ipp.ucap(y, p_star, :) .= UCAP_p_star(y)
     end
 
+    # report lower level duality gap
+    lower_level_primal_obj = DataFrame()
+    lower_level_dual_obj = DataFrame()
+    lower_level_duality_gap = DataFrame()
+    for y in model_data.index_y
+        lower_level_primal_obj[!, y] = Vector{Float64}(undef, 1)
+        lower_level_dual_obj[!, y] = Vector{Float64}(undef, 1)
+        lower_level_duality_gap[!, y] = Vector{Float64}(undef, 1)
+    end
+    for y in model_data.index_y
+        lower_level_primal_obj[1, y] = 
+        sum(
+            model_data.omega(t) *
+            (ipp.v_E_my(y, p, k, t) * value.(y_E[y, p, k, t])) for
+            t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+        ) + 
+        sum(
+            model_data.omega(t) *
+            (ipp.v_C_my(y, p, k, t) * value.(y_C[y, p, k, t])) for
+            t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+        )
+
+        if length(ipp.index_p) >= 2
+            lower_level_dual_obj[1, y] = 
+            sum(
+                value.(miu[y, t]) * (
+                    sum(
+                        customers.gamma(h) * customers.d_my(y, h, t) for
+                        h in model_data.index_h
+                    ) + ipp.eximport_my(y, t) - sum(
+                        customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                        h in model_data.index_h, m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) * sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        ) for h in model_data.index_h, m in customers.index_m
+                    ) -
+                    # green technology subscription at time t
+                    sum(
+                        utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                        for j in model_data.index_j, h in model_data.index_h
+                    )
+                ) for t in model_data.index_t
+            ) - 
+            (
+                sum(
+                    value.(eta[y, p, k, t]) *
+                    ipp.rho_E_my(p, k, t) *
+                    (
+                        ipp.x_E_my(p, k) - ipp.x_R_cumu(p, k)
+                    ) for t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+                ) + sum(
+                    value.(lambda[y, p, k, t]) *
+                    ipp.rho_C_my(p, k, t) *
+                    ipp.x_C_cumu(p, k) 
+                    for t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+                )
+            ) + sum(
+                value.(eta[y, p, k, t]) *
+                ipp.rho_E_my(p, k, t) *
+                sum(
+                    ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_existing,
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+            ) - sum(
+                value.(lambda[y, p, k, t]) *
+                ipp.rho_C_my(p, k, t) *
+                sum(
+                    ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_new,
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+            ) + sum(
+                ipp.rho_E_my(p_star, k, t) *
+                value.(eta[y, p_star, k, t]) *
+                sum(
+                    value.(x_R[Symbol(Int(y_symbol)), k]) for
+                    y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_existing
+            ) - sum(
+                ipp.rho_C_my(p_star, k, t) *
+                value.(lambda[y, p_star, k, t]) *
+                sum(
+                    value.(x_C[Symbol(Int(y_symbol)), k]) for
+                    y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_new
+            )
+        else
+            lower_level_dual_obj[1, y] = 
+            sum(
+                value.(miu[y, t]) * (
+                    sum(
+                        customers.gamma(h) * customers.d_my(y, h, t) for
+                        h in model_data.index_h
+                    ) + ipp.eximport_my(y, t) - sum(
+                        customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                        h in model_data.index_h, m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) * sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        ) for h in model_data.index_h, m in customers.index_m
+                    ) -
+                    # green technology subscription at time t
+                    sum(
+                        utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                        for j in model_data.index_j, h in model_data.index_h
+                    )
+                ) for t in model_data.index_t
+            ) - 
+            (
+                sum(
+                    value.(eta[y, p, k, t]) *
+                    ipp.rho_E_my(p, k, t) *
+                    (
+                        ipp.x_E_my(p, k) - ipp.x_R_cumu(p, k)
+                    ) for t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+                ) + sum(
+                    value.(lambda[y, p, k, t]) *
+                    ipp.rho_C_my(p, k, t) *
+                    ipp.x_C_cumu(p, k) 
+                    for t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+                )
+            ) + sum(
+                ipp.rho_E_my(p_star, k, t) *
+                value.(eta[y, p_star, k, t]) *
+                sum(
+                    value.(x_R[Symbol(Int(y_symbol)), k]) for
+                    y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_existing
+            ) - sum(
+                ipp.rho_C_my(p_star, k, t) *
+                value.(lambda[y, p_star, k, t]) *
+                sum(
+                    value.(x_C[Symbol(Int(y_symbol)), k]) for
+                    y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_new
+            )
+        end
+    end
+    lower_level_duality_gap = (lower_level_primal_obj .- lower_level_dual_obj) ./ abs.(lower_level_primal_obj)
+    @info "lower level primal obj is $(lower_level_primal_obj)"
+    @info "lower level dual obj is $(lower_level_dual_obj)"
+    @info "lower level duality gap is $(lower_level_duality_gap)"
+
     return compute_difference_percentage_one_norm([
         (x_R_before, ipp.x_R_my),
         (x_C_before, ipp.x_C_my),
     ])
 end
+
+
+
+function solve_agent_problem_ipp_cap(
+    ipp::IPPGroup,
+    ipp_opts::IPPOptions{MPPDCMER},
+    p_star,
+    model_data::HEMData,
+    hem_opts::HEMOptions{WholesaleMarket},
+    agent_store::AgentStore,
+    w_iter,
+)
+    x_R_before = ParamArray(ipp.x_R_my)
+    x_C_before = ParamArray(ipp.x_C_my)
+
+    utility = get_agent(Utility, agent_store)
+    regulator = get_agent(Regulator, agent_store)
+    customers = get_agent(CustomerGroup, agent_store)
+    green_developer = get_agent(GreenDeveloper, agent_store)
+
+    WMDER_IPP = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc"])
+    MPPDCMER_lower = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"])
+
+    # first, use lower level optimization results to set variable bounds for McCormick-envelope Relaxation
+    @variable(
+        MPPDCMER_lower,
+        y_E_bounds[model_data.index_y, ipp.index_p, ipp.index_k_existing, model_data.index_t] >= 0
+    )
+    @variable(
+        MPPDCMER_lower,
+        y_C_bounds[model_data.index_y, ipp.index_p, ipp.index_k_new, model_data.index_t] >= 0
+    )
+
+    objective_function_lower = begin
+        sum(
+            sum(
+                model_data.omega(t) *
+                (ipp.v_E_my(y, p, k, t) * y_E_bounds[y, p, k, t]) for
+                t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+            ) + 
+            sum(
+                model_data.omega(t) *
+                (ipp.v_C_my(y, p, k, t) * y_C_bounds[y, p, k, t]) for
+                t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+            )
+            for y in model_data.index_y
+        )
+    end
+
+    @objective(MPPDCMER_lower, Min, objective_function_lower)
+
+    supply_demand_balance_lower =
+        (y, t) -> begin
+            # bulk generation at time t
+            sum(y_E_bounds[y, p, k, t] for k in ipp.index_k_existing, p in ipp.index_p) +
+            sum(y_C_bounds[y, p, k, t] for k in ipp.index_k_new, p in ipp.index_p) -
+            # demand at time t
+            sum(customers.gamma(h) * customers.d_my(y, h, t) for h in model_data.index_h) - ipp.eximport_my(y, t) +
+            # existing DG generation at time t
+            sum(
+                customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                h in model_data.index_h, m in customers.index_m
+            ) +
+            # new DG generation at time t
+            sum(
+                customers.rho_DG(h, m, t) * sum(
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                ) for h in model_data.index_h, m in customers.index_m
+            ) +
+            # green technology subscription at time t
+            sum(
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                for j in model_data.index_j, h in model_data.index_h
+            )
+        end
+
+    @constraint(
+        MPPDCMER_lower,
+        Eq_primal_feasible_supplydemandbalance_lower[y in model_data.index_y, t in model_data.index_t],
+        supply_demand_balance_lower(y, t) >= 0
+    )
+
+    @constraint(
+        MPPDCMER_lower,
+        Eq_primal_feasible_gen_max_E_lower[
+            y in model_data.index_y,
+            p in ipp.index_p,
+            k in ipp.index_k_existing,
+            t in model_data.index_t,
+        ],
+        ipp.rho_E_my(p, k, t) * (
+            ipp.x_E_my(p, k) - sum(
+                ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) - ipp.x_R_cumu(p, k)
+        ) - y_E_bounds[y, p, k, t] >= 0
+    )
+
+    @constraint(
+        MPPDCMER_lower,
+        Eq_primal_feasible_gen_max_C_lower[
+            y in model_data.index_y,
+            p in ipp.index_p,
+            k in ipp.index_k_new,
+            t in model_data.index_t,
+        ],
+        ipp.rho_C_my(p, k, t) * (
+            sum(
+                ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) + ipp.x_C_cumu(p, k)
+        ) - y_C_bounds[y, p, k, t] >= 0
+    )
+
+    TimerOutputs.@timeit HEM_TIMER "optimize! MPPDC McCormic Envelope Relaxation lower level" begin
+        optimize!(MPPDCMER_lower)
+    end
+
+    eta_param = initialize_param("eta_param", model_data.index_y, ipp.index_k_existing, model_data.index_t)
+
+    for y in model_data.index_y, k in ipp.index_k_existing, t in model_data.index_t
+        eta_param(y, k, t) = dual.(Eq_primal_feasible_gen_max_E_lower[y, p_star,k,t])
+    end
+
+    lambda_param = initialize_param("lambda_param", model_data.index_y, ipp.index_k_new, model_data.index_t)
+
+    for y in model_data.index_y, k in ipp.index_k_new, t in model_data.index_t
+        lambda_param(y, k, t) = dual.(Eq_primal_feasible_gen_max_C_lower[y, p_star,k,t])
+    end
+
+    # test bounds McCormick-envelope Relaxation
+    # eta_param = CSV.read(joinpath("/home/nguo/HolisticElectricityModel-Data/outputs/ba_1_base_2018_future_1_ipps_1", "eta.csv"), DataFrame)
+    # lambda_param = CSV.read(joinpath("/home/nguo/HolisticElectricityModel-Data/outputs/ba_1_base_2018_future_1_ipps_1", "lambda.csv"), DataFrame)
+ 
+    eta_upper_bound_adj = 1.001
+    eta_lower_bound_adj = 0.999
+    lambda_upper_bound_adj = 1.001
+    lambda_lower_bound_adj = 0.999
+
+    # eta_upper_bound_adj = 10.0
+    # eta_lower_bound_adj = 10.0
+    # lambda_upper_bound_adj = 10.0
+    # lambda_lower_bound_adj = 10.0
+
+    eta_L = initialize_param("eta_L", model_data.index_y, ipp.index_k_existing, model_data.index_t)
+    eta_U = initialize_param("eta_U", model_data.index_y, ipp.index_k_existing, model_data.index_t)
+
+    for y in model_data.index_y
+        for k in ipp.index_k_existing
+            for t in model_data.index_t
+                eta_U(y, k, t) = eta_param(y, k, t) * eta_upper_bound_adj
+                eta_L(y, k, t) = eta_param(y, k, t) * eta_lower_bound_adj
+            end
+        end
+    end
+
+    # for y in model_data.index_y
+    #     for k in ipp.index_k_existing
+    #         for t in model_data.index_t
+    #             eta_U[y, k, t] = eta_param[(eta_param.Year .== model_data.year[y]) .& (eta_param.IPP .== "ipp1") .& (eta_param.GenTech .== string(k)) .& (eta_param.Time .== string(t)), "eta"][1] + 10.0
+    #             eta_L[y, k, t] = eta_param[(eta_param.Year .== model_data.year[y]) .& (eta_param.IPP .== "ipp1") .& (eta_param.GenTech .== string(k)) .& (eta_param.Time .== string(t)), "eta"][1] - 10.0
+    #         end
+    #     end
+    # end
+
+    X_R_cumu_L = initialize_param("x_R_L", model_data.index_y, ipp.index_k_existing)
+    X_R_cumu_U = initialize_param("x_R_U", model_data.index_y, ipp.index_k_existing)
+    for y in model_data.index_y
+        for k in ipp.index_k_existing
+            # need to have constraints in the optimization as well
+            X_R_cumu_U(y, k) = ipp.x_E_my(p_star, k) - ipp.x_R_cumu(p_star, k)
+        end
+    end
+
+    lambda_L = initialize_param("lambda_L", model_data.index_y, ipp.index_k_new, model_data.index_t)
+    lambda_U = initialize_param("lambda_U", model_data.index_y, ipp.index_k_new, model_data.index_t)
+
+    for y in model_data.index_y
+        for k in ipp.index_k_new
+            for t in model_data.index_t
+                lambda_U(y, k, t) = lambda_param(y, k, t) * lambda_upper_bound_adj
+                lambda_L(y, k, t) = lambda_param(y, k, t) * lambda_lower_bound_adj
+            end
+        end
+    end
+
+    # for y in model_data.index_y
+    #     for k in ipp.index_k_new
+    #         for t in model_data.index_t
+    #             lambda_U[y, k, t] = lambda_param[(lambda_param.Year .== model_data.year[y]) .& (lambda_param.IPP .== "ipp1") .& (lambda_param.GenTech .== string(k)) .& (lambda_param.Time .== string(t)), "Generation_MWh"][1] + 10.0
+    #             lambda_L[y, k, t] = lambda_param[(lambda_param.Year .== model_data.year[y]) .& (lambda_param.IPP .== "ipp1") .& (lambda_param.GenTech .== string(k)) .& (lambda_param.Time .== string(t)), "Generation_MWh"][1] - 10.0
+    #         end
+    #     end
+    # end
+
+    X_C_cumu_L = initialize_param("x_C_L", model_data.index_y, ipp.index_k_new)
+    X_C_cumu_U = initialize_param("x_C_U", model_data.index_y, ipp.index_k_new)
+    for y in model_data.index_y
+        for k in ipp.index_k_new
+            # need to have constraints in the optimization as well
+            # this hard-coded number needs to change
+            X_C_cumu_U(y, k) = 5000.0
+        end
+    end
+
+
+    # Define positive variables
+    @variable(WMDER_IPP, x_C[model_data.index_y, ipp.index_k_new] >= 0)
+    @variable(WMDER_IPP, x_R[model_data.index_y, ipp.index_k_existing] >= 0)
+    @variable(
+        WMDER_IPP,
+        y_E[model_data.index_y, ipp.index_p, ipp.index_k_existing, model_data.index_t] >= 0
+    )
+    @variable(
+        WMDER_IPP,
+        y_C[model_data.index_y, ipp.index_p, ipp.index_k_new, model_data.index_t] >= 0
+    )
+    @variable(WMDER_IPP, miu[model_data.index_y, model_data.index_t] >= 0)
+    @variable(
+        WMDER_IPP,
+        eta[model_data.index_y, ipp.index_p, ipp.index_k_existing, model_data.index_t] >= 0
+    )
+    @variable(
+        WMDER_IPP,
+        lambda[model_data.index_y, ipp.index_p, ipp.index_k_new, model_data.index_t] >= 0
+    )
+
+    @variable(
+        WMDER_IPP,
+        mce_E_p_star[model_data.index_y, ipp.index_k_existing, model_data.index_t],
+    )
+    @variable(
+        WMDER_IPP,
+        mce_C_p_star[model_data.index_y, ipp.index_k_new, model_data.index_t],
+    )
+    # cumulative retirement of p_star
+    @variable(WMDER_IPP, x_R_mce[model_data.index_y, ipp.index_k_existing] >= 0)
+    # cumulative investment of p_star
+    @variable(WMDER_IPP, 0 <= x_C_mce[model_data.index_y, ipp.index_k_new] <= 5000.0)
+
+    @variable(WMDER_IPP, UCAP_p_star[model_data.index_y])
+
+    # setvalue(x_C[Symbol("2019"), :GasCC], 0.0)
+    # setvalue(x_C[Symbol("2019"), :GasCT], 0.0)
+    # setvalue(x_C[Symbol("2019"), :UPV], 762.961280674661)
+    # setvalue(x_R[Symbol("2019"), :GasCC], 437.665817196685)
+    # setvalue(x_R[Symbol("2019"), :GasCT], 0.0)
+    # setvalue(x_R[Symbol("2019"), :UPV], 0.0)
+
+    for p in ipp.index_p
+        for y in model_data.index_y
+            if y == last(model_data.index_y.elements)
+                ipp.pvf_onm(y, p, :) .= ipp.pvf_cap(y, p) / ipp.CRF_default(p)
+            else
+                ipp.pvf_onm(y, p, :) .= ipp.pvf_cap(y, p)
+            end
+        end
+    end
+
+    # adding capacity market parameters
+    fill!(ipp.Net_Load_my, NaN)
+    for y in model_data.index_y, t in model_data.index_t
+        ipp.Net_Load_my(y, t, :) .=
+            sum(customers.gamma(h) * customers.d_my(y, h, t) for h in model_data.index_h) +
+            ipp.eximport_my(y, t) - sum(
+                customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                h in model_data.index_h, m in customers.index_m
+            ) - sum(
+                customers.rho_DG(h, m, t) * sum(
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                ) for h in model_data.index_h, m in customers.index_m
+            )
+    end
+    fill!(ipp.Max_Net_Load_my, NaN)
+    for y in model_data.index_y
+        ipp.Max_Net_Load_my(y, :) .=
+            findmax(Dict(t => ipp.Net_Load_my(y, t) for t in model_data.index_t))[1]
+    end
+
+    Max_Net_Load_my_index = KeyedArray(
+        [
+            findmax(Dict(t => ipp.Net_Load_my(y, t) for t in model_data.index_t))[2] for
+            y in model_data.index_y
+        ];
+        [get_pair(model_data.index_y)]...
+    )
+
+
+    fill!(ipp.capacity_credit_E_my, NaN)
+    for y in model_data.index_y, k in ipp.index_k_existing
+        ipp.capacity_credit_E_my(y, k, :) .= ipp.rho_E_my(p_star, k, Max_Net_Load_my_index(y))
+    end
+    fill!(ipp.capacity_credit_C_my, NaN)
+    for y in model_data.index_y, k in ipp.index_k_new
+        ipp.capacity_credit_C_my(y, k, :) .= ipp.rho_C_my(p_star, k, Max_Net_Load_my_index(y))
+    end
+    fill!(ipp.Reserve_req_my, NaN)
+    for y in model_data.index_y
+        ipp.Reserve_req_my(y, :) .= (1 + regulator.r) * ipp.Max_Net_Load_my(y)
+    end
+
+    for y in model_data.index_y
+        ipp.Capacity_slope_my(y, :) .=
+            -ipp.NetCONE(y) / (ipp.DC_length(y) * ipp.Reserve_req_my(y))
+        ipp.Capacity_intercept_my(y, :) .=
+            -ipp.Capacity_slope_my(y) * ipp.Reserve_req_my(y) + ipp.NetCONE(y)
+    end
+    #=
+    ipp.Capacity_slope_my = Dict(y => - ipp.NetCONE(y) / (ipp.DC_length(y)*ipp.Reserve_req_my(y))
+        for y in model_data.index_y)
+    ipp.Capacity_intercept_my = Dict(y => - ipp.Capacity_slope_my(y) * ipp.Reserve_req_my(y) + ipp.NetCONE(y)
+        for y in model_data.index_y)
+    =#
+    #####################################################################
+
+    UCAP_p_star =
+        y -> begin
+            sum(
+                ipp.capacity_credit_E_my(y, k) * (
+                    ipp.x_E_my(p_star, k) - sum(
+                        x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) - ipp.x_R_cumu(p_star, k)
+                ) for k in ipp.index_k_existing
+            ) + sum(
+                ipp.capacity_credit_C_my(y, k) * (
+                    sum(
+                        x_C[Symbol(Int(y_symbol)), k] for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) + ipp.x_C_cumu(p_star, k)
+                ) for k in ipp.index_k_new
+            )
+        end
+
+    if length(ipp.index_p) >= 2
+        UCAP_total =
+            y -> begin
+                UCAP_p_star(y) +
+                sum(
+                    ipp.capacity_credit_E_my(y, k) * (
+                        ipp.x_E_my(p, k) - sum(
+                            ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_R_cumu(p, k)
+                    ) for k in ipp.index_k_existing,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+                ) +
+                sum(
+                    ipp.capacity_credit_C_my(y, k) * (
+                        sum(
+                            ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_C_cumu(p, k)
+                    ) for k in ipp.index_k_new,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+                ) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                    for j in model_data.index_j, h in model_data.index_h
+                )
+            end
+    else
+        UCAP_total = y -> begin
+            UCAP_p_star(y) +
+            # green technology subscription
+            sum(
+                ipp.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                for j in model_data.index_j, h in model_data.index_h
+            )
+        end
+    end
+
+    objective_function = begin
+        sum(
+
+            # capacity revenue
+            ipp.pvf_onm(y, p_star) * (
+                UCAP_p_star(y) * (
+                    ipp.Capacity_intercept_my(y) + ipp.Capacity_slope_my(y) * UCAP_total(y)
+                )
+            ) -
+
+            # fixed costs
+            #   fom * (cap exist - cap retiring) for gen type
+            ipp.pvf_onm(y, p_star) * sum(
+                ipp.fom_E_my(y, p_star, k) * (
+                    ipp.x_E_my(p_star, k) - sum(
+                        x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    )
+                ) for k in ipp.index_k_existing
+            ) -
+            # fixed costs
+            #   fom * cap new for gen type
+            sum(
+                ipp.fom_C_my(y, p_star, k) *
+                x_C[y, k] *
+                sum(
+                    ipp.pvf_onm(Symbol(Int(y_symbol)), p_star) for y_symbol in
+                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
+                ) for k in ipp.index_k_new
+            ) -
+            # fixed costs
+            #   capex * cap new for gen type
+            ipp.pvf_cap(y, p_star) *
+            sum(ipp.CapEx_my(y, p_star, k) * x_C[y, k] for k in ipp.index_k_new) +
+
+            # Linearized profit term
+            ipp.pvf_onm(y, p_star) * (
+                sum(
+                    miu[y, t] * (
+                        sum(
+                            customers.gamma(h) * customers.d_my(y, h, t) for
+                            h in model_data.index_h
+                        ) + ipp.eximport_my(y, t) - sum(
+                            customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                            h in model_data.index_h, m in customers.index_m
+                        ) - sum(
+                            customers.rho_DG(h, m, t) * sum(
+                                customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                                y_symbol in
+                                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                            ) for h in model_data.index_h, m in customers.index_m
+                        ) -
+                        # green technology subscription at time t
+                        sum(
+                            utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                            for j in model_data.index_j, h in model_data.index_h
+                        )
+                    ) for t in model_data.index_t
+                ) - (
+                    sum(
+                        eta[y, p, k, t] *
+                        ipp.rho_E_my(p, k, t) *
+                        (
+                            ipp.x_E_my(p, k) - sum(
+                                ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                                model_data.year(first(model_data.index_y)):model_data.year(y)
+                            ) - ipp.x_R_cumu(p, k)
+                        ) for t in model_data.index_t, k in ipp.index_k_existing,
+                        p in ipp.index_p
+                    ) - sum(
+                        eta[y, p_star, k, t] *
+                        ipp.rho_E_my(p_star, k, t) *
+                        (
+                            ipp.x_E_my(p_star, k) - sum(
+                                ipp.x_R_my(Symbol(Int(y_symbol)), p_star, k) for
+                                y_symbol in
+                                model_data.year(first(model_data.index_y)):model_data.year(y)
+                            ) - ipp.x_R_cumu(p_star, k)
+                        ) for t in model_data.index_t, k in ipp.index_k_existing
+                    )
+                ) - (
+                    sum(
+                        lambda[y, p, k, t] *
+                        ipp.rho_C_my(p, k, t) *
+                        (
+                            sum(
+                                ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                                model_data.year(first(model_data.index_y)):model_data.year(y)
+                            ) + ipp.x_C_cumu(p, k)
+                        ) for t in model_data.index_t, k in ipp.index_k_new,
+                        p in ipp.index_p
+                    ) - sum(
+                        lambda[y, p_star, k, t] *
+                        ipp.rho_C_my(p_star, k, t) *
+                        (
+                            sum(
+                                ipp.x_C_my(Symbol(Int(y_symbol)), p_star, k) for
+                                y_symbol in
+                                model_data.year(first(model_data.index_y)):model_data.year(y)
+                            ) + ipp.x_C_cumu(p_star, k)
+                        ) for t in model_data.index_t, k in ipp.index_k_new
+                    )
+                ) - (
+                    sum(
+                        model_data.omega(t) * (ipp.v_E_my(y, p, k, t) * y_E[y, p, k, t]) for
+                        t in model_data.index_t, k in ipp.index_k_existing,
+                        p in ipp.index_p
+                    ) - sum(
+                        model_data.omega(t) *
+                        (ipp.v_E_my(y, p_star, k, t) * y_E[y, p_star, k, t]) for
+                        t in model_data.index_t, k in ipp.index_k_existing
+                    )
+                ) - (
+                    sum(
+                        model_data.omega(t) * (ipp.v_C_my(y, p, k, t) * y_C[y, p, k, t]) for
+                        t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+                    ) - sum(
+                        model_data.omega(t) *
+                        (ipp.v_C_my(y, p_star, k, t) * y_C[y, p_star, k, t]) for
+                        t in model_data.index_t, k in ipp.index_k_new
+                    )
+                ) -
+
+                # generation costs (this includes terms due to revenue linearization)
+                #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
+                sum(
+                    model_data.omega(t) *
+                    (ipp.v_E_my(y, p_star, k, t) * y_E[y, p_star, k, t]) for
+                    t in model_data.index_t, k in ipp.index_k_existing
+                ) - sum(
+                    model_data.omega(t) *
+                    (ipp.v_C_my(y, p_star, k, t) * y_C[y, p_star, k, t]) for
+                    t in model_data.index_t, k in ipp.index_k_new
+                )
+            )
+
+            for y in model_data.index_y
+        )
+    end
+
+    @objective(WMDER_IPP, Max, objective_function)
+
+    @constraint(
+        WMDER_IPP,
+        Eq_sigma[y in model_data.index_y, k in ipp.index_k_existing],
+        ipp.x_E_my(p_star, k) - sum(
+            x_R[Symbol(Int(y_symbol)), k] for
+            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+        ) - ipp.x_R_cumu(p_star, k) >= 0
+    )
+
+    # dual feasible constraints
+    @constraint(
+        WMDER_IPP,
+        Eq_dual_feasible_E[
+            y in model_data.index_y,
+            p in ipp.index_p,
+            k in ipp.index_k_existing,
+            t in model_data.index_t,
+        ],
+        model_data.omega(t) * ipp.v_E_my(y, p, k, t) - miu[y, t] + eta[y, p, k, t] >= 0
+    )
+    @constraint(
+        WMDER_IPP,
+        Eq_dual_feasible_C[
+            y in model_data.index_y,
+            p in ipp.index_p,
+            k in ipp.index_k_new,
+            t in model_data.index_t,
+        ],
+        model_data.omega(t) * ipp.v_C_my(y, p, k, t) - miu[y, t] + lambda[y, p, k, t] >= 0
+    )
+
+    supply_demand_balance =
+        (y, t) -> begin
+            # bulk generation at time t
+            sum(y_E[y, p, k, t] for k in ipp.index_k_existing, p in ipp.index_p) +
+            sum(y_C[y, p, k, t] for k in ipp.index_k_new, p in ipp.index_p) -
+            # demand at time t
+            sum(customers.gamma(h) * customers.d_my(y, h, t) for h in model_data.index_h) - ipp.eximport_my(y, t) +
+            # existing DG generation at time t
+            sum(
+                customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                h in model_data.index_h, m in customers.index_m
+            ) +
+            # new DG generation at time t
+            sum(
+                customers.rho_DG(h, m, t) * sum(
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                ) for h in model_data.index_h, m in customers.index_m
+            ) +
+            # green technology subscription at time t
+            sum(
+                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                for j in model_data.index_j, h in model_data.index_h
+            )
+        end
+
+    @constraint(
+        WMDER_IPP,
+        Eq_primal_feasible_supplydemandbalance[y in model_data.index_y, t in model_data.index_t],
+        supply_demand_balance(y, t) >= 0
+    )
+    
+    @constraint(
+        WMDER_IPP,
+        Eq_primal_feasible_gen_max_E[
+            y in model_data.index_y,
+            k in ipp.index_k_existing,
+            t in model_data.index_t,
+        ],
+        ipp.rho_E_my(p_star, k, t) * (
+            ipp.x_E_my(p_star, k) - sum(
+                x_R[Symbol(Int(y_symbol)), k] for
+                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) - ipp.x_R_cumu(p_star, k)
+        ) - y_E[y, p_star, k, t] >= 0
+    )
+    if length(ipp.index_p) >= 2
+        @constraint(
+            WMDER_IPP,
+            Eq_primal_feasible_other_gen_max_E[
+                y in model_data.index_y,
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
+                k in ipp.index_k_existing,
+                t in model_data.index_t,
+            ],
+            ipp.rho_E_my(p, k, t) * (
+                ipp.x_E_my(p, k) - sum(
+                    ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) - ipp.x_R_cumu(p, k)
+            ) - y_E[y, p, k, t] >= 0
+        )
+    end
+
+    @constraint(
+        WMDER_IPP,
+        Eq_primal_feasible_gen_max_C[
+            y in model_data.index_y,
+            k in ipp.index_k_new,
+            t in model_data.index_t,
+        ],
+        ipp.rho_C_my(p_star, k, t) * (
+            sum(
+                x_C[Symbol(Int(y_symbol)), k] for
+                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) + ipp.x_C_cumu(p_star, k)
+        ) - y_C[y, p_star, k, t] >= 0
+    )
+    if length(ipp.index_p) >= 2
+        @constraint(
+            WMDER_IPP,
+            Eq_primal_feasible_other_gen_max_C[
+                y in model_data.index_y,
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))),
+                k in ipp.index_k_new,
+                t in model_data.index_t,
+            ],
+            ipp.rho_C_my(p, k, t) * (
+                sum(
+                    ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) + ipp.x_C_cumu(p, k)
+            ) - y_C[y, p, k, t] >= 0
+        )
+    end
+
+    # strong-duality constraints
+    if length(ipp.index_p) >= 2
+        @constraint(
+            WMDER_IPP,
+            Eq_strong_duality[
+                y in model_data.index_y
+            ],
+            sum(
+                model_data.omega(t) *
+                (ipp.v_E_my(y, p, k, t) * y_E[y, p, k, t]) for
+                t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+            ) + 
+            sum(
+                model_data.omega(t) *
+                (ipp.v_C_my(y, p, k, t) * y_C[y, p, k, t]) for
+                t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+            ) == 
+            sum(
+                miu[y, t] * (
+                    sum(
+                        customers.gamma(h) * customers.d_my(y, h, t) for
+                        h in model_data.index_h
+                    ) + ipp.eximport_my(y, t) - sum(
+                        customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                        h in model_data.index_h, m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) * sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year[y]
+                        ) for h in model_data.index_h, m in customers.index_m
+                    ) -
+                    # green technology subscription at time t
+                    sum(
+                        utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                        for j in model_data.index_j, h in model_data.index_h
+                    )
+                ) for t in model_data.index_t
+            ) - 
+            (
+                sum(
+                    eta[y, p, k, t] *
+                    ipp.rho_E_my(p, k, t) *
+                    (
+                        ipp.x_E_my(p, k) - ipp.x_R_cumu(p, k)
+                    ) for t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+                ) + sum(
+                    lambda[y, p, k, t] *
+                    ipp.rho_C_my(p, k, t) *
+                    ipp.x_C_cumu(p, k) 
+                    for t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+                )
+            ) + sum(
+                eta[y, p, k, t] *
+                ipp.rho_E_my(p, k, t) *
+                sum(
+                    ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_existing,
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+            ) - sum(
+                lambda[y, p, k, t] *
+                ipp.rho_C_my(p, k, t) *
+                sum(
+                    ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_new,
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+            ) + sum(
+                ipp.rho_E_my(p_star, k, t) *
+                mce_E_p_star[y, k, t] for t in model_data.index_t, k in ipp.index_k_existing
+            ) - sum(
+                ipp.rho_C_my(p_star, k, t) *
+                mce_C_p_star[y, k, t] for t in model_data.index_t, k in ipp.index_k_new
+            )
+        )
+    else
+        @constraint(
+            WMDER_IPP,
+            Eq_strong_duality[
+                y in model_data.index_y
+            ],
+            sum(
+                model_data.omega(t) *
+                (ipp.v_E_my(y, p, k, t) * y_E[y, p, k, t]) for
+                t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+            ) + 
+            sum(
+                model_data.omega(t) *
+                (ipp.v_C_my(y, p, k, t) * y_C[y, p, k, t]) for
+                t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+            ) == 
+            sum(
+                miu[y, t] * (
+                    sum(
+                        customers.gamma(h) * customers.d_my(y, h, t) for
+                        h in model_data.index_h
+                    ) + ipp.eximport_my(y, t) - sum(
+                        customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                        h in model_data.index_h, m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) * sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        ) for h in model_data.index_h, m in customers.index_m
+                    ) -
+                    # green technology subscription at time t
+                    sum(
+                        utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                        for j in model_data.index_j, h in model_data.index_h
+                    )
+                ) for t in model_data.index_t
+            ) - 
+            (
+                sum(
+                    eta[y, p, k, t] *
+                    ipp.rho_E_my(p, k, t) *
+                    (
+                        ipp.x_E_my(p, k) - ipp.x_R_cumu(p, k)
+                    ) for t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+                ) + sum(
+                    lambda[y, p, k, t] *
+                    ipp.rho_C_my(p, k, t) *
+                    ipp.x_C_cumu(p, k) 
+                    for t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+                )
+            ) + sum(
+                ipp.rho_E_my(p_star, k, t) *
+                mce_E_p_star[y, k, t] for t in model_data.index_t, k in ipp.index_k_existing
+            ) - sum(
+                ipp.rho_C_my(p_star, k, t) *
+                mce_C_p_star[y, k, t] for t in model_data.index_t, k in ipp.index_k_new
+            )
+        )
+    end
+
+    # linking constraints on total retirement of p_star at year y
+    @constraint(
+        WMDER_IPP,
+        Eq_cumu_R_mce[
+            y in model_data.index_y,
+            k in ipp.index_k_existing
+        ],
+        x_R_mce[y, k] == sum(
+            x_R[Symbol(Int(y_symbol)), k] for
+            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+        )
+    )
+    # McCormick-envelope relaxation of mce_E_p_star
+    @constraint(
+        WMDER_IPP,
+        Eq_MCE_Relax_LL_R[
+            y in model_data.index_y,
+            k in ipp.index_k_existing,
+            t in model_data.index_t
+        ],
+        mce_E_p_star[y, k, t] >= X_R_cumu_L(y, k) * eta[y, p_star, k, t] + 
+        eta_L(y, k, t) * x_R_mce[y, k] - eta_L(y, k, t) * X_R_cumu_L(y, k)
+    )
+    @constraint(
+        WMDER_IPP,
+        Eq_MCE_Relax_UU_R[
+            y in model_data.index_y,
+            k in ipp.index_k_existing,
+            t in model_data.index_t
+        ],
+        mce_E_p_star[y, k, t] >= - eta_U(y, k, t) * X_R_cumu_U(y, k) +
+        eta_U(y, k, t) * x_R_mce[y, k] + eta[y, p_star, k, t] * X_R_cumu_U(y, k)
+    )
+    @constraint(
+        WMDER_IPP,
+        Eq_MCE_Relax_LU_R[
+            y in model_data.index_y,
+            k in ipp.index_k_existing,
+            t in model_data.index_t
+        ],
+        mce_E_p_star[y, k, t] <= X_R_cumu_U(y, k) * eta[y, p_star, k, t] -
+        eta_L(y, k, t) * X_R_cumu_U(y, k) + eta_L(y, k, t) * x_R_mce[y, k]
+    )
+    @constraint(
+        WMDER_IPP,
+        Eq_MCE_Relax_UL_R[
+            y in model_data.index_y,
+            k in ipp.index_k_existing,
+            t in model_data.index_t
+        ],
+        mce_E_p_star[y, k, t] <= eta_U(y, k, t) * x_R_mce[y, k] -
+        eta_U(y, k, t) * X_R_cumu_L(y, k) + X_R_cumu_L(y, k) * eta[y, p_star, k, t]
+    )
+
+
+    # linking constraints on total investment of p_star at year y
+    @constraint(
+        WMDER_IPP,
+        Eq_cumu_C_mce[
+            y in model_data.index_y,
+            k in ipp.index_k_new,
+        ],
+        x_C_mce[y, k] == sum(
+            x_C[Symbol(Int(y_symbol)), k] for
+            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+        )
+    )
+
+    # McCormick-envelope relaxation of mce_C_p_star
+
+    @constraint(
+        WMDER_IPP,
+        Eq_MCE_Relax_LL_C[
+            y in model_data.index_y,
+            k in ipp.index_k_new,
+            t in model_data.index_t
+        ],
+        mce_C_p_star[y, k, t] >= X_C_cumu_L(y, k) * lambda[y, p_star, k, t] + 
+        lambda_L(y, k, t) * x_C_mce[y, k] - lambda_L(y, k, t) * X_C_cumu_L(y, k)
+    )
+    @constraint(
+        WMDER_IPP,
+        Eq_MCE_Relax_UU_C[
+            y in model_data.index_y,
+            k in ipp.index_k_new,
+            t in model_data.index_t
+        ],
+        mce_C_p_star[y, k, t] >= - lambda_U(y, k, t) * X_C_cumu_U(y, k) +
+        lambda_U(y, k, t) * x_C_mce[y, k] + lambda[y, p_star, k, t] * X_C_cumu_U(y, k)
+    )
+    @constraint(
+        WMDER_IPP,
+        Eq_MCE_Relax_LU_C[
+            y in model_data.index_y,
+            k in ipp.index_k_new,
+            t in model_data.index_t
+        ],
+        mce_C_p_star[y, k, t] <= X_C_cumu_U(y, k) * lambda[y, p_star, k, t] -
+        lambda_L(y, k, t) * X_C_cumu_U(y, k) + lambda_L(y, k, t) * x_C_mce[y, k]
+    )
+    @constraint(
+        WMDER_IPP,
+        Eq_MCE_Relax_UL_C[
+            y in model_data.index_y,
+            k in ipp.index_k_new,
+            t in model_data.index_t
+        ],
+        mce_C_p_star[y, k, t] <= lambda_U(y, k, t) * x_C_mce[y, k] -
+        lambda_U(y, k, t) * X_C_cumu_L(y, k) + X_C_cumu_L(y, k) * lambda[y, p_star, k, t]
+    )
+
+
+    if length(ipp.index_p) >= 2
+        planning_reserves =
+            (y, t) -> begin
+                # bulk generation available capacity at time t
+                sum(
+                    ipp.rho_E_my(p_star, k, t) * (
+                        ipp.x_E_my(p_star, k) - sum(
+                            x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_R_cumu(p_star, k)
+                    ) for k in ipp.index_k_existing
+                ) +
+                sum(
+                    ipp.rho_C_my(p_star, k, t) * (
+                        sum(
+                            x_C[Symbol(Int(y_symbol)), k] for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_C_cumu(p_star, k)
+                    ) for k in ipp.index_k_new
+                ) +
+                sum(
+                    ipp.rho_E_my(p, k, t) * (
+                        ipp.x_E_my(p, k) - sum(
+                            ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_R_cumu(p, k)
+                    ) for k in ipp.index_k_existing,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+                ) +
+                sum(
+                    ipp.rho_C_my(p, k, t) * (
+                        sum(
+                            ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_C_cumu(p, k)
+                    ) for k in ipp.index_k_new,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+                ) +
+                # green technology subscription
+                sum(
+                    utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                    for j in model_data.index_j, h in model_data.index_h
+                ) -
+                # net_load plus planning reserve
+                (1 + regulator.r) * (
+                    sum(
+                        customers.gamma(h) * customers.d_my(y, h, t) for
+                        h in model_data.index_h
+                    ) + ipp.eximport_my(y, t) - sum(
+                        customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                        h in model_data.index_h, m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) * sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        ) for h in model_data.index_h, m in customers.index_m
+                    )
+                )
+            end
+    else
+        planning_reserves =
+            (y, t) -> begin
+                # bulk generation available capacity at time t
+                sum(
+                    ipp.rho_E_my(p_star, k, t) * (
+                        ipp.x_E_my(p_star, k) - sum(
+                            x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_R_cumu(p_star, k)
+                    ) for k in ipp.index_k_existing
+                ) + sum(
+                    ipp.rho_C_my(p_star, k, t) * (
+                        sum(
+                            x_C[Symbol(Int(y_symbol)), k] for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_C_cumu(p_star, k)
+                    ) for k in ipp.index_k_new
+                ) +
+                # green technology subscription
+                sum(
+                    utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                    for j in model_data.index_j, h in model_data.index_h
+                ) -
+                # net_load plus planning reserve
+                (1 + regulator.r) * (
+                    sum(
+                        customers.gamma(h) * customers.d_my(y, h, t) for
+                        h in model_data.index_h
+                    ) + ipp.eximport_my(y, t) - sum(
+                        customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                        h in model_data.index_h, m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) * sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        ) for h in model_data.index_h, m in customers.index_m
+                    )
+                )
+            end
+    end
+    @constraint(
+        WMDER_IPP,
+        Eq_xi[y in model_data.index_y, t in model_data.index_t],
+        planning_reserves(y, t) >= 0
+    )
+
+    if length(ipp.index_p) >= 2
+        planning_reserves_cap =
+            y -> begin
+                # bulk generation available capacity at time t
+                sum(
+                    ipp.capacity_credit_E_my(y, k) * (
+                        ipp.x_E_my(p_star, k) - sum(
+                            x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_R_cumu(p_star, k)
+                    ) for k in ipp.index_k_existing
+                ) +
+                sum(
+                    ipp.capacity_credit_C_my(y, k) * (
+                        sum(
+                            x_C[Symbol(Int(y_symbol)), k] for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_C_cumu(p_star, k)
+                    ) for k in ipp.index_k_new
+                ) +
+                sum(
+                    ipp.capacity_credit_E_my(y, k) * (
+                        ipp.x_E_my(p, k) - sum(
+                            ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_R_cumu(p, k)
+                    ) for k in ipp.index_k_existing,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+                ) +
+                sum(
+                    ipp.capacity_credit_C_my(y, k) * (
+                        sum(
+                            ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_C_cumu(p, k)
+                    ) for k in ipp.index_k_new,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+                ) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                    for j in model_data.index_j, h in model_data.index_h
+                ) -
+                # net_load plus planning reserve
+                ipp.Reserve_req_my(y)
+            end
+    else
+        planning_reserves_cap =
+            y -> begin
+                # bulk generation available capacity at time t
+                sum(
+                    ipp.capacity_credit_E_my(y, k) * (
+                        ipp.x_E_my(p_star, k) - sum(
+                            x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_R_cumu(p_star, k)
+                    ) for k in ipp.index_k_existing
+                ) + sum(
+                    ipp.capacity_credit_C_my(y, k) * (
+                        sum(
+                            x_C[Symbol(Int(y_symbol)), k] for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_C_cumu(p_star, k)
+                    ) for k in ipp.index_k_new
+                ) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                    for j in model_data.index_j, h in model_data.index_h
+                ) -
+                # net_load plus planning reserve
+                ipp.Reserve_req_my(y)
+            end
+    end
+    @constraint(
+        WMDER_IPP,
+        Eq_xi_cap[y in model_data.index_y],
+        planning_reserves_cap(y) >= 0
+    )
+
+    # RPS constraint
+    @constraint(
+        WMDER_IPP,
+        Eq_rps[y in model_data.index_y],
+        sum(
+            model_data.omega(t) * (y_E[y, p, rps, t] + y_C[y, p, rps, t]) for
+            rps in ipp.index_rps, t in model_data.index_t, p in ipp.index_p
+        ) -
+        ipp.RPS(y) *
+        sum(model_data.omega(t) * ipp.Net_Load_my(y, t) for t in model_data.index_t) >= 0
+    )
+
+    TimerOutputs.@timeit HEM_TIMER "optimize! Lagrange_Sub_Dispatch_Cap" begin
+        optimize!(WMDER_IPP)
+    end
+
+    for y in model_data.index_y, k in ipp.index_k_existing
+        ipp.x_R_my(y, p_star, k, :) .= value.(x_R[y, k])
+    end
+    for y in model_data.index_y, p in ipp.index_p, k in ipp.index_k_new
+        ipp.x_C_my(y, p_star, k, :) .= value.(x_C[y, k])
+    end
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        k in ipp.index_k_existing,
+        t in model_data.index_t
+
+        ipp.y_E_my(y, p, k, t, :) .= value.(y_E[y, p, k, t])
+    end
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        k in ipp.index_k_new,
+        t in model_data.index_t
+
+        ipp.y_C_my(y, p, k, t, :) .= value.(y_C[y, p, k, t])
+    end
+    for y in model_data.index_y, t in model_data.index_t
+        ipp.miu_my(y, t, :) .= value.(miu[y, t])
+    end
+    for y in model_data.index_y, t in model_data.index_t
+        ipp.LMP_my(y, t, :) .= ipp.miu_my(y, t) / model_data.omega(t)
+    end
+
+    ###### running MILP only ######
+    # UCAP_p_star_solution = Dict(y =>
+    #     sum(ipp.capacity_credit_E_my(y,k)*(ipp.x_E_my(p_star,k)-sum(ipp.x_R_my(Symbol(y_symbol),p_star,k) for y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)) - ipp.x_R_cumu[p_star,k]) for k in ipp.index_k_existing) + 
+    #     sum(ipp.capacity_credit_C_my(y,k)*(sum(ipp.x_C_my(Symbol(y_symbol),p_star,k) for y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)) + ipp.x_C_cumu[p_star,k]) for k in ipp.index_k_new)
+    #     for y in model_data.index_y
+    # )
+    # capacity_profit = Dict(y =>
+    #     ipp.pvf_onm(y,p_star) * UCAP_p_star_solution(y) * (ipp.Capacity_intercept_my(y) + ipp.Capacity_slope_my(y) * UCAP_p_star_solution(y))
+    #     for y in model_data.index_y
+    # )
+    # total_profit = Dict(y => capacity_profit(y) + objective_value(WMDER_IPP) for y in model_data.index_y)
+
+    ###### running MIQP ######
+    UCAP_p_star = KeyedArray(
+        [
+            sum(
+                ipp.capacity_credit_E_my(y, k) * (
+                    ipp.x_E_my(p_star, k) - sum(
+                        ipp.x_R_my(Symbol(Int(y_symbol)), p_star, k) for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) - ipp.x_R_cumu(p_star, k)
+                ) for k in ipp.index_k_existing
+            ) + sum(
+                ipp.capacity_credit_C_my(y, k) * (
+                    sum(
+                        ipp.x_C_my(Symbol(Int(y_symbol)), p_star, k) for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) + ipp.x_C_cumu(p_star, k)
+                ) for k in ipp.index_k_new
+            ) for y in model_data.index_y
+        ];
+        [get_pair(model_data.index_y)]...
+    )
+
+    if length(ipp.index_p) >= 2
+        UCAP_total = KeyedArray(
+            [
+                UCAP_p_star(y) +
+                sum(
+                    ipp.capacity_credit_E_my(y, k) * (
+                        ipp.x_E_my(p, k) - sum(
+                            ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_R_cumu(p, k)
+                    ) for k in ipp.index_k_existing,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+                ) +
+                sum(
+                    ipp.capacity_credit_C_my(y, k) * (
+                        sum(
+                            ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_C_cumu(p, k)
+                    ) for k in ipp.index_k_new,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+                ) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                    for j in model_data.index_j, h in model_data.index_h
+                ) 
+                for y in model_data.index_y
+            ];
+            [get_pair(model_data.index_y)]...
+        )
+    else
+        UCAP_total = KeyedArray(
+            [UCAP_p_star(y) +
+            # green technology subscription
+            sum(
+                ipp.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                for j in model_data.index_j, h in model_data.index_h
+            ) for y in model_data.index_y];
+            [get_pair(model_data.index_y)]...
+        )
+    end
+
+    for y in model_data.index_y
+        ipp.capacity_price(y, :) .=
+            ipp.Capacity_intercept_my(y) + ipp.Capacity_slope_my(y) * UCAP_total(y)
+        ipp.ucap(y, p_star, :) .= UCAP_p_star(y)
+    end
+
+
+    # report lower level duality gap
+    lower_level_primal_obj = DataFrame()
+    lower_level_dual_obj = DataFrame()
+    lower_level_duality_gap = DataFrame()
+    for y in model_data.index_y
+        lower_level_primal_obj[!, y] = Vector{Float64}(undef, 1)
+        lower_level_dual_obj[!, y] = Vector{Float64}(undef, 1)
+        lower_level_duality_gap[!, y] = Vector{Float64}(undef, 1)
+    end
+    for y in model_data.index_y
+        lower_level_primal_obj[1, y] = 
+        sum(
+            model_data.omega(t) *
+            (ipp.v_E_my(y, p, k, t) * value.(y_E[y, p, k, t])) for
+            t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+        ) + 
+        sum(
+            model_data.omega(t) *
+            (ipp.v_C_my(y, p, k, t) * value.(y_C[y, p, k, t])) for
+            t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+        )
+
+        if length(ipp.index_p) >= 2
+            lower_level_dual_obj[1, y] = 
+            sum(
+                value.(miu[y, t]) * (
+                    sum(
+                        customers.gamma(h) * customers.d_my(y, h, t) for
+                        h in model_data.index_h
+                    ) + ipp.eximport_my(y, t) - sum(
+                        customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                        h in model_data.index_h, m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) * sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        ) for h in model_data.index_h, m in customers.index_m
+                    ) -
+                    # green technology subscription at time t
+                    sum(
+                        utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                        for j in model_data.index_j, h in model_data.index_h
+                    )
+                ) for t in model_data.index_t
+            ) - 
+            (
+                sum(
+                    value.(eta[y, p, k, t]) *
+                    ipp.rho_E_my(p, k, t) *
+                    (
+                        ipp.x_E_my(p, k) - ipp.x_R_cumu(p, k)
+                    ) for t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+                ) + sum(
+                    value.(lambda[y, p, k, t]) *
+                    ipp.rho_C_my(p, k, t) *
+                    ipp.x_C_cumu(p, k) 
+                    for t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+                )
+            ) + sum(
+                value.(eta[y, p, k, t]) *
+                ipp.rho_E_my(p, k, t) *
+                sum(
+                    ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_existing,
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+            ) - sum(
+                value.(lambda[y, p, k, t]) *
+                ipp.rho_C_my(p, k, t) *
+                sum(
+                    ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
+                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                ) for t in model_data.index_t, k in ipp.index_k_new,
+                p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p)))
+            ) + sum(
+                ipp.rho_E_my(p_star, k, t) *
+                value.(eta[y, p_star, k, t]) *
+                value.(x_R_mce[y, k]) for t in model_data.index_t, k in ipp.index_k_existing
+            ) - sum(
+                ipp.rho_C_my(p_star, k, t) *
+                value.(lambda[y, p_star, k, t]) *
+                value.(x_C_mce[y, k]) for t in model_data.index_t, k in ipp.index_k_new
+            )
+        else
+            lower_level_dual_obj[1, y] = 
+            sum(
+                value.(miu[y, t]) * (
+                    sum(
+                        customers.gamma(h) * customers.d_my(y, h, t) for
+                        h in model_data.index_h
+                    ) + ipp.eximport_my(y, t) - sum(
+                        customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+                        h in model_data.index_h, m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) * sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        ) for h in model_data.index_h, m in customers.index_m
+                    ) -
+                    # green technology subscription at time t
+                    sum(
+                        utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                        for j in model_data.index_j, h in model_data.index_h
+                    )
+                ) for t in model_data.index_t
+            ) - 
+            (
+                sum(
+                    value.(eta[y, p, k, t]) *
+                    ipp.rho_E_my(p, k, t) *
+                    (
+                        ipp.x_E_my(p, k) - ipp.x_R_cumu(p, k)
+                    ) for t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
+                ) + sum(
+                    value.(lambda[y, p, k, t]) *
+                    ipp.rho_C_my(p, k, t) *
+                    ipp.x_C_cumu(p, k) 
+                    for t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
+                )
+            ) + sum(
+                ipp.rho_E_my(p_star, k, t) *
+                value.(eta[y, p_star, k, t]) *
+                value.(x_R_mce[y, k]) for t in model_data.index_t, k in ipp.index_k_existing
+            ) - sum(
+                ipp.rho_C_my(p_star, k, t) *
+                value.(lambda[y, p_star, k, t]) *
+                value.(x_C_mce[y, k]) for t in model_data.index_t, k in ipp.index_k_new
+            )
+        end
+    end
+    lower_level_duality_gap = (lower_level_primal_obj .- lower_level_dual_obj) ./ abs.(lower_level_primal_obj)
+    @info "lower level primal obj is $(lower_level_primal_obj)"
+    @info "lower level dual obj is $(lower_level_dual_obj)"
+    @info "lower level duality gap is $(lower_level_duality_gap)"
+
+    return compute_difference_percentage_one_norm([
+        (x_R_before, ipp.x_R_my),
+        (x_C_before, ipp.x_C_my),
+    ])
+end
+
 
 function solve_agent_problem!(
     ipp::IPPGroup,

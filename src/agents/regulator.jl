@@ -139,7 +139,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             model_data.index_y;
             description = "other cost not related to the optimization problem",
         ),
-        ParamScalar("REC", 30.0, description = "Renewable Energy Credits"),
+        ParamScalar("REC", 20.0, description = "Renewable Energy Credits"),
         initialize_param(
             "p",
             model_data.index_h,

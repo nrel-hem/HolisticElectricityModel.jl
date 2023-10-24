@@ -275,11 +275,11 @@ function Utility(
             CapExNew(k) * (CumuTaxDepreNew(k) - CumuAccoutDepreNew(k)) * tax_rate +
             ITCNew(k) * CapExNew(k) * (1 - CumuITCAmortNew(k)) for k in index_k_new
         ];
-        [get_pair(index_k_existing)]...
+        [get_pair(index_k_new)]...
     )
     RateBaseNoWCNew = KeyedArray(
         [CapExNew(k) * (1 - CumuAccoutDepreNew(k)) - ADITNew(k) for k in index_k_new];
-        [get_pair(index_k_existing)]...
+        [get_pair(index_k_new)]...
     )
 
     eximport_my = read_param(
