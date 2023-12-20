@@ -39,6 +39,7 @@ function GreenDeveloper(input_filename::AbstractString, model_data::HEMData; id 
             "green_tech_buildout_my",
             model_data.index_y,
             model_data.index_j,
+            model_data.index_z,
             model_data.index_h,
             value = 0.0,
             description = "annual green tech buildout (under PPA)",

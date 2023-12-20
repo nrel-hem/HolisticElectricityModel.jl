@@ -37,6 +37,9 @@ mutable struct Utility <: AbstractUtility
     index_k_new::Dimension
     "RPS-qualified technologies"
     index_rps::Dimension
+    index_stor_existing::Dimension # existing bulk storage technologies
+    index_stor_new::Dimension # potential bulk storage technologies
+    index_l::Dimension # transmission lines
 
     # Parameters
     "existing capacity (MW)"
@@ -94,9 +97,15 @@ mutable struct Utility <: AbstractUtility
 
     # Parameters (multi-year)
     x_E_my::ParamArray # existing capacity (MW)
+    x_stor_E_my::ParamArray # existing storage capacity (MW)
     fom_E_my::ParamArray # fixed O&M of existing capacity ($/MW-yr)
     fom_C_my::ParamArray # fixed O&M of new capacity ($/MW-yr)
+    fom_stor_E_my::ParamArray # fixed O&M of existing storage capacity ($/MW-yr)
+    fom_stor_C_my::ParamArray # fixed O&M of new storage capacity ($/MW-yr)
     CapEx_my::ParamArray # capital expense of new capacity ($/MW)
+    CapEx_stor_my::ParamArray # capital expense of new storage capacity ($/MW)
+    rte_stor_E_my::ParamArray # round trip efficiency of existing storage ($/MW)
+    rte_stor_C_my::ParamArray # round trip efficiency of new storage ($/MW)
     v_E_my::ParamArray # variable cost of existing capacity ($/MWh)
     v_C_my::ParamArray # variable cost of new capacity ($/MWh)
     rho_E_my::ParamArray # availability of existing capacity (fraction)
@@ -105,13 +114,23 @@ mutable struct Utility <: AbstractUtility
     pvf_cap::ParamArray # present value factor of capital expenses
     pvf_onm::ParamArray # present value factor of o&m expenses
     CRF_default::ParamScalar
-    Peak_eximport_my::ParamArray
+    # Peak_eximport_my::ParamArray
+    initial_energy_existing_my::ParamArray
+    initial_energy_new_my::ParamArray
+    stor_duration_existing::ParamArray
+    stor_duration_new::ParamArray
+    trans_topology::ParamArray
+    trans_capacity::ParamArray
 
     # Primal Variables (multi-year)
     y_E_my::ParamArray
     y_C_my::ParamArray
     x_R_my::ParamArray
     x_C_my::ParamArray
+    x_stor_R_my::ParamArray
+    x_stor_C_my::ParamArray
+    x_stor_R_cumu::ParamArray
+    x_stor_C_cumu::ParamArray
     # Dual Variables (multi-year)
     miu_my::ParamArray
 
@@ -141,6 +160,8 @@ mutable struct Utility <: AbstractUtility
     # capacity
     capacity_credit_E_my::ParamArray # capacity credit of existing resources
     capacity_credit_C_my::ParamArray # capacity credit of new resources
+    capacity_credit_stor_E_my::ParamArray # capacity credit of existing resources
+    capacity_credit_stor_C_my::ParamArray # capacity credit of new resources
     Net_Load_my::ParamArray
     Max_Net_Load_my::ParamArray
     Reserve_req_my::ParamArray
@@ -156,18 +177,27 @@ mutable struct Utility <: AbstractUtility
     emission_rate_E_my::ParamArray
     emission_rate_C_my::ParamArray
 
+    # storage and transmission related dispatch
+    charge_E_my::ParamArray
+    discharge_E_my::ParamArray
+    charge_C_my::ParamArray
+    discharge_C_my::ParamArray
+    energy_E_my::ParamArray
+    energy_C_my::ParamArray
+    flow_my::ParamArray
+
     # Lagrange decomposition
-    x_R_feasible::ParamArray
-    x_C_feasible::ParamArray
-    obj_feasible::ParamScalar
-    obj_upper_bound::ParamScalar
-    obj_lower_bound::ParamScalar
-    L_R_my::ParamArray
-    L_C_my::ParamArray
-    x_R_my_decomp::ParamArray
-    x_C_my_decomp::ParamArray
-    obj_my::ParamArray
-    obj_my_feasible::ParamArray
+    # x_R_feasible::ParamArray
+    # x_C_feasible::ParamArray
+    # obj_feasible::ParamScalar
+    # obj_upper_bound::ParamScalar
+    # obj_lower_bound::ParamScalar
+    # L_R_my::ParamArray
+    # L_C_my::ParamArray
+    # x_R_my_decomp::ParamArray
+    # x_C_my_decomp::ParamArray
+    # obj_my::ParamArray
+    # obj_my_feasible::ParamArray
 end
 
 function Utility(
@@ -197,19 +227,25 @@ function Utility(
         prose_name = "RPS-qualified technologies",
     )
 
-    eximport = read_param(
-        "eximport",
-        input_filename,
-        "Export",
-        model_data.index_t,
-        description = "net export (MWh)",
+    index_stor_existing = read_set(input_filename, "index_stor_existing", "index_stor_existing")
+    index_stor_new = read_set(input_filename, "index_stor_new", "index_stor_new")
+    index_l = read_set(input_filename, "index_l", "index_l")
+
+    eximport = read_param("eximport", input_filename, "Export", model_data.index_t, [model_data.index_z, model_data.index_d])
+
+    min_max = Dimension(
+        "min_max",
+        Symbol.(["min", "max"]),
+        prose_name = "min_max",
+        description = "minimum and maximum capacity of transmission lines",
     )
 
     peak_eximport =
         ParamScalar("Peak_eximport", findmax(eximport)[1], description = "peak export")
 
-    FOMNew = read_param("FOM_new", input_filename, "FOMNew", index_k_new)
-    CapExNew = read_param("CapEx_new", input_filename, "CapExNew", index_k_new)
+    FOMNew = read_param("FOM_new", input_filename, "FOMNew", index_k_new, [model_data.index_z])
+    CapExNew =
+        read_param("CapEx_new", input_filename, "CapExNew", index_k_new, [model_data.index_z])
     LifetimeNew = read_param("Lifetime_new", input_filename, "LifetimeNew", index_k_new)
     debt_ratio = ParamScalar("DebtRatio", 0.6, description = "debt ratio")
     cost_of_debt = ParamScalar("COD", 0.06, description = "cost of debt")
@@ -220,12 +256,12 @@ function Utility(
         k => atwacc * (1 + atwacc)^LifetimeNew(k) / ((1 + atwacc)^LifetimeNew(k) - 1)
         for k in index_k_new
     )
-    FixedCostNew = KeyedArray(
-        [FOMNew(k) + CapExNew(k) * CRF[k] for k in index_k_new];
-        [get_pair(index_k_new)]...
-    )
+    FixedCostNew = make_keyed_array(model_data.index_z, index_k_new)
+    for z in model_data.index_z, k in index_k_new
+        FixedCostNew(z, k, :) .= FOMNew(z, k) + CapExNew(z, k) * CRF[k]
+    end
 
-    CapExOld = read_param("CapEx_existing", input_filename, "CapExOld", index_k_existing)
+    CapExOld = read_param("CapEx_existing", input_filename, "CapExOld", index_k_existing, [model_data.index_z])
     CumuTaxDepreOld = read_param(
         "CumuTaxDepre_existing",
         input_filename,
@@ -251,17 +287,18 @@ function Utility(
         "CumuITCAmortOld",
         index_k_existing,
     )
-    ADITOld = KeyedArray(
-        [
-            CapExOld(k) * (CumuTaxDepreOld(k) - CumuAccoutDepreOld(k)) * tax_rate +
-            ITCOld(k) * CapExOld(k) * (1 - CumuITCAmortOld(k)) for k in index_k_existing
-        ];
-        [get_pair(index_k_existing)]...
-    )
-    RateBaseNoWCOld = KeyedArray(
-        [CapExOld(k) * (1 - CumuAccoutDepreOld(k)) - ADITOld(k) for k in index_k_existing];
-        [get_pair(index_k_existing)]...
-    )
+
+
+    ADITOld = make_keyed_array(model_data.index_z, index_k_existing)
+    for z in model_data.index_z, k in index_k_existing
+        ADITOld(z, k, :) .= CapExOld(z, k) * (CumuTaxDepreOld(k) - CumuAccoutDepreOld(k)) * tax_rate +
+        ITCOld(k) * CapExOld(z, k) * (1 - CumuITCAmortOld(k))
+    end
+
+    RateBaseNoWCOld = make_keyed_array(model_data.index_z, index_k_existing)
+    for z in model_data.index_z, k in index_k_existing
+        RateBaseNoWCOld(z, k, :) .= CapExOld(z, k) * (1 - CumuAccoutDepreOld(k)) - ADITOld(z, k)
+    end
 
     CumuTaxDepreNew =
         read_param("CumuTaxDepre_new", input_filename, "CumuTaxDepreNew", index_k_new)
@@ -270,60 +307,52 @@ function Utility(
     ITCNew = read_param("ITC_new", input_filename, "ITCNew", index_k_new)
     CumuITCAmortNew =
         read_param("CumuITCAmort_new", input_filename, "CumuITCAmortNew", index_k_new)
-    ADITNew = KeyedArray(
-        [
-            CapExNew(k) * (CumuTaxDepreNew(k) - CumuAccoutDepreNew(k)) * tax_rate +
-            ITCNew(k) * CapExNew(k) * (1 - CumuITCAmortNew(k)) for k in index_k_new
-        ];
-        [get_pair(index_k_new)]...
-    )
-    RateBaseNoWCNew = KeyedArray(
-        [CapExNew(k) * (1 - CumuAccoutDepreNew(k)) - ADITNew(k) for k in index_k_new];
-        [get_pair(index_k_new)]...
-    )
+
+    ADITNew = make_keyed_array(model_data.index_z, index_k_new)
+    for z in model_data.index_z, k in index_k_new
+        ADITNew(z, k, :) .= CapExNew(z, k) * (CumuTaxDepreNew(k) - CumuAccoutDepreNew(k)) * tax_rate +
+        ITCNew(k) * CapExNew(z, k) * (1 - CumuITCAmortNew(k))
+    end
+
+    RateBaseNoWCNew = make_keyed_array(model_data.index_z, index_k_new)
+    for z in model_data.index_z, k in index_k_new
+        RateBaseNoWCNew(z, k, :) .= CapExNew(z, k) * (1 - CumuAccoutDepreNew(k)) - ADITNew(z, k)
+    end
 
     eximport_my = read_param(
         "eximport_my",
         input_filename,
         "Exportmy",
         model_data.index_t,
-        [model_data.index_y],
+        [model_data.index_y, model_data.index_z, model_data.index_d],
     )
-    array_eximport_my = zeros(length(model_data.index_y), length(model_data.index_t))
-    for y in model_data.index_y, t in model_data.index_t
-        array_eximport_my[
-            Int(model_data.year(y) - model_data.year(first(model_data.index_y)) + 1),
-            Int(model_data.hour(t)),
-        ] = eximport_my(y, t)
-    end
-    peak_eximport_my = KeyedArray(
-        [
-            findmax(array_eximport_my, dims = 2)[1][Int(
-                model_data.year(y) - model_data.year(first(model_data.index_y)) + 1,
-            )] for y in model_data.index_y
-        ];
-        [get_pair(model_data.index_y)]...
-    )
+    # array_eximport_my = zeros(length(model_data.index_y), length(model_data.index_z), length(model_data.index_d), length(model_data.index_t))
+    # for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+    #     array_eximport_my[
+    #         Int(model_data.year(y) - model_data.year(first(model_data.index_y)) + 1),
+    #         Int(model_data.hour(t)),
+    #     ] = eximport_my(y, t)
+    # end
+    # peak_eximport_my = KeyedArray(
+    #     [
+    #         findmax(array_eximport_my, dims = 2)[1][Int(
+    #             model_data.year(y) - model_data.year(first(model_data.index_y)) + 1,
+    #         )] for y in model_data.index_y
+    #     ];
+    #     [get_pair(model_data.index_y)]...
+    # )
 
     CRF_default = atwacc * (1 + atwacc)^20 / ((1 + atwacc)^20 - 1)
-    pvf_cap = KeyedArray(
-        [
-            1 / (1 + atwacc)^(model_data.year(y) - model_data.year_start) for
-            y in model_data.index_y
-        ];
-        [get_pair(model_data.index_y)]...
-    )
-    pvf_onm = KeyedArray(
-        [
-            1 / (1 + atwacc)^(model_data.year(y) - model_data.year_start) for
-            y in model_data.index_y
-        ];
-        [get_pair(model_data.index_y)]...
-    )
+    pvf_cap = make_keyed_array(model_data.index_y)
+    pvf_onm = make_keyed_array(model_data.index_y)
+    for y in model_data.index_y
+        pvf_cap(y, :) .= 1 / (1 + atwacc)^(model_data.year(y) - model_data.year_start)
+        pvf_onm(y, :) .= 1 / (1 + atwacc)^(model_data.year(y) - model_data.year_start)
+    end
 
     # capital expense of existing units ($/MW)
     CapExOld_my =
-        read_param("CapEx_existing_my", input_filename, "CapExOld", index_k_existing)
+        read_param("CapEx_existing_my", input_filename, "CapExOld", index_k_existing, [model_data.index_z])
     # cumulative tax depreciation of existing units (%)
     CumuTaxDepreOld_my = read_param(
         "CumuTaxDepre_existing_my",
@@ -374,18 +403,18 @@ function Utility(
         [model_data.index_y],
     )
     # accumulative deferred income tax of existing units ($/MW)
-    ADITOld_my = make_keyed_array(model_data.index_y, index_k_existing)
-    for y in model_data.index_y, k in index_k_existing
-        ADITOld_my(y, k, :) .=
-            CapExOld_my(k) *
+    ADITOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_k_existing)
+    for y in model_data.index_y, z in model_data.index_z, k in index_k_existing
+        ADITOld_my(y, z, k, :) .=
+            CapExOld_my(z, k) *
             (CumuTaxDepreOld_my(y, k) - CumuAccoutDepreOld_my(y, k)) *
-            tax_rate + ITCOld_my(k) * CapExOld_my(k) * (1 - CumuITCAmortOld_my(y, k))
+            tax_rate + ITCOld_my(k) * CapExOld_my(z, k) * (1 - CumuITCAmortOld_my(y, k))
     end
     # rate base (without working capital) ($/MW)
-    RateBaseNoWCOld_my = make_keyed_array(model_data.index_y, index_k_existing)
-    for y in model_data.index_y, k in index_k_existing
-        RateBaseNoWCOld_my(y, k, :) .=
-            CapExOld_my(k) * (1 - CumuAccoutDepreOld_my(y, k)) - ADITOld_my(y, k)
+    RateBaseNoWCOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_k_existing)
+    for y in model_data.index_y, z in model_data.index_z, k in index_k_existing
+        RateBaseNoWCOld_my(y, z, k, :) .=
+            CapExOld_my(z, k) * (1 - CumuAccoutDepreOld_my(y, k)) - ADITOld_my(y, z, k)
     end
 
     # cumulative tax depreciation of new units (for each schedule year) (%)
@@ -451,70 +480,73 @@ function Utility(
         index_k_existing,
         index_k_new,
         index_rps,
+        index_stor_existing,
+        index_stor_new,
+        index_l,
         read_param(
             "x_E",
             input_filename,
             "ExistingCapacity",
             index_k_existing,
-            description = "existing capacity (MW)",
+            [model_data.index_z],
         ),
         read_param(
             "f_E",
             input_filename,
             "FixedCostOld",
             index_k_existing,
-            description = "fixed cost of existing capacity (\$/MW-yr)",
+            [model_data.index_z],
         ),
-        ParamArray("f_C", (index_k_new,), FixedCostNew),
+        ParamArray("f_C", Tuple(push!(copy([model_data.index_z]), index_k_new)), FixedCostNew),
         read_param(
             "v_E",
             input_filename,
             "VariableCostOld",
             model_data.index_t,
-            [index_k_existing],
-            description = "variable cost of existing capacity (\$/MWh)",
+            [index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "v_C",
             input_filename,
             "VariableCostNew",
             model_data.index_t,
-            [index_k_new],
-            description = "variable cost of new capacity (\$/Mwh)",
+            [index_k_new, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_E",
             input_filename,
             "AvailabilityOld",
             model_data.index_t,
-            [index_k_existing],
-            description = "availability of existing capacity (fraction)",
+            [index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_C",
             input_filename,
             "AvailabilityNew",
             model_data.index_t,
-            [index_k_new],
-            description = "availability of new capacity (fraction)",
+            [index_k_new, model_data.index_z, model_data.index_d],
         ),
         eximport,
         peak_eximport,
         initialize_param(
             "y_E",
             index_k_existing,
+            model_data.index_z,
+            model_data.index_d,
             model_data.index_t;
             description = "existing capacity generation in each time period",
         ),
         initialize_param(
             "y_C",
             index_k_new,
+            model_data.index_z,
+            model_data.index_d,
             model_data.index_t;
             description = "new capacity generation in each time period",
         ),
-        initialize_param("x_R", index_k_existing),
-        initialize_param("x_C", index_k_new),
-        initialize_param("miu", model_data.index_t),
+        initialize_param("x_R", index_k_existing, model_data.index_z),
+        initialize_param("x_C", index_k_new, model_data.index_z),
+        initialize_param("miu", model_data.index_z, model_data.index_d, model_data.index_t),
         CapExOld,
         CumuTaxDepreOld,
         CumuAccoutDepreOld,
@@ -537,71 +569,159 @@ function Utility(
         cost_of_equity,
         tax_rate,
         ParamScalar("DaysofWC", 45.0, description = "number of days of working capital"),
-        read_param("x_E_my", input_filename, "ExistingCapacity", index_k_existing),
+        read_param("x_E_my", input_filename, "ExistingCapacity", index_k_existing, [model_data.index_z]),
+        read_param(
+            "x_stor_E_my",
+            input_filename,
+            "ExistingStorCapacity",
+            index_stor_existing,
+            [model_data.index_z],
+        ),
         read_param(
             "fom_E_my",
             input_filename,
             "FixedCostOldmy",
             index_k_existing,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "fom_C_my",
             input_filename,
             "FOMNewmy",
             index_k_new,
-            [model_data.index_y],
+            [model_data.index_y,model_data.index_z],
+        ),
+        read_param(
+            "fom_stor_E_my",
+            input_filename,
+            "FixedCostStorOldmy",
+            index_stor_existing,
+            [model_data.index_y, model_data.index_z],
+        ),
+        read_param(
+            "fom_stor_C_my",
+            input_filename,
+            "StorFOMNewmy",
+            index_stor_new,
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "CapEx_my",
             input_filename,
             "CapExNewmy",
             index_k_new,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
+        ),
+        read_param(
+            "CapEx_stor_my",
+            input_filename,
+            "StorCapExNewmy",
+            index_stor_new,
+            [model_data.index_y, model_data.index_z],
+        ),
+        read_param(
+            "rte_stor_E_my",
+            input_filename,
+            "StorRTEOldmy",
+            index_stor_existing,
+            [model_data.index_y, model_data.index_z],
+        ),
+        read_param(
+            "rte_stor_C_my",
+            input_filename,
+            "StorRTENewmy",
+            index_stor_new,
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "v_E_my",
             input_filename,
             "VariableCostOldmy",
             model_data.index_t,
-            [model_data.index_y, index_k_existing],
+            [model_data.index_y, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "v_C_my",
             input_filename,
             "VariableCostNewmy",
             model_data.index_t,
-            [model_data.index_y, index_k_new],
+            [model_data.index_y, index_k_new, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_E_my",
             input_filename,
             "AvailabilityOld",
             model_data.index_t,
-            [index_k_existing],
+            [index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_C_my",
             input_filename,
             "AvailabilityNew",
             model_data.index_t,
-            [index_k_new],
+            [index_k_new, model_data.index_z, model_data.index_d],
         ),
         eximport_my,
         ParamArray("pvf_cap", (model_data.index_y,), pvf_cap),
         ParamArray("pvf_onm", (model_data.index_y,), pvf_onm),
         ParamScalar("CRF_default", CRF_default, description = "capital recovery factor"),
-        ParamArray("Peak_eximport_my", (model_data.index_y,), peak_eximport_my),
+        # ParamArray("Peak_eximport_my", (model_data.index_y,), peak_eximport_my),
+        read_param(
+            "initial_energy_existing_my",
+            input_filename,
+            "ExistingStorInitialEnergy",
+            model_data.index_d,
+            [model_data.index_y, index_stor_existing, model_data.index_z],
+        ),
+        read_param(
+            "initial_energy_new_my",
+            input_filename,
+            "NewStorInitialEnergy",
+            model_data.index_d,
+            [model_data.index_y, index_stor_new, model_data.index_z],
+        ),
+        read_param(
+            "stor_duration_existing",
+            input_filename,
+            "ExistingStorDuration",
+            index_stor_existing,
+        ),
+        read_param(
+            "stor_duration_new",
+            input_filename,
+            "NewStorDuration",
+            index_stor_new,
+        ),
+        read_param(
+            "trans_topology",
+            input_filename,
+            "TransmissionTopology",
+            model_data.index_z,
+            [index_l],
+        ),
+        read_param(
+            "trans_capacity",
+            input_filename,
+            "TransmissionCapacity",
+            min_max,
+            [index_l],
+        ),
         initialize_param(
             "y_E_my",
             model_data.index_y,
             index_k_existing,
+            model_data.index_z,
+            model_data.index_d,
             model_data.index_t,
         ),
-        initialize_param("y_C_my", model_data.index_y, index_k_new, model_data.index_t),
-        initialize_param("x_R_my", model_data.index_y, index_k_existing),
-        initialize_param("x_C_my", model_data.index_y, index_k_new),
-        initialize_param("miu_my", model_data.index_y, model_data.index_t),
+        initialize_param("y_C_my", model_data.index_y, index_k_new, model_data.index_z, model_data.index_d, model_data.index_t),
+        initialize_param("x_R_my", model_data.index_y, index_k_existing, model_data.index_z),
+        initialize_param("x_C_my", model_data.index_y, index_k_new, model_data.index_z),
+        initialize_param("x_stor_R_my", model_data.index_y, index_stor_existing, model_data.index_z),
+        initialize_param("x_stor_C_my", model_data.index_y, index_stor_new, model_data.index_z),
+        initialize_param("x_stor_R_cumu", index_stor_existing, model_data.index_z),
+        initialize_param("x_stor_C_cumu", index_stor_new, model_data.index_z),
+        initialize_param("miu_my", model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t),
         CapExOld_my,
         CumuTaxDepreOld_my,
         CumuAccoutDepreOld_my,
@@ -627,8 +747,8 @@ function Utility(
         AnnualITCAmortNew_my,
         AnnualAccoutDepreNew_my,
         AnnualTaxDepreNew_my,
-        initialize_param("x_R_cumu", index_k_existing),
-        initialize_param("x_C_cumu", index_k_new),
+        initialize_param("x_R_cumu", index_k_existing, model_data.index_z),
+        initialize_param("x_C_cumu", index_k_new, model_data.index_z),
         read_param(
             "capacity_credit_E_my",
             input_filename,
@@ -643,7 +763,21 @@ function Utility(
             index_k_new,
             [model_data.index_y],
         ),
-        initialize_param("Net_Load_my", model_data.index_y, model_data.index_t),
+        read_param(
+            "capacity_credit_stor_E_my",
+            input_filename,
+            "CapacityCreditStor_old",
+            index_stor_existing,
+            [model_data.index_y],
+        ),
+        read_param(
+            "capacity_credit_stor_C_my",
+            input_filename,
+            "CapacityCreditStor_new",
+            index_stor_new,
+            [model_data.index_y],
+        ),
+        initialize_param("Net_Load_my", model_data.index_y, model_data.index_d, model_data.index_t),
         initialize_param("Max_Net_Load_my", model_data.index_y),
         initialize_param("Reserve_req_my", model_data.index_y),
         read_param("RPS", input_filename, "RPS", model_data.index_y),
@@ -654,49 +788,104 @@ function Utility(
             input_filename,
             "EmissionRateOldmy",
             index_k_existing,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "emission_rate_C_my",
             input_filename,
             "EmissionRateNewmy",
             index_k_new,
-            [model_data.index_y],
-        ),
-        initialize_param("x_R_feasible", model_data.index_y, index_k_existing),
-        initialize_param("x_C_feasible", model_data.index_y, index_k_new),
-        ParamScalar("obj_feasible", 1.0, description = "feasible objective value"),
-        ParamScalar("obj_upper_bound", Inf, description = "upper bound of objective value"),
-        ParamScalar(
-            "obj_lower_bound",
-            -Inf,
-            description = "lower bound of objective value",
+            [model_data.index_y, model_data.index_z],
         ),
         initialize_param(
-            "L_R_my",
+            "charge_E_my",
             model_data.index_y,
-            index_y_second,
-            index_k_existing,
+            index_stor_existing,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
         ),
         initialize_param(
-            "L_C_my", 
-            model_data.index_y, 
-            index_y_second, 
-            index_k_new),
-        initialize_param(
-            "x_R_my_decomp",
+            "discharge_E_my",
             model_data.index_y,
-            index_y_second,
-            index_k_existing,
+            index_stor_existing,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
         ),
         initialize_param(
-            "x_C_my_decomp",
+            "charge_C_my",
             model_data.index_y,
-            index_y_second,
-            index_k_new,
+            index_stor_new,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
         ),
-        initialize_param("obj_my", model_data.index_y),
-        initialize_param("obj_my_feasible", model_data.index_y),
+        initialize_param(
+            "discharge_C_my",
+            model_data.index_y,
+            index_stor_new,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "energy_E_my",
+            model_data.index_y,
+            index_stor_existing,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "energy_C_my",
+            model_data.index_y,
+            index_stor_new,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "flow_my",
+            model_data.index_y,
+            index_l,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        # initialize_param("x_R_feasible", model_data.index_y, index_k_existing),
+        # initialize_param("x_C_feasible", model_data.index_y, index_k_new),
+        # ParamScalar("obj_feasible", 1.0, description = "feasible objective value"),
+        # ParamScalar("obj_upper_bound", Inf, description = "upper bound of objective value"),
+        # ParamScalar(
+        #     "obj_lower_bound",
+        #     -Inf,
+        #     description = "lower bound of objective value",
+        # ),
+        # initialize_param(
+        #     "L_R_my",
+        #     model_data.index_y,
+        #     index_y_second,
+        #     index_k_existing,
+        # ),
+        # initialize_param(
+        #     "L_C_my", 
+        #     model_data.index_y, 
+        #     index_y_second, 
+        #     index_k_new),
+        # initialize_param(
+        #     "x_R_my_decomp",
+        #     model_data.index_y,
+        #     index_y_second,
+        #     index_k_existing,
+        # ),
+        # initialize_param(
+        #     "x_C_my_decomp",
+        #     model_data.index_y,
+        #     index_y_second,
+        #     index_k_new,
+        # ),
+        # initialize_param("obj_my", model_data.index_y),
+        # initialize_param("obj_my_feasible", model_data.index_y),
     )
 end
 
@@ -1040,6 +1229,761 @@ function solve_agent_problem!(
     ])
 end
 
+
+
+
+
+
+############### utility capacity expansion with transmission and storage ###############
+function solve_agent_problem!(
+    utility::Utility,
+    utility_opts::AgentOptions,
+    model_data::HEMData,
+    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    agent_store::AgentStore,
+    w_iter,
+)
+    regulator = get_agent(Regulator, agent_store)
+    customers = get_agent(CustomerGroup, agent_store)
+    green_developer = get_agent(GreenDeveloper, agent_store)
+
+    VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
+    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+
+    # Define positive variables
+    @variable(VIUDER_Utility, x_C[model_data.index_y, utility.index_k_new, model_data.index_z] >= 0)
+    @variable(VIUDER_Utility, x_R[model_data.index_y, utility.index_k_existing, model_data.index_z] >= 0)
+    @variable(VIUDER_Utility, x_stor_C[model_data.index_y, utility.index_stor_new, model_data.index_z] >= 0)
+    @variable(VIUDER_Utility, x_stor_R[model_data.index_y, utility.index_stor_existing, model_data.index_z] >= 0)
+
+    @variable(
+        VIUDER_Utility,
+        y_E[model_data.index_y, utility.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        y_C[model_data.index_y, utility.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+    )
+
+    @variable(
+        VIUDER_Utility,
+        charge_E[model_data.index_y, utility.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        discharge_E[model_data.index_y, utility.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        charge_C[model_data.index_y, utility.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        discharge_C[model_data.index_y, utility.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        energy_E[model_data.index_y, utility.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        energy_C[model_data.index_y, utility.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        flow[model_data.index_y, utility.index_l, model_data.index_d, model_data.index_t]
+    )
+
+
+    for y in model_data.index_y
+        if y == last(model_data.index_y.elements)
+            utility.pvf_onm(y, :) .= utility.pvf_cap(y) / utility.CRF_default
+        else
+            utility.pvf_onm(y, :) .= utility.pvf_cap(y)
+        end
+    end
+
+    fill!(utility.Net_Load_my, NaN)
+    for y in model_data.index_y, d in model_data.index_d, t in model_data.index_t
+        utility.Net_Load_my(y, d, t, :) .=
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h, z in model_data.index_z) +
+            sum(utility.eximport_my(y, z, d, t) for z in model_data.index_z) - sum(
+                customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                h in model_data.index_h, m in customers.index_m, z in model_data.index_z
+            ) - sum(
+                customers.rho_DG(h, m, z, d, t) * sum(
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                ) for h in model_data.index_h, m in customers.index_m, z in model_data.index_z
+            )
+    end
+    fill!(utility.Max_Net_Load_my, NaN)
+    for y in model_data.index_y
+        utility.Max_Net_Load_my(y, :) .=
+            findmax(Dict((d, t) => utility.Net_Load_my(y, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
+    end
+
+    # commented out for now, use default capacity credit
+    # Max_Net_Load_my_index = Dict(
+    #     y =>
+    #         findmax(Dict(t => utility.Net_Load_my(y, t) for t in model_data.index_t))[2]
+    #     for y in model_data.index_y
+    # )
+
+    # fill!(utility.capacity_credit_E_my, NaN)
+    # for y in model_data.index_y, k in utility.index_k_existing
+    #     utility.capacity_credit_E_my(y, k, :) .= utility.rho_E_my(k, Max_Net_Load_my_index[y])
+    # end
+    # fill!(utility.capacity_credit_C_my, NaN)
+    # for y in model_data.index_y, k in utility.index_k_new
+    #     utility.capacity_credit_C_my(y, k, :) .= utility.rho_C_my(k, Max_Net_Load_my_index[y])
+    # end
+
+    fill!(utility.Reserve_req_my, NaN)
+    for y in model_data.index_y
+        utility.Reserve_req_my(y, :) .= (1 + regulator.r) * utility.Max_Net_Load_my(y)
+    end
+
+    objective_function = begin
+        sum(
+            # generation costs
+            #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
+            utility.pvf_onm(y) * (
+                sum(
+                    model_data.omega(d) * delta_t *
+                    (utility.v_E_my(y, k, z, d, t) * y_E[y, k, z, d, t]) for
+                    d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in utility.index_k_existing
+                ) + 
+                sum(
+                    model_data.omega(d) * delta_t *
+                    (utility.v_C_my(y, k, z, d, t) * y_C[y, k, z, d, t]) for
+                    d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in utility.index_k_new
+                )
+            ) +
+            # fixed o&m costs
+            #   fom * (cap exist - cap retiring) + fom * cap new for gen type
+            # the discount factor is applied to fom of existing capacity remaining at year y
+            utility.pvf_onm(y) * sum(
+                utility.fom_E_my(y, z, k) * (
+                    utility.x_E_my(z, k) - sum(
+                        x_R[Symbol(Int(y_symbol)), k, z] for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    )
+                ) for k in utility.index_k_existing, z in model_data.index_z
+            ) +
+            # the discount factor is applied to fom of new capacity for every year since year y (when it is built)
+            sum(
+                utility.fom_C_my(y, z, k) *
+                x_C[y, k, z] *
+                sum(
+                    utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
+                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
+                ) for k in utility.index_k_new, z in model_data.index_z
+            ) +
+            # capital costs
+            #   capex * cap new for gen type
+            # the discout factor is applied to new capacity for the year it is built
+            utility.pvf_cap(y) *
+            sum(utility.CapEx_my(y, z, k) * x_C[y, k, z] for k in utility.index_k_new, z in model_data.index_z) +
+            # fixed costs
+            #   fom * (cap exist - cap retiring) for stor type
+            utility.pvf_onm(y) * sum(
+                utility.fom_stor_E_my(y, z, s) * (
+                    utility.x_stor_E_my(z, s)- sum(
+                        x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    )
+                ) for s in utility.index_stor_existing, z in model_data.index_z
+            ) +
+            # fixed costs
+            #   fom * cap new for stor type
+            sum(
+                utility.fom_stor_C_my(y, z, s) *
+                x_stor_C[y, s, z] *
+                sum(
+                    utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
+                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
+                ) for s in utility.index_stor_new, z in model_data.index_z
+            ) +
+            # fixed costs
+            #   capex * cap new for stor type
+            utility.pvf_cap(y) *
+            sum(utility.CapEx_stor_my(y, z, s) * x_stor_C[y, s, z] for s in utility.index_stor_new, z in model_data.index_z)
+            for y in model_data.index_y
+        )
+    end
+
+    @objective(VIUDER_Utility, Min, objective_function)
+
+    supply_demand_balance =
+        (y, z, d, t) -> begin
+            # bulk generation at time t
+            sum(y_E[y, k, z, d, t] for k in utility.index_k_existing) +
+            sum(y_C[y, k, z, d, t] for k in utility.index_k_new) -
+            # flow out of zone z
+            sum(utility.trans_topology(l, z) * flow[y, l, d, t] for l in utility.index_l) +
+            # battery discharge
+            sum(discharge_E[y, s, z, d, t] for s in utility.index_stor_existing) +
+            sum(discharge_C[y, s, z, d, t] for s in utility.index_stor_new) -
+            # battery charge
+            sum(charge_E[y, s, z, d, t] for s in utility.index_stor_existing) -
+            sum(charge_C[y, s, z, d, t] for s in utility.index_stor_new) -
+            # demand at time t
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - utility.eximport_my(y, z, d, t) +
+            # existing DG generation at time t
+            sum(
+                customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                h in model_data.index_h, m in customers.index_m
+            ) +
+            # new DG generation at time t
+            sum(
+                customers.rho_DG(h, m, z, d, t) * sum(
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                ) for h in model_data.index_h, m in customers.index_m
+            ) +
+            # green technology subscription at time t
+            sum(
+                utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                for j in model_data.index_j, h in model_data.index_h
+            )
+        end
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_miu[y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t],
+        supply_demand_balance(y, z, d, t) >= 0
+    )
+
+    # HERE -- once running try defining function over two indices
+    # y_E must be less than available capacity
+    @constraint(
+        VIUDER_Utility,
+        Eq_eta[
+            y in model_data.index_y,
+            k in utility.index_k_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        utility.rho_E_my(k, z, d, t) * (
+            utility.x_E_my(z, k) - sum(
+                x_R[Symbol(Int(y_symbol)), k, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) - utility.x_R_cumu(k, z)
+        ) - y_E[y, k, z, d, t] >= 0
+    )
+    # y_C must be less than available capacity
+    @constraint(
+        VIUDER_Utility,
+        Eq_lambda[
+            y in model_data.index_y,
+            k in utility.index_k_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        utility.rho_C_my(k, z, d, t) * (
+            sum(
+                x_C[Symbol(Int(y_symbol)), k, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) + utility.x_C_cumu(k, z)
+        ) - y_C[y, k, z, d, t] >= 0
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_sigma[y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z],
+        utility.x_E_my(z, k) - sum(
+            x_R[Symbol(Int(y_symbol)), k, z] for
+            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+        ) - utility.x_R_cumu(k, z) >= 0
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_sigma_stor[y in model_data.index_y, s in utility.index_stor_existing, z in model_data.index_z],
+        utility.x_stor_E_my(z, s) - sum(
+            x_stor_R[Symbol(Int(y_symbol)), s, z] for
+            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+        ) - utility.x_stor_R_cumu(s, z) >= 0
+    )
+
+
+
+
+
+
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_flow_lower[
+            y in model_data.index_y,
+            l in utility.index_l,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        flow[y, l, d, t] - utility.trans_capacity(l, :min) >= 0
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_flow_upper[
+            y in model_data.index_y,
+            l in utility.index_l,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        flow[y, l, d, t] - utility.trans_capacity(l, :max) <= 0
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_energy_E[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t.elements[2:end],
+        ],
+        energy_E[y, s, z, d, t] == energy_E[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) * delta_t +
+            charge_E[y, s, z, d, t] * delta_t
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_energy_E_0[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in [model_data.index_t.elements[1]],
+        ],
+        energy_E[y, s, z, d, t] == utility.initial_energy_existing_my(y, s, z, d) - discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) * delta_t +
+            charge_E[y, s, z, d, t] * delta_t
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_energy_upper_bound_E[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        energy_E[y, s, z, d, t] <= utility.stor_duration_existing(s) * (
+            utility.x_stor_E_my(z, s) - sum(
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) - utility.x_stor_R_cumu(s, z)
+        )
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_discharge_upper_bound_E[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        discharge_E[y, s, z, d, t] <= utility.rte_stor_E_my(y, z, s) * (
+            utility.x_stor_E_my(z, s) - sum(
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) - utility.x_stor_R_cumu(s, z)
+        )
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_charge_upper_bound_E[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        charge_E[y, s, z, d, t] <= 
+            utility.x_stor_E_my(z, s) - sum(
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) - utility.x_stor_R_cumu(s, z)
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_discharge_energy_upper_bound_E[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t.elements[2:end],
+        ],
+        discharge_E[y, s, z, d, t] * delta_t <= 
+        energy_E[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_discharge_energy_upper_bound_E_0[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in [model_data.index_t.elements[1]],
+        ],
+        discharge_E[y, s, z, d, t] * delta_t <= 
+        utility.initial_energy_existing_my(y, s, z, d)
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_charge_energy_upper_bound_E[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t.elements[2:end],
+        ],
+        charge_E[y, s, z, d, t] * delta_t <= utility.stor_duration_existing(s) * (
+            utility.x_stor_E_my(z, s) - sum(
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) - utility.x_stor_R_cumu(s, z)
+        ) -
+        energy_E[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_charge_energy_upper_bound_E_0[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in [model_data.index_t.elements[1]],
+        ],
+        charge_E[y, s, z, d, t] * delta_t <= utility.stor_duration_existing(s) * (
+            utility.x_stor_E_my(z, s) - sum(
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) - utility.x_stor_R_cumu(s, z)
+        ) -
+        utility.initial_energy_existing_my(y, s, z, d)
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_charge_discharge_upper_bound_E[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t.elements,
+        ],
+        charge_E[y, s, z, d, t] + discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) <= 
+            utility.x_stor_E_my(z, s) - sum(
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) - utility.x_stor_R_cumu(s, z)
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_energy_C[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t.elements[2:end],
+        ],
+        energy_C[y, s, z, d, t] == energy_C[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) * delta_t +
+            charge_C[y, s, z, d, t] * delta_t
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_energy_C_0[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in [model_data.index_t.elements[1]],
+        ],
+        energy_C[y, s, z, d, t] == utility.initial_energy_new_my(y, s, z, d) - discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) * delta_t +
+            charge_C[y, s, z, d, t] * delta_t
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_energy_upper_bound_C[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        energy_C[y, s, z, d, t] <= utility.stor_duration_new(s) * (
+            sum(
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) + utility.x_stor_C_cumu(s, z)
+        )
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_discharge_upper_bound_C[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        discharge_C[y, s, z, d, t] <= utility.rte_stor_C_my(y, z, s) * (
+            sum(
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) + utility.x_stor_C_cumu(s, z)
+        )
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_charge_upper_bound_C[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
+        charge_C[y, s, z, d, t] <= 
+            sum(
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) + utility.x_stor_C_cumu(s, z)
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_discharge_energy_upper_bound_C[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t.elements[2:end],
+        ],
+        discharge_C[y, s, z, d, t] * delta_t <= 
+        energy_C[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_discharge_energy_upper_bound_C_0[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in [model_data.index_t.elements[1]],
+        ],
+        discharge_C[y, s, z, d, t] * delta_t <= 
+        utility.initial_energy_new_my(y, s, z, d)
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_charge_energy_upper_bound_C[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t.elements[2:end],
+        ],
+        charge_C[y, s, z, d, t] * delta_t <= utility.stor_duration_new(s) * (
+            sum(
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) + utility.x_stor_C_cumu(s, z)
+        ) -
+        energy_C[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_charge_energy_upper_bound_C_0[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in [model_data.index_t.elements[1]],
+        ],
+        charge_C[y, s, z, d, t] * delta_t <= utility.stor_duration_new(s) * (
+            sum(
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) + utility.x_stor_C_cumu(s, z)
+        ) -
+        utility.initial_energy_new_my(y, s, z, d)
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_primal_feasible_charge_discharge_upper_bound_C[
+            y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t.elements,
+        ],
+        charge_C[y, s, z, d, t] + discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) <= 
+            sum(
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                model_data.year(first(model_data.index_y)):model_data.year(y)
+            ) + utility.x_stor_C_cumu(s, z)
+    )
+
+
+    # planning_reserves =
+    #     (y, t) -> begin
+    #         # bulk generation available capacity at time t
+    #         sum(
+    #             utility.rho_E_my(k, t) * (
+    #                 utility.x_E_my(k) - sum(
+    #                     x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+    #                     model_data.year(first(model_data.index_y)):model_data.year(y)
+    #                 ) - utility.x_R_cumu(k)
+    #             ) for k in utility.index_k_existing
+    #         ) + sum(
+    #             utility.rho_C_my(k, t) * (
+    #                 sum(
+    #                     x_C[Symbol(Int(y_symbol)), k] for y_symbol in
+    #                     model_data.year(first(model_data.index_y)):model_data.year(y)
+    #                 ) + utility.x_C_cumu(k)
+    #             ) for k in utility.index_k_new
+    #         ) +
+    #         # green technology subscription
+    #         sum(
+    #             utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+    #             model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+    #             for j in model_data.index_j, h in model_data.index_h
+    #         ) -
+    #         # net_load plus planning reserve
+    #         (1 + regulator.r) * (
+    #             sum(
+    #                 customers.gamma(h) * customers.d_my(y, h, t) for
+    #                 h in model_data.index_h
+    #             ) + utility.eximport_my(y, t) - sum(
+    #                 customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+    #                 h in model_data.index_h, m in customers.index_m
+    #             ) - sum(
+    #                 customers.rho_DG(h, m, t) * sum(
+    #                     customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+    #                     y_symbol in
+    #                     model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+    #                 ) for h in model_data.index_h, m in customers.index_m
+    #             )
+    #         )
+    #     end
+    # @constraint(
+    #     VIUDER_Utility,
+    #     Eq_xi[y in model_data.index_y, t in model_data.index_t],
+    #     planning_reserves(y, t) >= 0
+    # )
+
+    # planning_reserves_cap =
+    #     y -> begin
+    #         # bulk generation available capacity at time t
+    #         sum(
+    #             utility.capacity_credit_E_my(y, k) * (
+    #                 utility.x_E_my(k) - sum(
+    #                     x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+    #                     model_data.year(first(model_data.index_y)):model_data.year(y)
+    #                 ) - utility.x_R_cumu(k)
+    #             ) for k in utility.index_k_existing
+    #         ) + sum(
+    #             utility.capacity_credit_C_my(y, k) * (
+    #                 sum(
+    #                     x_C[Symbol(Int(y_symbol)), k] for y_symbol in
+    #                     model_data.year(first(model_data.index_y)):model_data.year(y)
+    #                 ) + utility.x_C_cumu(k)
+    #             ) for k in utility.index_k_new
+    #         ) +
+    #         # green technology subscription
+    #         sum(
+    #             utility.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+    #             model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+    #             for j in model_data.index_j, h in model_data.index_h
+    #         ) -
+    #         # net_load plus planning reserve
+    #         utility.Reserve_req_my(y)
+    #     end
+    # @constraint(
+    #     VIUDER_Utility,
+    #     Eq_xi_cap[y in model_data.index_y],
+    #     planning_reserves_cap(y) >= 0
+    # )
+
+    # # RPS constraint
+    # @constraint(
+    #     VIUDER_Utility,
+    #     Eq_rps[y in model_data.index_y],
+    #     sum(
+    #         model_data.omega(t) * (y_E[y, rps, t] + y_C[y, rps, t]) for
+    #         rps in utility.index_rps, t in model_data.index_t
+    #     ) -
+    #     utility.RPS(y) *
+    #     sum(model_data.omega(t) * utility.Net_Load_my(y, t) for t in model_data.index_t) >=
+    #     0
+    # )
+
+    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 1" begin
+        optimize!(VIUDER_Utility)
+    end
+
+    # record current primary variable values
+    for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        utility.y_E_my(y, k, z, d, t, :) .= value.(y_E[y, k, z, d, t])
+    end
+
+    for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        utility.y_C_my(y, k, z, d, t, :) .= value.(y_C[y, k, z, d, t])
+    end
+
+    x_R_before = ParamArray(utility.x_R_my)
+    x_C_before = ParamArray(utility.x_C_my)
+    for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z
+        utility.x_R_my(y, k, z, :) .= value.(x_R[y, k, z])
+    end
+
+    for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z
+        utility.x_C_my(y, k, z, :) .= value.(x_C[y, k, z])
+    end
+
+    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        utility.miu_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t])
+    end
+
+    # for y in model_data.index_y
+    #     utility.rec_my(y, :) .= dual.(Eq_rps[y]) ./ utility.pvf_onm(y)  # exact REC needs to be carefully evaluated
+    # end
+
+    # @info "Original built capacity" x_C_before
+    # @info "New built capacity" utility.x_C_my
+
+    # report change in key variables from previous iteration to this one
+    # return compute_difference_percentage_one_norm([
+    #     (x_R_before, utility.x_R_my),
+    #     (x_C_before, utility.x_C_my),
+    # ])
+end
+
+
+
+
 function save_results(
     utility::Utility,
     utility_opts::AgentOptions,
@@ -1070,6 +2014,100 @@ function save_results(
         [:Year, :GenTech],
         :Capacity_MW,
         joinpath(export_file_path, "x_C.csv"),
+    )
+end
+
+
+function save_results(
+    utility::Utility,
+    utility_opts::AgentOptions,
+    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    export_file_path::AbstractString,
+)
+    # Primal Variables
+    save_param(
+        utility.y_E_my.values,
+        [:Year, :GenTech, :Zone, :Day, :Time],
+        :Generation_MWh,
+        joinpath(export_file_path, "y_E.csv"),
+    )
+    save_param(
+        utility.y_C_my.values,
+        [:Year, :GenTech, :Zone, :Day, :Time],
+        :Generation_MWh,
+        joinpath(export_file_path, "y_C.csv"),
+    )
+    save_param(
+        utility.x_R_my.values,
+        [:Year, :GenTech, :Zone],
+        :Capacity_MW,
+        joinpath(export_file_path, "x_R.csv"),
+    )
+    save_param(
+        utility.x_C_my.values,
+        [:Year, :GenTech, :Zone],
+        :Capacity_MW,
+        joinpath(export_file_path, "x_C.csv"),
+    )
+    save_param(
+        utility.x_stor_R_my.values,
+        [:Year, :StorTech, :Zone],
+        :Capacity_MW,
+        joinpath(export_file_path, "x_stor_R.csv"),
+    )
+    save_param(
+        utility.x_stor_C_my.values,
+        [:Year, :StorTech, :Zone],
+        :Capacity_MW,
+        joinpath(export_file_path, "x_stor_C.csv"),
+    )
+    # save_param(
+    #     utility.LMP_my.values,
+    #     [:Year, :Zone, :Day, :Time],
+    #     :MarginalCost,
+    #     joinpath(export_file_path, "LMP.csv"),
+    # )
+    save_param(
+        utility.charge_E_my.values,
+        [:Year, :StorTech, :Zone, :Day, :Time],
+        :Charge_MWh,
+        joinpath(export_file_path, "charge_E.csv"),
+    )
+    save_param(
+        utility.discharge_E_my.values,
+        [:Year, :StorTech, :Zone, :Day, :Time],
+        :Discharge_MWh,
+        joinpath(export_file_path, "discharge_E.csv"),
+    )
+    save_param(
+        utility.charge_C_my.values,
+        [:Year, :StorTech, :Zone, :Day, :Time],
+        :Charge_MWh,
+        joinpath(export_file_path, "charge_C.csv"),
+    )
+    save_param(
+        utility.discharge_C_my.values,
+        [:Year, :StorTech, :Zone, :Day, :Time],
+        :Discharge_MWh,
+        joinpath(export_file_path, "discharge_C.csv"),
+    )
+    save_param(
+        utility.energy_E_my.values,
+        [:Year, :StorTech, :Zone, :Day, :Time],
+        :Energy_MWh,
+        joinpath(export_file_path, "energy_E.csv"),
+    )
+    save_param(
+        utility.energy_C_my.values,
+        [:Year, :StorTech, :Zone, :Day, :Time],
+        :Energy_MWh,
+        joinpath(export_file_path, "energy_C.csv"),
+    )
+    save_param(
+        utility.flow_my.values,
+        [:Year, :Line, :Day, :Time],
+        :Flow_MWh,
+        joinpath(export_file_path, "flow.csv"),
     )
 end
 

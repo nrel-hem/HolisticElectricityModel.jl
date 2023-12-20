@@ -20,7 +20,7 @@ function run_hem(
     utility_options::Union{UtilityOptions, NullAgentOptions}=NullAgentOptions(),
     green_developer_options::Union{GreenDeveloperOptions, NullAgentOptions}=NullAgentOptions(),
     max_iterations=100,
-    window_length=10,
+    window_length=5,
     force=false,
 )
     model_data = HEMData(input_dir)
@@ -29,7 +29,7 @@ function run_hem(
     customers = CustomerGroup(input_dir, model_data)
     ipp = IPPGroup(input_dir, model_data)
     green_developer = GreenDeveloper(input_dir, model_data)
-    distribution_utility = DistributionUtility(input_dir, model_data)
+    # distribution_utility = DistributionUtility(input_dir, model_data)
     agents_and_opts = [
         AgentAndOptions(utility, utility_options),
         AgentAndOptions(ipp, ipp_options),

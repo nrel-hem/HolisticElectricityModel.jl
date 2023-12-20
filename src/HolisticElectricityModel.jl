@@ -49,7 +49,7 @@ export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
 export NullUseCase, DERUseCase, SupplyChoiceUseCase
 # export DERAdoption, SupplyChoice                        # consumer decisions
-export LagrangeDecomposition, MIQP, MPPDCMER                      # ipp algorithms
+export LagrangeDecomposition, MIQP, MPPDCMER, MPPDCMERTransStorage                      # ipp algorithms
 
 # Solvers
 export solve_equilibrium_problem!
@@ -66,6 +66,9 @@ export solve_agent_problem_decomposition_by_year_feasible
 export solve_agent_problem_decomposition_by_year_feasible_obj
 export solve_agent_problem_decomposition_by_year_master
 export run_hem
+
+export initialize_param
+export get_new_jump_model
 
 ################################################################################
 # Imports

@@ -11,14 +11,16 @@ mutable struct HEMData
     index_y::Dimension # year index
     index_y_fix::Dimension # year index
     index_s::Dimension # year index (for new resources depreciation schedule)
-    index_t::Dimension # time index, currently 17 ReEDS timeslices
+    index_d::Dimension # representative day index
+    index_t::Dimension # time index (within each representative day)
     index_h::Dimension # customer types
     index_j::Dimension # green tariff technologies
+    index_z::Dimension # zone index
 
     # Parameters
     omega::ParamArray # number of hours per timeslice
     year::ParamArray
-    hour::ParamArray
+    time::ParamArray
     year_start::ParamScalar
 end
 
@@ -32,7 +34,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "simulation years",
     )
     # "index_y_fix" represents the full simulation horizon (does not change)
-    # "index_y" represents the simulation years in a particular window (gets updated on line 238)
+    # "index_y" represents the simulation years in a particular window (gets updated on line 296)
     # e.g., when we simulate years 2021-2030, "index_y_fix" will be [2021, ..., 2030]
     # if the planning window is 5-year for utility or IPPs, so the first index_y will be
     # [2021, ..., 2025], after solving the first window, index_y will be updated to [2022, ..., 2026] etc.
@@ -53,13 +55,21 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "new resource depreciation years",
     )
 
-    # 17 timeslices (from ReEDS)
+    # representative day and hour (from ReEDS)
+    index_d = read_set(
+        input_filename,
+        "index_d",
+        "index_d",
+        prose_name = "representative day index d",
+        description = "ReEDS representative days",
+    )
+
     index_t = read_set(
         input_filename,
         "index_t",
         "index_t",
         prose_name = "time index t",
-        description = "ReEDS 17 timeslices representation",
+        description = "ReEDS representative hour within each representative day",
     )
 
     # customer group types
@@ -80,24 +90,35 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "green tariff technologies",
     )
 
+    # zones
+    index_z = read_set(
+        input_filename,
+        "index_z",
+        "index_z",
+        prose_name = "zones index z",
+        description = "ReEDS BA modeled",
+    )
+
     return HEMData(
         ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
         index_y,
         index_y_fix,
         index_s,
+        index_d,
         index_t,
         index_h,
         index_j,
+        index_z,
         read_param(
             "omega",
             input_filename,
             "Omega",
-            index_t,
-            description = "number of hours per timeslice",
+            index_d,
+            description = "number of days per representative day",
         ),
         read_param("year", input_filename, "Year", index_y, description = "Year"),
-        read_param("hour", input_filename, "Hour", index_t, description = "Hour"),
-        ParamScalar("year_start", 2018, description = "simulation start year"),
+        read_param("time", input_filename, "Time", index_t, description = "Time"),
+        ParamScalar("year_start", 2020, description = "simulation start year"),
     )
 end
 

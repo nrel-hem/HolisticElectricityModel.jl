@@ -141,34 +141,35 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         input_filename,
         "Gamma",
         model_data.index_h,
-        description = "number of customers of type h",
+        [model_data.index_z],
+        description = "number of customers of type h at zone z",
     )
     demand =
-        read_param("d", input_filename, "Demand", model_data.index_t, [model_data.index_h])
+        read_param("d", input_filename, "Demand", model_data.index_t, [model_data.index_h, model_data.index_z, model_data.index_d])
     demand_my = read_param(
         "d_my",
         input_filename,
         "Demandmy",
         model_data.index_t,
-        [model_data.index_y, model_data.index_h],
+        [model_data.index_y, model_data.index_h, model_data.index_z, model_data.index_d],
     )
     x_DG_E = read_param(
         "x_DG_E",
         input_filename,
         "ExistingDER",
         index_m,
-        [model_data.index_h],
+        [model_data.index_h, model_data.index_z],
         description = "existing DG capacity",
     )
-    for h in model_data.index_h, m in index_m
-        x_DG_E(h, m, :) .= x_DG_E(h, m) * DER_factor
+    for h in model_data.index_h, z in model_data.index_z, m in index_m
+        x_DG_E(h, z, m, :) .= x_DG_E(h, z, m) * DER_factor
     end
     x_DG_E_my = read_param(
         "x_DG_E_my",
         input_filename,
         "ExistingDERmy",
         index_m,
-        [model_data.index_y, model_data.index_h],
+        [model_data.index_y, model_data.index_h, model_data.index_z],
     )
     Opti_DG =
         read_param("Opti_DG", input_filename, "OptimalDER", index_m, [model_data.index_h])
@@ -184,7 +185,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         input_filename,
         "AvailabilityDER",
         model_data.index_t,
-        [model_data.index_h, index_m],
+        [model_data.index_h, index_m, model_data.index_z, model_data.index_d],
     )
     # # Define total DER generation per individual customer per hour
     # DERGen = initialize_param("DERGen", model_data.index_h, model_data.index_t, value = 1.0)
@@ -196,17 +197,15 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     #     end
     # end
     # Calculate maximum demand for each customer type
-    MaxLoad = KeyedArray(
-        [
-            gamma(h) * findmax(Dict(t => demand(h, t) for t in model_data.index_t))[1]
-            for h in model_data.index_h
-        ];
-        [get_pair(model_data.index_h)]...,
-    )
-    MaxLoad_my = make_keyed_array(model_data.index_y, model_data.index_h)
-    for y in model_data.index_y, h in model_data.index_h
-        MaxLoad_my(y, h, :) .=
-            gamma(h) * findmax(Dict(t => demand_my(y, h, t) for t in model_data.index_t))[1]
+    MaxLoad = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        MaxLoad(z, h, :) .=
+            gamma(z, h) * findmax(Dict((z, d, t) => demand(h, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
+    end
+    MaxLoad_my = make_keyed_array(model_data.index_y, model_data.index_z, model_data.index_h)
+    for y in model_data.index_y, z in model_data.index_z, h in model_data.index_h
+        MaxLoad_my(y, z, h, :) .=
+            gamma(z, h) * findmax(Dict((d, t) => demand_my(y, h, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
 
     pv_adoption_model = PVAdoptionModel(
@@ -325,17 +324,17 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ),
         rho_DG,
         ParamScalar("delta", 0.05),
-        ParamArray("PeakLoad", (model_data.index_h,), MaxLoad),
+        ParamArray("PeakLoad", Tuple(push!(copy([model_data.index_z]), model_data.index_h)), MaxLoad),
         ParamArray(
             "PeakLoad_my",
-            Tuple(push!(copy([model_data.index_y]), model_data.index_h)),
+            Tuple(push!(copy([model_data.index_y, model_data.index_z]), model_data.index_h)),
             MaxLoad_my,
         ),
         initialize_param("x_DG_new", model_data.index_h, index_m),
-        initialize_param("x_DG_new_my", model_data.index_y, model_data.index_h, index_m),
-        initialize_param("x_green_sub", model_data.index_h, value = 10.0),
-        initialize_param("x_green_sub_my", model_data.index_y, model_data.index_h, value = 100.0),
-        initialize_param("x_green_sub_incremental_my", model_data.index_y, model_data.index_h, value = 0.0),
+        initialize_param("x_DG_new_my", model_data.index_y, model_data.index_h, model_data.index_z, index_m),
+        initialize_param("x_green_sub", model_data.index_h, model_data.index_z, value = 10.0),
+        initialize_param("x_green_sub_my", model_data.index_y, model_data.index_h, model_data.index_z, value = 100.0),
+        initialize_param("x_green_sub_incremental_my", model_data.index_y, model_data.index_h, model_data.index_z, value = 0.0),
         initialize_param("Payback", model_data.index_h, index_m),
         initialize_param("MarketShare", model_data.index_h, index_m),
         initialize_param("MaxDG", model_data.index_h, index_m),

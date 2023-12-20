@@ -143,6 +143,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
         initialize_param(
             "p",
             model_data.index_h,
+            model_data.index_d,
             model_data.index_t;
             value = 10.0,
             description = "retail price",
@@ -150,12 +151,14 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
         initialize_param(
             "p_ex",
             model_data.index_h,
+            model_data.index_d,
             model_data.index_t;
             value = 10.0,
             description = "DER excess generation rate",
         ),
         initialize_param(
             "p_eximport",
+            model_data.index_d,
             model_data.index_t;
             value = 10.0,
             description = "retail price of import/export",
@@ -181,6 +184,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             "p_my",
             model_data.index_y,
             model_data.index_h,
+            model_data.index_d,
             model_data.index_t;
             value = 10.0,
             description = "multi-year retail price",
@@ -189,6 +193,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             "p_ex_my",
             model_data.index_y,
             model_data.index_h,
+            model_data.index_d,
             model_data.index_t;
             value = 10.0,
             description = "multi-year DER excess generation rate",
@@ -196,6 +201,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
         initialize_param(
             "p_eximport_my",
             model_data.index_y,
+            model_data.index_d,
             model_data.index_t;
             value = 10.0,
             description = "multi-year retail price of import/export",
