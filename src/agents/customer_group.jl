@@ -385,6 +385,73 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     )
 end
 
+mutable struct CustomerGroup_short <: AbstractCustomerGroup
+    id::String
+    # Sets
+    index_m::Dimension # behind-the-meter technologies
+
+    # Parameters
+    "number of customers of type h"
+    gamma::ParamArray
+    "multi-year demand (MWh per representative agent per hour)"
+    d_my::ParamArray
+    "Existing DER at year y. This is a cumulative number but without x_DG_new_my built by this module"
+    x_DG_E_my::ParamArray
+    rho_DG::ParamArray
+
+    # Primal Variables
+    x_DG_new_my::ParamArray    # Annual new DER build (not cumulative)
+end
+
+function CustomerGroup_short(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+    index_m = read_set(
+        input_filename,
+        "index_m",
+        "index_m",
+        prose_name = "behind-the-meter technologies m",
+    )
+
+    gamma = read_param(
+        "gamma",
+        input_filename,
+        "Gamma",
+        model_data.index_h,
+        [model_data.index_z],
+        description = "number of customers of type h at zone z",
+    )
+    demand_my = read_param(
+        "d_my",
+        input_filename,
+        "Demandmy",
+        model_data.index_t,
+        [model_data.index_y, model_data.index_h, model_data.index_z, model_data.index_d],
+    )
+    x_DG_E_my = read_param(
+        "x_DG_E_my",
+        input_filename,
+        "ExistingDERmy",
+        index_m,
+        [model_data.index_y, model_data.index_h, model_data.index_z],
+    )
+    rho_DG = read_param(
+        "rho_DG",
+        input_filename,
+        "AvailabilityDER",
+        model_data.index_t,
+        [model_data.index_h, index_m, model_data.index_z, model_data.index_d],
+    )
+
+    return CustomerGroup_short(
+        id,
+        index_m,
+        gamma,
+        demand_my,
+        x_DG_E_my,
+        rho_DG,
+        initialize_param("x_DG_new_my", model_data.index_y, model_data.index_h, model_data.index_z, index_m),
+    )
+end
+
 get_id(x::CustomerGroup) = x.id
 
 function solve_agent_problem!(
