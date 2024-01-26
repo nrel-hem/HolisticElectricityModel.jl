@@ -31,7 +31,7 @@ future_years_len = length(future_years)
 ipp_number = 1                                   # 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
-# need to run in julia: run(#ba, PROFILES_DIRECTORY, "nguo", HOSTNAME, DATABASE, PORT) to get residential and commercial profiles
+# need to run in julia: run(output_dir = PROFILES_DIRECTORY, user = "nguo", hostname = HOSTNAME, dbname = DATABASE, port = PORT, pca_ids = nothing) to get residential and commercial profiles
 # also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
 
 input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full"

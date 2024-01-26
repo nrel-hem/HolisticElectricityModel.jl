@@ -114,7 +114,7 @@ mutable struct Utility <: AbstractUtility
     pvf_cap::ParamArray # present value factor of capital expenses
     pvf_onm::ParamArray # present value factor of o&m expenses
     CRF_default::ParamScalar
-    # Peak_eximport_my::ParamArray
+    Peak_eximport_my::ParamArray
     initial_energy_existing_my::ParamArray
     initial_energy_new_my::ParamArray
     stor_duration_existing::ParamArray
@@ -133,26 +133,45 @@ mutable struct Utility <: AbstractUtility
     x_stor_C_cumu::ParamArray
     # Dual Variables (multi-year)
     miu_my::ParamArray
+    p_energy_cem_my::ParamArray
+    p_cap_cem_my::ParamArray
 
     # Finance Related Parameters (multi-year)
     CapEx_existing_my::ParamArray # capital cost of existing capacity ($/MW)
+    CapExStor_existing_my::ParamArray # capital cost of existing capacity ($/MW)
     CumuTaxDepre_existing_my::ParamArray # cumulative tax depreciation of existing capacity (%)
+    CumuTaxDepreStor_existing_my::ParamArray # cumulative tax depreciation of existing capacity (%)
     CumuAccoutDepre_existing_my::ParamArray # cumulative accounting depreciation of existing capacity (%)
+    CumuAccoutDepreStor_existing_my::ParamArray # cumulative accounting depreciation of existing capacity (%)
     AnnualAccoutDepre_existing_my::ParamArray # annual accounting depreciation of existing capacity (%)
+    AnnualAccoutDepreStor_existing_my::ParamArray # annual accounting depreciation of existing capacity (%)
     AnnualTaxDepre_existing_my::ParamArray # annual tax depreciation of existing capacity (%)
+    AnnualTaxDepreStor_existing_my::ParamArray # annual tax depreciation of existing capacity (%)
     ITC_existing_my::ParamArray # ITC of existing capacity (%)
+    ITCStor_existing_my::ParamArray # ITC of existing capacity (%)
     CumuITCAmort_existing_my::ParamArray # ITC amortization of existing capacity (%)
+    CumuITCAmortStor_existing_my::ParamArray # ITC amortization of existing capacity (%)
     AnnualITCAmort_existing_my::ParamArray # ITC amortization of existing capacity (%)
+    AnnualITCAmortStor_existing_my::ParamArray # ITC amortization of existing capacity (%)
     ADIT_existing_my::ParamArray # accumulated deferred income taxes ($/MW)
     RateBaseNoWC_existing_my::ParamArray # rate base (excluding working capital) ($/MW)
+    ADITStor_existing_my::ParamArray # accumulated deferred income taxes ($/MW)
+    RateBaseNoWCStor_existing_my::ParamArray # rate base (excluding working capital) ($/MW)
 
     CumuTaxDepre_new_my::ParamArray # cumulative tax depreciation of new capacity (%)
+    CumuTaxDepreStor_new_my::ParamArray # cumulative tax depreciation of new capacity (%)
     CumuAccoutDepre_new_my::ParamArray # cumulative accounting depreciation of new capacity (%)
+    CumuAccoutDepreStor_new_my::ParamArray # cumulative accounting depreciation of new capacity (%)
     ITC_new_my::ParamArray # ITC of new capacity (%)
+    ITCStor_new_my::ParamArray # ITC of new capacity (%)
     CumuITCAmort_new_my::ParamArray # ITC amortization of new capacity (%)
+    CumuITCAmortStor_new_my::ParamArray # ITC amortization of new capacity (%)
     AnnualITCAmort_new_my::ParamArray # ITC amortization of new capacity (%)
+    AnnualITCAmortStor_new_my::ParamArray # ITC amortization of new capacity (%)
     AnnualAccoutDepre_new_my::ParamArray # annual accounting depreciation of new capacity (%)
-    AnnualTaxDepre_new_my::ParamArray # annual tax depreciation of new capacity (%) 
+    AnnualAccoutDepreStor_new_my::ParamArray # annual accounting depreciation of new capacity (%)
+    AnnualTaxDepre_new_my::ParamArray # annual tax depreciation of new capacity (%)
+    AnnualTaxDepreStor_new_my::ParamArray # annual tax depreciation of new capacity (%)
 
     x_R_cumu::ParamArray
     x_C_cumu::ParamArray
@@ -165,6 +184,7 @@ mutable struct Utility <: AbstractUtility
     Net_Load_my::ParamArray
     Max_Net_Load_my::ParamArray
     Reserve_req_my::ParamArray
+    flow_cap_my::ParamArray
 
     # RPS
     RPS::ParamArray
@@ -185,6 +205,8 @@ mutable struct Utility <: AbstractUtility
     energy_E_my::ParamArray
     energy_C_my::ParamArray
     flow_my::ParamArray
+
+    Max_Net_Load_my_dict::Dict
 
     # Lagrange decomposition
     # x_R_feasible::ParamArray
@@ -249,7 +271,8 @@ function Utility(
     LifetimeNew = read_param("Lifetime_new", input_filename, "LifetimeNew", index_k_new)
     debt_ratio = ParamScalar("DebtRatio", 0.6, description = "debt ratio")
     cost_of_debt = ParamScalar("COD", 0.06, description = "cost of debt")
-    cost_of_equity = regulator.z
+    # TODO: need to tie cost of equity to regulator.z (but regulator.z is an array now)
+    cost_of_equity = ParamScalar("COE", 0.112, description = "cost of equity")
     tax_rate = ParamScalar("Tax", 0.26, description = "tax rate")
     atwacc = debt_ratio * cost_of_debt * (1 - tax_rate) + (1 - debt_ratio) * cost_of_equity
     CRF = Dict(
@@ -326,6 +349,13 @@ function Utility(
         model_data.index_t,
         [model_data.index_y, model_data.index_z, model_data.index_d],
     )
+
+    peak_eximport_my = make_keyed_array(model_data.index_y, model_data.index_z)
+    for y in model_data.index_y, z in model_data.index_z
+        peak_eximport_my(y, z, :) .=
+            findmax(Dict((d, t) => eximport_my(y, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
+    end
+
     # array_eximport_my = zeros(length(model_data.index_y), length(model_data.index_z), length(model_data.index_d), length(model_data.index_t))
     # for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
     #     array_eximport_my[
@@ -353,12 +383,21 @@ function Utility(
     # capital expense of existing units ($/MW)
     CapExOld_my =
         read_param("CapEx_existing_my", input_filename, "CapExOld", index_k_existing, [model_data.index_z])
+    CapExStorOld_my =
+        read_param("CapExStor_existing_my", input_filename, "CapExStorOld", index_stor_existing, [model_data.index_z])
     # cumulative tax depreciation of existing units (%)
     CumuTaxDepreOld_my = read_param(
         "CumuTaxDepre_existing_my",
         input_filename,
         "CumuTaxDepreOldmy",
         index_k_existing,
+        [model_data.index_y],
+    )
+    CumuTaxDepreStorOld_my = read_param(
+        "CumuTaxDepreStor_existing_my",
+        input_filename,
+        "CumuTaxDepreStorOldmy",
+        index_stor_existing,
         [model_data.index_y],
     )
     # cumulative accounting depreciation of existing units (%)
@@ -369,12 +408,26 @@ function Utility(
         index_k_existing,
         [model_data.index_y],
     )
+    CumuAccoutDepreStorOld_my = read_param(
+        "CumuAccoutDepreStor_existing_my",
+        input_filename,
+        "CumuAccoutDepreStorOldmy",
+        index_stor_existing,
+        [model_data.index_y],
+    )
     # annual accounting depreciation of existing units (%)
     AnnualAccoutDepreOld_my = read_param(
         "AnnualAccoutDepre_existing_my",
         input_filename,
         "AnnualAccoutDepreOldmy",
         index_k_existing,
+        [model_data.index_y],
+    )
+    AnnualAccoutDepreStorOld_my = read_param(
+        "AnnualAccoutDepreStor_existing_my",
+        input_filename,
+        "AnnualAccoutDepreStorOldmy",
+        index_stor_existing,
         [model_data.index_y],
     )
     # annual tax depreciation of existing units (%)
@@ -385,8 +438,16 @@ function Utility(
         index_k_existing,
         [model_data.index_y],
     )
+    AnnualTaxDepreStorOld_my = read_param(
+        "AnnualTaxDepreStor_existing_my",
+        input_filename,
+        "AnnualTaxDepreStorOldmy",
+        index_stor_existing,
+        [model_data.index_y],
+    )
     # ITC of existing units (%)
     ITCOld_my = read_param("ITC_existing_my", input_filename, "ITCOld", index_k_existing)
+    ITCStorOld_my = read_param("ITCStor_existing_my", input_filename, "ITCStorOld", index_stor_existing)
     # cumulative ITC ammortization of existing units (%)
     CumuITCAmortOld_my = read_param(
         "CumuITCAmort_existing_my",
@@ -395,11 +456,25 @@ function Utility(
         index_k_existing,
         [model_data.index_y],
     )
+    CumuITCAmortStorOld_my = read_param(
+        "CumuITCAmortStor_existing_my",
+        input_filename,
+        "CumuITCAmortStorOldmy",
+        index_stor_existing,
+        [model_data.index_y],
+    )
     AnnualITCAmortOld_my = read_param(
         "AnnualITCAmort_existing_my",
         input_filename,
         "AnnualITCAmortOldmy",
         index_k_existing,
+        [model_data.index_y],
+    )
+    AnnualITCAmortStorOld_my = read_param(
+        "AnnualITCAmortStor_existing_my",
+        input_filename,
+        "AnnualITCAmortStorOldmy",
+        index_stor_existing,
         [model_data.index_y],
     )
     # accumulative deferred income tax of existing units ($/MW)
@@ -417,12 +492,33 @@ function Utility(
             CapExOld_my(z, k) * (1 - CumuAccoutDepreOld_my(y, k)) - ADITOld_my(y, z, k)
     end
 
+    ADITStorOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_stor_existing)
+    for y in model_data.index_y, z in model_data.index_z, s in index_stor_existing
+        ADITStorOld_my(y, z, s, :) .=
+            CapExStorOld_my(z, s) *
+            (CumuTaxDepreStorOld_my(y, s) - CumuAccoutDepreStorOld_my(y, s)) *
+            tax_rate + ITCStorOld_my(s) * CapExStorOld_my(z, s) * (1 - CumuITCAmortStorOld_my(y, s))
+    end
+    # rate base (without working capital) ($/MW)
+    RateBaseNoWCStorOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_stor_existing)
+    for y in model_data.index_y, z in model_data.index_z, s in index_stor_existing
+        RateBaseNoWCStorOld_my(y, z, s, :) .=
+            CapExStorOld_my(z, s) * (1 - CumuAccoutDepreStorOld_my(y, s)) - ADITStorOld_my(y, z, s)
+    end
+
     # cumulative tax depreciation of new units (for each schedule year) (%)
     CumuTaxDepreNew_my = read_param(
         "CumuTaxDepre_new_my",
         input_filename,
         "CumuTaxDepreNewmy",
         index_k_new,
+        [model_data.index_s],
+    )
+    CumuTaxDepreStorNew_my = read_param(
+        "CumuTaxDepreStor_new_my",
+        input_filename,
+        "CumuTaxDepreStorNewmy",
+        index_stor_new,
         [model_data.index_s],
     )
     # cumulative accounting depreciation of new units (for each schedule year) (%)
@@ -433,12 +529,26 @@ function Utility(
         index_k_new,
         [model_data.index_s],
     )
+    CumuAccoutDepreStorNew_my = read_param(
+        "CumuAccoutDepreStor_new_my",
+        input_filename,
+        "CumuAccoutDepreStorNewmy",
+        index_stor_new,
+        [model_data.index_s],
+    )
     # ITC of new units (%)
     ITCNew_my = read_param(
         "ITC_new_my",
         input_filename,
         "ITCNewmy",
         index_k_new,
+        [model_data.index_y],
+    )
+    ITCStorNew_my = read_param(
+        "CumuITCAmortStor_new_my",
+        input_filename,
+        "ITCStorNewmy",
+        index_stor_new,
         [model_data.index_y],
     )
     # cumulative ITC ammortization of new units (for each schedule year) (%)
@@ -449,11 +559,25 @@ function Utility(
         index_k_new,
         [model_data.index_s],
     )
+    CumuITCAmortStorNew_my = read_param(
+        "CumuITCAmortStor_new_my",
+        input_filename,
+        "CumuITCAmortStorNewmy",
+        index_stor_new,
+        [model_data.index_s],
+    )
     AnnualITCAmortNew_my = read_param(
         "AnnualITCAmort_new_my",
         input_filename,
         "AnnualITCAmortNewmy",
         index_k_new,
+        [model_data.index_s],
+    )
+    AnnualITCAmortStorNew_my = read_param(
+        "AnnualITCAmortStor_new_my",
+        input_filename,
+        "AnnualITCAmortStorNewmy",
+        index_stor_new,
         [model_data.index_s],
     )
     # annual accounting depreciation of new units (%)
@@ -464,12 +588,26 @@ function Utility(
         index_k_new,
         [model_data.index_s],
     )
+    AnnualAccoutDepreStorNew_my = read_param(
+        "AnnualAccoutDepreStor_new_my",
+        input_filename,
+        "AnnualAccoutDepreStorNewmy",
+        index_stor_new,
+        [model_data.index_s],
+    )
     # annual tax depreciation of new units (%)
     AnnualTaxDepreNew_my = read_param(
         "AnnualTaxDepre_new_my",
         input_filename,
         "AnnualTaxDepreNewmy",
         index_k_new,
+        [model_data.index_s],
+    )
+    AnnualTaxDepreStorNew_my = read_param(
+        "AnnualTaxDepreStor_new_my",
+        input_filename,
+        "AnnualTaxDepreStorNewmy",
+        index_stor_new,
         [model_data.index_s],
     )
 
@@ -665,7 +803,11 @@ function Utility(
         ParamArray("pvf_cap", (model_data.index_y,), pvf_cap),
         ParamArray("pvf_onm", (model_data.index_y,), pvf_onm),
         ParamScalar("CRF_default", CRF_default, description = "capital recovery factor"),
-        # ParamArray("Peak_eximport_my", (model_data.index_y,), peak_eximport_my),
+        ParamArray(
+            "Peak_eximport_my",
+            Tuple(push!(copy([model_data.index_y]), model_data.index_z)),
+            peak_eximport_my,
+        ),
         read_param(
             "initial_energy_existing_my",
             input_filename,
@@ -722,14 +864,24 @@ function Utility(
         initialize_param("x_stor_R_cumu", index_stor_existing, model_data.index_z),
         initialize_param("x_stor_C_cumu", index_stor_new, model_data.index_z),
         initialize_param("miu_my", model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t),
+        initialize_param("p_energy_cem_my", model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t),
+        initialize_param("xi_cap_my", model_data.index_y, model_data.index_z),
         CapExOld_my,
+        CapExStorOld_my,
         CumuTaxDepreOld_my,
+        CumuTaxDepreStorOld_my,
         CumuAccoutDepreOld_my,
+        CumuAccoutDepreStorOld_my,
         AnnualAccoutDepreOld_my,
+        AnnualAccoutDepreStorOld_my,
         AnnualTaxDepreOld_my,
+        AnnualTaxDepreStorOld_my,
         ITCOld_my,
+        ITCStorOld_my,
         CumuITCAmortOld_my,
+        CumuITCAmortStorOld_my,
         AnnualITCAmortOld_my,
+        AnnualITCAmortStorOld_my,
         ParamArray(
             "ADIT_existing_my",
             Tuple(push!(copy([model_data.index_y]), index_k_existing)),
@@ -737,16 +889,33 @@ function Utility(
         ),
         ParamArray(
             "RateBaseNoWC_existing_my",
-            Tuple(push!(copy([model_data.index_y]), index_k_existing)),
+            Tuple(push!(copy([model_data.index_y]), model_data.index_z, index_k_existing)),
             RateBaseNoWCOld_my,
         ),
+        ParamArray(
+            "ADITStor_existing_my",
+            Tuple(push!(copy([model_data.index_y]), index_stor_existing)),
+            ADITStorOld_my,
+        ),
+        ParamArray(
+            "RateBaseNoWCStor_existing_my",
+            Tuple(push!(copy([model_data.index_y]), model_data.index_z, index_stor_existing)),
+            RateBaseNoWCStorOld_my,
+        ),
         CumuTaxDepreNew_my,
+        CumuTaxDepreStorNew_my,
         CumuAccoutDepreNew_my,
+        CumuAccoutDepreStorNew_my,
         ITCNew_my,
+        ITCStorNew_my,
         CumuITCAmortNew_my,
+        CumuITCAmortStorNew_my,
         AnnualITCAmortNew_my,
+        AnnualITCAmortStorNew_my,
         AnnualAccoutDepreNew_my,
+        AnnualAccoutDepreStorNew_my,
         AnnualTaxDepreNew_my,
+        AnnualTaxDepreStorNew_my,
         initialize_param("x_R_cumu", index_k_existing, model_data.index_z),
         initialize_param("x_C_cumu", index_k_new, model_data.index_z),
         read_param(
@@ -754,32 +923,33 @@ function Utility(
             input_filename,
             "CapacityCredit_old",
             index_k_existing,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_C_my",
             input_filename,
             "CapacityCredit_new",
             index_k_new,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_E_my",
             input_filename,
             "CapacityCreditStor_old",
             index_stor_existing,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_C_my",
             input_filename,
             "CapacityCreditStor_new",
             index_stor_new,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
-        initialize_param("Net_Load_my", model_data.index_y, model_data.index_d, model_data.index_t),
-        initialize_param("Max_Net_Load_my", model_data.index_y),
-        initialize_param("Reserve_req_my", model_data.index_y),
+        initialize_param("Net_Load_my", model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t),
+        initialize_param("Max_Net_Load_my", model_data.index_y, model_data.index_z),
+        initialize_param("Reserve_req_my", model_data.index_y, model_data.index_z),
+        initialize_param("flow_cap_my", model_data.index_y, index_l),
         read_param("RPS", input_filename, "RPS", model_data.index_y),
         initialize_param("rec_my", model_data.index_y),
         ParamScalar("loss_dist", 0.053, description = "distribution system loss factor"),
@@ -852,6 +1022,7 @@ function Utility(
             model_data.index_d,
             model_data.index_t,
         ),
+        Dict()
         # initialize_param("x_R_feasible", model_data.index_y, index_k_existing),
         # initialize_param("x_C_feasible", model_data.index_y, index_k_new),
         # ParamScalar("obj_feasible", 1.0, description = "feasible objective value"),
@@ -1293,6 +1464,10 @@ function solve_agent_problem!(
         VIUDER_Utility,
         flow[model_data.index_y, utility.index_l, model_data.index_d, model_data.index_t]
     )
+    @variable(
+        VIUDER_Utility,
+        flow_cap[model_data.index_y, utility.index_l]
+    )
 
 
     for y in model_data.index_y
@@ -1304,24 +1479,30 @@ function solve_agent_problem!(
     end
 
     fill!(utility.Net_Load_my, NaN)
-    for y in model_data.index_y, d in model_data.index_d, t in model_data.index_t
-        utility.Net_Load_my(y, d, t, :) .=
-            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h, z in model_data.index_z) +
-            sum(utility.eximport_my(y, z, d, t) for z in model_data.index_z) - sum(
+    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        utility.Net_Load_my(y, z, d, t, :) .=
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - 
+            sum(
                 customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
-                h in model_data.index_h, m in customers.index_m, z in model_data.index_z
+                h in model_data.index_h, m in customers.index_m
             ) - sum(
                 customers.rho_DG(h, m, z, d, t) * sum(
                     customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                ) for h in model_data.index_h, m in customers.index_m, z in model_data.index_z
+                ) for h in model_data.index_h, m in customers.index_m
             )
     end
     fill!(utility.Max_Net_Load_my, NaN)
-    for y in model_data.index_y
-        utility.Max_Net_Load_my(y, :) .=
-            findmax(Dict((d, t) => utility.Net_Load_my(y, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
+    Max_Net_Load_my_dict = Dict()
+    for y in model_data.index_y, z in model_data.index_z
+        utility.Max_Net_Load_my(y, z, :) .=
+            findmax(Dict((d, t) => utility.Net_Load_my(y, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
+        push!(
+            Max_Net_Load_my_dict,
+            (y, z) => findmax(Dict((d, t) => utility.Net_Load_my(y, z, d, t) for d in model_data.index_d, t in model_data.index_t))[2],
+        )
     end
+    utility.Max_Net_Load_my_dict = Max_Net_Load_my_dict
 
     # commented out for now, use default capacity credit
     # Max_Net_Load_my_index = Dict(
@@ -1340,8 +1521,8 @@ function solve_agent_problem!(
     # end
 
     fill!(utility.Reserve_req_my, NaN)
-    for y in model_data.index_y
-        utility.Reserve_req_my(y, :) .= (1 + regulator.r) * utility.Max_Net_Load_my(y)
+    for y in model_data.index_y, z in model_data.index_z
+        utility.Reserve_req_my(y, z, :) .= (1 .+ regulator.r(z, y)) .* utility.Max_Net_Load_my(y, z)
     end
 
     objective_function = begin
@@ -1509,12 +1690,6 @@ function solve_agent_problem!(
             y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
         ) - utility.x_stor_R_cumu(s, z) >= 0
     )
-
-
-
-
-
-
 
     @constraint(
         VIUDER_Utility,
@@ -1894,38 +2069,59 @@ function solve_agent_problem!(
     #     planning_reserves(y, t) >= 0
     # )
 
-    # planning_reserves_cap =
-    #     y -> begin
-    #         # bulk generation available capacity at time t
-    #         sum(
-    #             utility.capacity_credit_E_my(y, k) * (
-    #                 utility.x_E_my(k) - sum(
-    #                     x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-    #                     model_data.year(first(model_data.index_y)):model_data.year(y)
-    #                 ) - utility.x_R_cumu(k)
-    #             ) for k in utility.index_k_existing
-    #         ) + sum(
-    #             utility.capacity_credit_C_my(y, k) * (
-    #                 sum(
-    #                     x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-    #                     model_data.year(first(model_data.index_y)):model_data.year(y)
-    #                 ) + utility.x_C_cumu(k)
-    #             ) for k in utility.index_k_new
-    #         ) +
-    #         # green technology subscription
-    #         sum(
-    #             utility.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-    #             model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-    #             for j in model_data.index_j, h in model_data.index_h
-    #         ) -
-    #         # net_load plus planning reserve
-    #         utility.Reserve_req_my(y)
-    #     end
-    # @constraint(
-    #     VIUDER_Utility,
-    #     Eq_xi_cap[y in model_data.index_y],
-    #     planning_reserves_cap(y) >= 0
-    # )
+    planning_reserves_cap =
+        (y, z) -> begin
+            # bulk generation available capacity at time t
+            sum(
+                utility.capacity_credit_E_my(y, z, k) * (
+                    utility.x_E_my(z, k) - sum(
+                        x_R[Symbol(Int(y_symbol)), k, z] for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) - utility.x_R_cumu(k, z)
+                ) for k in utility.index_k_existing
+            ) + sum(
+                utility.capacity_credit_C_my(y, z, k) * (
+                    sum(
+                        x_C[Symbol(Int(y_symbol)), k, z] for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) + utility.x_C_cumu(k, z)
+                ) for k in utility.index_k_new
+            ) +
+            # green technology subscription
+            sum(
+                utility.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                for j in model_data.index_j, h in model_data.index_h
+            ) -
+            # flow out of zone z
+            sum(utility.trans_topology(l, z) * flow_cap[y, l] for l in utility.index_l) -
+            utility.eximport_my(y, z, Max_Net_Load_my_dict[y, z][1], Max_Net_Load_my_dict[y, z][2]) - 
+            # net_load plus planning reserve
+            utility.Reserve_req_my(y, z)
+        end
+    @constraint(
+        VIUDER_Utility,
+        Eq_xi_cap[y in model_data.index_y, z in model_data.index_z],
+        planning_reserves_cap(y, z) >= 0
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_cap_flow_lower[
+            y in model_data.index_y,
+            l in utility.index_l,
+        ],
+        flow_cap[y, l] - utility.trans_capacity(l, :min) >= 0
+    )
+
+    @constraint(
+        VIUDER_Utility,
+        Eq_cap_flow_upper[
+            y in model_data.index_y,
+            l in utility.index_l,
+        ],
+        flow_cap[y, l] - utility.trans_capacity(l, :max) <= 0
+    )
 
     # # RPS constraint
     # @constraint(
@@ -1965,6 +2161,19 @@ function solve_agent_problem!(
 
     for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         utility.miu_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t])
+        utility.p_energy_cem_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t]) ./ (utility.pvf_onm(y) .* model_data.omega(d) .* delta_t)
+    end
+
+    for y in model_data.index_y, z in model_data.index_z
+        utility.p_cap_cem_my(y, z, :) .= dual.(Eq_xi_cap[y, z]) ./ utility.pvf_onm(y)
+    end
+
+    for y in model_data.index_y, l in utility.index_l, d in model_data.index_d, t in model_data.index_t
+        utility.flow_my(y, l, d, t, :) .= value.(flow[y, l, d, t])
+    end
+
+    for y in model_data.index_y, l in utility.index_l
+        utility.flow_cap_my(y, l, :) .= value.(flow_cap[y, l])
     end
 
     # for y in model_data.index_y
