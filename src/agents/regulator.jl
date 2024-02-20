@@ -1170,7 +1170,7 @@ function solve_agent_problem!(
     end
 
     operational_cost = energy_cost .- net_eximport_cost .+ fixed_om .- net_eximport_cap_cost
-    working_capital = utility.DaysofWC / 365 * operational_cost
+    working_capital = utility.DaysofWC * operational_cost / 365
 
     # calculate ADIT and rate base (no working capital) for new builds, "reg_year-y+1" represents the number of years since the new investment is made
     ADITNew = make_keyed_array(model_data.index_z, utility.index_k_new)
@@ -1501,17 +1501,17 @@ function solve_agent_problem!(
             (
                 max(
                     0,
-                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(h, m) -
+                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) -
                     customers.d(h, z, d, t) * (1 - utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, m) /
-                customers.Opti_DG_E(h, m) + sum(
+                customers.Opti_DG_E(z, h, m) + sum(
                     max(
                         0,
                         customers.rho_DG(h, m, z, d, t) *
-                        customers.Opti_DG_my(Symbol(Int(y)), h, m) -
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, m) -
                         customers.d(h, z, d, t) * (1 - utility.loss_dist),
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) /
-                    customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                    customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
             ) for d in model_data.index_d, t in model_data.index_t, m in customers.index_m
@@ -1559,16 +1559,16 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t * (
                     min(
-                        customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(h, m),
+                        customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m),
                         customers.d(h, z, d, t) * (1 - utility.loss_dist),
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, m) /
-                    customers.Opti_DG_E(h, m) + sum(
+                    customers.Opti_DG_E(z, h, m) + sum(
                         min(
                             customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), h, m),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist),
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) /
-                        customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for d in model_data.index_d, t in model_data.index_t, m in customers.index_m
@@ -1597,16 +1597,16 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t * (
                     min(
-                        customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(h, m),
+                        customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m),
                         customers.d(h, z, d, t) * (1 - utility.loss_dist),
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, m) /
-                    customers.Opti_DG_E(h, m) + sum(
+                    customers.Opti_DG_E(z, h, m) + sum(
                         min(
                             customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), h, m),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist),
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) /
-                        customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for d in model_data.index_d, t in model_data.index_t, m in customers.index_m
@@ -1786,17 +1786,17 @@ function solve_agent_problem!(
                     (
                         max(
                             0,
-                            customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(h, m) -
+                            customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) -
                             customers.d(h, z, d, t) * (1 - utility.loss_dist),
                         ) * customers.x_DG_E_my(first(model_data.index_y), h, z, m) /
-                        customers.Opti_DG_E(h, m) + sum(
+                        customers.Opti_DG_E(z, h, m) + sum(
                             max(
                                 0,
                                 customers.rho_DG(h, m, z, d, t) *
-                                customers.Opti_DG_my(Symbol(Int(y)), h, m) -
+                                customers.Opti_DG_my(Symbol(Int(y)), z, h, m) -
                                 customers.d(h, z, d, t) * (1 - utility.loss_dist),
                             ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) /
-                            customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
                     ) for m in customers.index_m
@@ -1854,16 +1854,16 @@ function solve_agent_problem!(
                 sum(
                     model_data.omega(d) * delta_t * (
                         min(
-                            customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(h, m),
+                            customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist),
                         ) * customers.x_DG_E_my(first(model_data.index_y), h, z, m) /
-                        customers.Opti_DG_E(h, m) + sum(
+                        customers.Opti_DG_E(z, h, m) + sum(
                             min(
                                 customers.rho_DG(h, m, z, d, t) *
-                                customers.Opti_DG_my(Symbol(Int(y)), h, m),
+                                customers.Opti_DG_my(Symbol(Int(y)), z, h, m),
                                 customers.d(h, z, d, t) * (1 - utility.loss_dist),
                             ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) /
-                            customers.Opti_DG_my(Symbol(Int(y)), h, m) for
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
                     ) for m in customers.index_m

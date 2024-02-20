@@ -1,6 +1,6 @@
 # This file defines data and functions associated with the customer.
 
-DER_factor = 1.0    # A scaling factor applied to existing DER penetration level
+const DER_factor = 1.0    # A scaling factor applied to existing DER penetration level
 
 mutable struct PVAdoptionModel
     Shape::ParamArray
@@ -172,13 +172,13 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         [model_data.index_y, model_data.index_h, model_data.index_z],
     )
     Opti_DG =
-        read_param("Opti_DG", input_filename, "OptimalDER", index_m, [model_data.index_h])
+        read_param("Opti_DG", input_filename, "OptimalDER", index_m, [model_data.index_z, model_data.index_h])
     Opti_DG_my = read_param(
         "Opti_DG_my",
         input_filename,
         "OptimalDERmy",
         index_m,
-        [model_data.index_y, model_data.index_h],
+        [model_data.index_y, model_data.index_z, model_data.index_h],
     )
     rho_DG = read_param(
         "rho_DG",
@@ -209,17 +209,21 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     end
 
     pv_adoption_model = PVAdoptionModel(
-        initialize_param("Shape", model_data.index_h, index_m, value = 1.7), # Shape
-        initialize_param("MeanPayback", model_data.index_h, index_m, value = 8.8), # MeanPayback
-        ParamArray(
+        initialize_param("Shape", model_data.index_z, model_data.index_h, index_m, value = 1.7), # Shape
+        initialize_param("MeanPayback", model_data.index_z, model_data.index_h, index_m, value = 8.8), # MeanPayback
+        read_param(
             "Bass_p",
-            (model_data.index_h,),
-            [7.7E-07, 6.0E-04, 6.0E-04],
+            input_filename,
+            "Bass_P",
+            index_m,
+            [model_data.index_z, model_data.index_h],
         ),
-        ParamArray(
+        read_param(
             "Bass_q",
-            (model_data.index_h,),
-            [0.663, 0.133, 0.133],
+            input_filename,
+            "Bass_Q",
+            index_m,
+            [model_data.index_z, model_data.index_h],
         ),
     )
 
@@ -270,29 +274,28 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
 
     # Customer financing
     debt_ratio =
-        read_param("debt_ratio", input_filename, "CustomerDebtRatio", model_data.index_h)
+        read_param("debt_ratio", input_filename, "CustomerDebtRatio", model_data.index_h, [model_data.index_z])
     cost_of_debt =
-        read_param("cost_of_debt", input_filename, "CustomerCOD", model_data.index_h)
+        read_param("cost_of_debt", input_filename, "CustomerCOD", model_data.index_h, [model_data.index_z])
     cost_of_equity =
-        read_param("cost_of_equity", input_filename, "CustomerCOE", model_data.index_h)
-    tax_rate = read_param("tax_rate", input_filename, "CustomerTax", model_data.index_h)
-    atwacc = KeyedArray(
-        [
-            debt_ratio(h) * cost_of_debt(h) * (1 - tax_rate(h)) +
-            (1 - debt_ratio(h)) * cost_of_equity(h) for h in model_data.index_h
-        ];
-        [get_pair(model_data.index_h)]...,
-    )
-    CRF = KeyedArray(
-        [
-            atwacc(h) * (1 + atwacc(h))^20 / ((1 + atwacc(h))^20 - 1) for
-            h in model_data.index_h
-        ];
-        [get_pair(model_data.index_h)]...,
-    )
-    pvf = KeyedArray(
-        [1 / CRF(h) for h in model_data.index_h]; 
-        [get_pair(model_data.index_h)]...)
+        read_param("cost_of_equity", input_filename, "CustomerCOE", model_data.index_h, [model_data.index_z])
+    tax_rate = read_param("tax_rate", input_filename, "CustomerTax", model_data.index_h, [model_data.index_z])
+
+    atwacc = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        atwacc(z, h, :) .= debt_ratio(z, h) * cost_of_debt(z, h) * (1 - tax_rate(z, h)) +
+        (1 - debt_ratio(z, h)) * cost_of_equity(z, h)
+    end
+
+    CRF = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        CRF(z, h, :) .= atwacc(z, h) * (1 + atwacc(z, h))^20 / ((1 + atwacc(z, h))^20 - 1)
+    end
+
+    pvf = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        pvf(z, h, :) .= 1 / CRF(z, h)
+    end
 
     return CustomerGroup(
         id,
@@ -306,21 +309,21 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         Opti_DG,
         Opti_DG_my,
         # DERGen,
-        read_param("CapEx_DG", input_filename, "CapExDER", index_m, [model_data.index_h]),
+        read_param("CapEx_DG", input_filename, "CapExDER", index_m, [model_data.index_z, model_data.index_h]),
         read_param(
             "CapEx_DG_my",
             input_filename,
             "CapExDERmy",
             index_m,
-            [model_data.index_y, model_data.index_h],
+            [model_data.index_y, model_data.index_z, model_data.index_h],
         ),
-        read_param("FOM_DG", input_filename, "FOMDER", index_m, [model_data.index_h]),
+        read_param("FOM_DG", input_filename, "FOMDER", index_m, [model_data.index_z, model_data.index_h]),
         read_param(
             "FOM_DG_my",
             input_filename,
             "FOMDERmy",
             index_m,
-            [model_data.index_y, model_data.index_h],
+            [model_data.index_y, model_data.index_z, model_data.index_h],
         ),
         rho_DG,
         ParamScalar("delta", 0.05),
@@ -330,21 +333,22 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             Tuple(push!(copy([model_data.index_y, model_data.index_z]), model_data.index_h)),
             MaxLoad_my,
         ),
-        initialize_param("x_DG_new", model_data.index_h, index_m),
-        initialize_param("x_DG_new_my", model_data.index_y, model_data.index_h, model_data.index_z, index_m),
+        initialize_param("x_DG_new", model_data.index_h, model_data.index_z, index_m, value = 0.0),
+        initialize_param("x_DG_new_my", model_data.index_y, model_data.index_h, model_data.index_z, index_m, value = 0.0),
         initialize_param("x_green_sub", model_data.index_h, model_data.index_z, value = 10.0),
         initialize_param("x_green_sub_my", model_data.index_y, model_data.index_h, model_data.index_z, value = 100.0),
         initialize_param("x_green_sub_incremental_my", model_data.index_y, model_data.index_h, model_data.index_z, value = 0.0),
-        initialize_param("Payback", model_data.index_h, index_m),
-        initialize_param("MarketShare", model_data.index_h, index_m),
-        initialize_param("MaxDG", model_data.index_h, index_m),
-        initialize_param("F", model_data.index_h, index_m),
-        initialize_param("year", model_data.index_h, index_m),
-        initialize_param("A", model_data.index_h, index_m),
-        initialize_param("ConPVNetSurplus", model_data.index_h, index_m),
+        initialize_param("Payback", model_data.index_z, model_data.index_h, index_m),
+        initialize_param("MarketShare", model_data.index_z, model_data.index_h, index_m),
+        initialize_param("MaxDG", model_data.index_z, model_data.index_h, index_m),
+        initialize_param("F", model_data.index_z, model_data.index_h, index_m),
+        initialize_param("year", model_data.index_z, model_data.index_h, index_m),
+        initialize_param("A", model_data.index_z, model_data.index_h, index_m),
+        initialize_param("ConPVNetSurplus", model_data.index_z, model_data.index_h, index_m),
         initialize_param(
             "ConPVNetSurplus_my",
             model_data.index_y,
+            model_data.index_z, 
             model_data.index_h,
             index_m,
         ),
@@ -363,8 +367,8 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         pv_adoption_model,
         green_sub_model,
         pvf,
-        read_param("rooftop", input_filename, "RooftopDER", index_m, [model_data.index_h]),
-        initialize_param("MaxDG_my", model_data.index_y, model_data.index_h, index_m),
+        read_param("rooftop", input_filename, "RooftopDER", index_m, [model_data.index_z, model_data.index_h]),
+        initialize_param("MaxDG_my", model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         read_param("RetailCompetition", input_filename, "RetailCompetition", model_data.index_y),
         read_param("WTP_green_power", input_filename, "WTP", model_data.index_y),
         initialize_param(
@@ -401,113 +405,114 @@ function solve_agent_problem!(
     # the year consumer is making DER investment decision
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
+    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
-    for h in model_data.index_h, m in customers.index_m
-        x_DG_before(h, m, :) .= customers.x_DG_new_my(reg_year_index, h, m)
+    for h in model_data.index_h, z in model_data.index_z, m in customers.index_m
+        x_DG_before(h, z, m, :) .= customers.x_DG_new_my(reg_year_index, h, z, m)
     end
 
     adopt_model = customers.pv_adoption_model
 
     # update all the annual parameters to the solve year (so we don't have to change the majority of the functions)
-    for h in model_data.index_h
-        customers.PeakLoad(h, :) .= customers.PeakLoad_my(reg_year_index, h)
+    for z in model_data.index_z, h in model_data.index_h
+        customers.PeakLoad(z, h, :) .= customers.PeakLoad_my(reg_year_index, z, h)
     end
-    for h in model_data.index_h, t in model_data.index_t
-        customers.d(h, t, :) .= customers.d_my(reg_year_index, h, t)
+    for h in model_data.index_h, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
         # customers.DERGen(h, t, :) .= customers.DERGen_my(reg_year_index, h, t)
     end
-    for h in model_data.index_h, m in customers.index_m
-        customers.Opti_DG(h, m, :) .= customers.Opti_DG_my(reg_year_index, h, m)
-        customers.FOM_DG(h, m, :) .= customers.FOM_DG_my(reg_year_index, h, m)
-        customers.CapEx_DG(h, m, :) .= customers.CapEx_DG_my(reg_year_index, h, m)
+    for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
+        customers.Opti_DG(z, h, m, :) .= customers.Opti_DG_my(reg_year_index, z, h, m)
+        customers.FOM_DG(z, h, m, :) .= customers.FOM_DG_my(reg_year_index, z, h, m)
+        customers.CapEx_DG(z, h, m, :) .= customers.CapEx_DG_my(reg_year_index, z, h, m)
         if w_iter >= 2
-            customers.x_DG_E(h, m, :) .=
+            customers.x_DG_E(h, z, m, :) .=
                 customers.x_DG_E_my(reg_year_index, h, m) + sum(
-                    customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+                    customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                     y in model_data.year(first(model_data.index_y_fix)):(reg_year - 1)
                 )
         else
-            customers.x_DG_E(h, m, :) .= customers.x_DG_E_my(reg_year_index, h, m)
+            customers.x_DG_E(h, z, m, :) .= customers.x_DG_E_my(reg_year_index, h, z, m)
         end
     end
 
     # Calculate payback period of DER
     # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
-    NetProfit = make_keyed_array(model_data.index_h, customers.index_m)
-    for h in model_data.index_h, m in customers.index_m
+    NetProfit = make_keyed_array(model_data.index_z, model_data.index_h, customers.index_m)
+    for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
         # value of distributed generation (offset load)
-        NetProfit(h, m, :) .=
+        NetProfit(z, h, m, :) .=
             sum(
-                model_data.omega(t) *
-                regulator.p(h, t) *
+                model_data.omega(d) * delta_t *
+                regulator.p(z, h, d, t) *
                 min(
-                    customers.d(h, t) * (1 - utility.loss_dist),
-                    customers.rho_DG(h, m, t) * customers.Opti_DG(h, m),
-                ) for t in model_data.index_t
+                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG(z, h, m),
+                ) for d in model_data.index_d, t in model_data.index_t
             ) +
             # value of distributed generation (excess generation)
             sum(
-                model_data.omega(t) *
-                regulator.p_ex(h, t) *
+                model_data.omega(d) * delta_t *
+                regulator.p_ex(z, h, d, t) *
                 max(
                     0,
-                    customers.rho_DG(h, m, t) * customers.Opti_DG(h, m) -
-                    customers.d(h, t) * (1 - utility.loss_dist),
-                ) for t in model_data.index_t
+                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG(z, h, m) -
+                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                ) for d in model_data.index_d, t in model_data.index_t
             ) -
             # cost of distributed generation 
-            customers.FOM_DG(h, m) * customers.Opti_DG(h, m)
+            customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m)
     end
 
-    for h in model_data.index_h, m in customers.index_m
-        if NetProfit(h, m) >= 0.0
-            customers.Payback(h, m, :) .=
-                customers.CapEx_DG(h, m) * customers.Opti_DG(h, m) / NetProfit(h, m)
+    for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
+        if NetProfit(z, h, m) >= 0.0
+            customers.Payback(z, h, m, :) .=
+                customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) / NetProfit(z, h, m)
             # Calculate maximum market share and maximum DG potential (based on WTP curve)
-            customers.MarketShare(h, m, :) .=
+            customers.MarketShare(z, h, m, :) .=
                 1.0 - Distributions.cdf(
                     Distributions.Gamma(
-                        adopt_model.Shape(h, m),
-                        1 / adopt_model.Rate(h, m),
+                        adopt_model.Shape(z, h, m),
+                        1 / adopt_model.Rate(z, h, m),
                     ),
-                    customers.Payback(h, m),
+                    customers.Payback(z, h, m),
                 )
-            customers.MaxDG(h, m, :) .=
-                customers.MarketShare(h, m) * customers.gamma(h) * customers.Opti_DG(h, m)
+            customers.MaxDG(z, h, m, :) .=
+                customers.MarketShare(z, h, m) * customers.gamma(z, h) * customers.Opti_DG(z, h, m)
             # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
-            customers.F(h, m, :) .= min(customers.x_DG_E(h, m) / customers.MaxDG(h, m), 1.0)
+            customers.F(z, h, m, :) .= min(customers.x_DG_E(h, z, m) / customers.MaxDG(z, h, m), 1.0)
             # Back out the reference year of DER based on the percentage of existing DER
-            customers.year(h, m, :) .=
+            customers.year(z, h, m, :) .=
                 -log(
-                    (1 - customers.F(h, m)) /
-                    (customers.F(h, m) * adopt_model.Bass_q(h) / adopt_model.Bass_p(h) + 1),
-                ) / (adopt_model.Bass_p(h) + adopt_model.Bass_q(h))
+                    (1 - customers.F(z, h, m)) /
+                    (customers.F(z, h, m) * adopt_model.Bass_q(z, h, m) / adopt_model.Bass_p(z, h, m) + 1),
+                ) / (adopt_model.Bass_p(z, h, m) + adopt_model.Bass_q(z, h, m))
             # Calculate incremental DG build
-            customers.A(h, m, :) .=
+            customers.A(z, h, m, :) .=
                 (
                     1.0 - exp(
-                        -(adopt_model.Bass_p(h) + adopt_model.Bass_q(h)) *
-                        (customers.year(h, m) + 1),
+                        -(adopt_model.Bass_p(z, h, m) + adopt_model.Bass_q(z, h, m)) *
+                        (customers.year(z, h, m) + 1),
                     )
                 ) / (
                     1.0 +
-                    (adopt_model.Bass_q(h) / adopt_model.Bass_p(h)) * exp(
-                        -(adopt_model.Bass_p(h) + adopt_model.Bass_q(h)) *
-                        (customers.year(h, m) + 1),
+                    (adopt_model.Bass_q(z, h, m) / adopt_model.Bass_p(z, h, m)) * exp(
+                        -(adopt_model.Bass_p(z, h, m) + adopt_model.Bass_q(z, h, m)) *
+                        (customers.year(z, h, m) + 1),
                     )
                 )
-            customers.x_DG_new(h, m, :) .=
-                max(0.0, customers.A(h, m) * customers.MaxDG(h, m) - customers.x_DG_E(h, m))
+            customers.x_DG_new(h, z, m, :) .=
+                max(0.0, customers.A(z, h, m) * customers.MaxDG(z, h, m) - customers.x_DG_E(h, z, m))
         else
-            customers.x_DG_new(h, m, :) .= 0.0
+            customers.x_DG_new(h, z, m, :) .= 0.0
         end
     end
 
-    for h in model_data.index_h, m in customers.index_m
-        customers.x_DG_new_my(reg_year_index, h, m, :) .= customers.x_DG_new(h, m)
-        customers.MaxDG_my(reg_year_index, h, m, :) .= customers.MaxDG(h, m)
+    for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
+        customers.x_DG_new_my(reg_year_index, h, z, m, :) .= customers.x_DG_new(h, z, m)
+        customers.MaxDG_my(reg_year_index, z, h, m, :) .= customers.MaxDG(z, h, m)
     end
 
     # @info "Original new DG" x_DG_before

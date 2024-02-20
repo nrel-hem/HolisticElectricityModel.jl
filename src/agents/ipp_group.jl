@@ -628,28 +628,28 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
             input_filename,
             "CapacityCredit_old",
             index_k_existing,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_C_my",
             input_filename,
             "CapacityCredit_new",
             index_k_new,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_E_my",
             input_filename,
             "CapacityCreditStor_old",
             index_stor_existing,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_C_my",
             input_filename,
             "CapacityCreditStor_new",
             index_stor_new,
-            [model_data.index_y],
+            [model_data.index_y, model_data.index_z],
         ),
         initialize_param("capacity_price", model_data.index_y),
         initialize_param("capacity_price_my_temp", model_data.index_y),
@@ -4965,33 +4965,6 @@ function solve_agent_problem_ipp_cap(
 end
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ##################### add transmission and storage #####################
 function solve_agent_problem_ipp_cap(
     ipp::IPPGroup,
@@ -5911,59 +5884,6 @@ function solve_agent_problem_ipp_cap(
     # abs.(value.(miu_lower).data) .- abs.(dual.(Eq_primal_feasible_supplydemandbalance_lower).data)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     eta_param = initialize_param("eta_param", model_data.index_y, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
     fill!(eta_param, NaN)
     for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
@@ -6233,8 +6153,6 @@ function solve_agent_problem_ipp_cap(
             end
         end
     end
-
-
 
     # Define positive variables
     @variable(WMDER_IPP, x_C[model_data.index_y, ipp.index_k_new, model_data.index_z] >= 0)
