@@ -162,3 +162,5 @@ pkg> dev . ../HolisticElectricityModelData.jl
 # Hit Backspace
 julia> include("test/runtests.jl")
 ```
+
+NREL Software Record SWR-21-62 "HEM (HolisticElectricityModel.jl)"
