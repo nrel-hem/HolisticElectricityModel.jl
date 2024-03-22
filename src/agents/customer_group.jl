@@ -2,6 +2,15 @@
 
 const DER_factor = 1.0    # A scaling factor applied to existing DER penetration level
 
+struct CustomersOptions <: AgentOptions
+    solvers::HEMSolver
+    # solvers::Union{HEMSolver, Dict{String, <:HEMSolver}}
+end
+
+function CustomersOptions(attributes::MOI.OptimizerWithAttributes)
+    return CustomersOptions(AnySolver(attributes))
+end
+
 mutable struct PVAdoptionModel
     Shape::ParamArray
     MeanPayback::ParamArray
@@ -117,7 +126,7 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     green_sub_model::GreenSubModel
 
     pvf::Any
-    rooftop::Any
+    # rooftop::Any
     MaxDG_my::ParamArray
 
     RetailCompetition::ParamArray
@@ -126,6 +135,23 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     ConGreenPowerNetSurplus_pre_proportion_my::ParamArray
     ConGreenPowerNetSurplus_post_proportion_my::ParamArray
     ConGreenPowerNetSurplus_cumu_my::ParamArray
+
+    rte_dist_stor::ParamArray
+    initial_energy_dist_stor::ParamArray
+    duration_dist_stor::ParamArray
+
+    Payback_pv_stor::ParamArray
+    MarketShare_pv_stor::ParamArray
+    MaxDG_pv::ParamArray
+    F_pv::ParamArray
+    year_pv::ParamArray
+    A_pv::ParamArray
+    net_load::ParamArray
+    net_load_plus::ParamArray
+    net_load_minus::ParamArray
+    stor_charge::ParamArray
+    stor_discharge::ParamArray
+    stor_energy::ParamArray
 end
 
 function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
@@ -297,6 +323,32 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         pvf(z, h, :) .= 1 / CRF(z, h)
     end
 
+    rte_dist_stor = read_param(
+        "rte_dist_stor",
+        input_filename,
+        "rte_dist_stor",
+        model_data.index_h,
+        [model_data.index_z],
+        description = "distributed storage round trip efficiency of customers of type h at zone z",
+    )
+
+    duration_dist_stor = read_param(
+        "duration_dist_stor",
+        input_filename,
+        "duration_dist_stor",
+        model_data.index_h,
+        [model_data.index_z],
+        description = "distributed storage duration of customers of type h at zone z",
+    )
+
+    initial_energy_dist_stor = read_param(
+        "initial_energy_dist_stor",
+        input_filename,
+        "initial_energy_dist_stor",
+        model_data.index_d,
+        [model_data.index_z, model_data.index_h],
+    )
+
     return CustomerGroup(
         id,
         index_m,
@@ -367,7 +419,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         pv_adoption_model,
         green_sub_model,
         pvf,
-        read_param("rooftop", input_filename, "RooftopDER", index_m, [model_data.index_z, model_data.index_h]),
+        # read_param("rooftop", input_filename, "RooftopDER", index_m, [model_data.index_z, model_data.index_h]),
         initialize_param("MaxDG_my", model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         read_param("RetailCompetition", input_filename, "RetailCompetition", model_data.index_y),
         read_param("WTP_green_power", input_filename, "WTP", model_data.index_y),
@@ -386,11 +438,168 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             model_data.index_y,
             model_data.index_h,
         ),
+        rte_dist_stor,
+        initial_energy_dist_stor,
+        duration_dist_stor,
+        initialize_param("Payback_pv_stor", model_data.index_z, model_data.index_h),
+        initialize_param("MarketShare_pv_stor", model_data.index_z, model_data.index_h),
+        initialize_param("MaxDG_pv", model_data.index_z, model_data.index_h),
+        initialize_param("F_pv", model_data.index_z, model_data.index_h),
+        initialize_param("year_pv", model_data.index_z, model_data.index_h),
+        initialize_param("A_pv", model_data.index_z, model_data.index_h),
+        initialize_param("net_load", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
+        initialize_param("net_load_plus", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
+        initialize_param("net_load_minus", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
+        initialize_param("stor_charge", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
+        initialize_param("stor_discharge", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
+        initialize_param("stor_energy", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
     )
 end
 
 get_id(x::CustomerGroup) = x.id
 
+# function solve_agent_problem!(
+#     customers::CustomerGroup,
+#     customers_opts::AgentOptions,
+#     model_data::HEMData,
+#     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
+#     agent_store::AgentStore,
+#     w_iter,
+# )
+#     regulator = get_agent(Regulator, agent_store)
+#     utility = get_agent(Utility, agent_store)
+
+#     # the year consumer is making DER investment decision
+#     reg_year = model_data.year(first(model_data.index_y))
+#     reg_year_index = Symbol(Int(reg_year))
+#     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+
+#     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
+#     fill!(x_DG_before, NaN)
+#     for h in model_data.index_h, z in model_data.index_z, m in customers.index_m
+#         x_DG_before(h, z, m, :) .= customers.x_DG_new_my(reg_year_index, h, z, m)
+#     end
+
+#     # x_DG_aggregate_before = initialize_param("x_DG_aggregate_before", model_data.index_h, customers.index_m)
+#     # for h in model_data.index_h, m in customers.index_m
+#     #     x_DG_aggregate_before(h, m, :) .= sum(customers.x_DG_new_my(reg_year_index, h, z, m) for z in model_data.index_z)
+#     # end
+
+#     adopt_model = customers.pv_adoption_model
+
+#     # update all the annual parameters to the solve year (so we don't have to change the majority of the functions)
+#     for z in model_data.index_z, h in model_data.index_h
+#         customers.PeakLoad(z, h, :) .= customers.PeakLoad_my(reg_year_index, z, h)
+#     end
+#     for h in model_data.index_h, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+#         customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
+#         # customers.DERGen(h, t, :) .= customers.DERGen_my(reg_year_index, h, t)
+#     end
+#     for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
+#         customers.Opti_DG(z, h, m, :) .= customers.Opti_DG_my(reg_year_index, z, h, m)
+#         customers.FOM_DG(z, h, m, :) .= customers.FOM_DG_my(reg_year_index, z, h, m)
+#         customers.CapEx_DG(z, h, m, :) .= customers.CapEx_DG_my(reg_year_index, z, h, m)
+#         if w_iter >= 2
+#             customers.x_DG_E(h, z, m, :) .=
+#                 customers.x_DG_E_my(reg_year_index, h, m) + sum(
+#                     customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
+#                     y in model_data.year(first(model_data.index_y_fix)):(reg_year - 1)
+#                 )
+#         else
+#             customers.x_DG_E(h, z, m, :) .= customers.x_DG_E_my(reg_year_index, h, z, m)
+#         end
+#     end
+
+#     # Calculate payback period of DER
+#     # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
+#     NetProfit = make_keyed_array(model_data.index_z, model_data.index_h, customers.index_m)
+#     for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
+#         # value of distributed generation (offset load)
+#         NetProfit(z, h, m, :) .=
+#             sum(
+#                 model_data.omega(d) * delta_t *
+#                 regulator.p(z, h, d, t) *
+#                 min(
+#                     customers.d(h, z, d, t) * (1 - utility.loss_dist),
+#                     customers.rho_DG(h, m, z, d, t) * customers.Opti_DG(z, h, m),
+#                 ) for d in model_data.index_d, t in model_data.index_t
+#             ) +
+#             # value of distributed generation (excess generation)
+#             sum(
+#                 model_data.omega(d) * delta_t *
+#                 regulator.p_ex(z, h, d, t) *
+#                 max(
+#                     0,
+#                     customers.rho_DG(h, m, z, d, t) * customers.Opti_DG(z, h, m) -
+#                     customers.d(h, z, d, t) * (1 - utility.loss_dist),
+#                 ) for d in model_data.index_d, t in model_data.index_t
+#             ) -
+#             # cost of distributed generation 
+#             customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m)
+#     end
+
+#     for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
+#         if NetProfit(z, h, m) >= 0.0
+#             customers.Payback(z, h, m, :) .=
+#                 customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) / NetProfit(z, h, m)
+#             # Calculate maximum market share and maximum DG potential (based on WTP curve)
+#             customers.MarketShare(z, h, m, :) .=
+#                 1.0 - Distributions.cdf(
+#                     Distributions.Gamma(
+#                         adopt_model.Shape(z, h, m),
+#                         1 / adopt_model.Rate(z, h, m),
+#                     ),
+#                     customers.Payback(z, h, m),
+#                 )
+#             customers.MaxDG(z, h, m, :) .=
+#                 customers.MarketShare(z, h, m) * customers.gamma(z, h) * customers.Opti_DG(z, h, m)
+#             # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
+#             customers.F(z, h, m, :) .= min(customers.x_DG_E(h, z, m) / customers.MaxDG(z, h, m), 1.0)
+#             # Back out the reference year of DER based on the percentage of existing DER
+#             customers.year(z, h, m, :) .=
+#                 -log(
+#                     (1 - customers.F(z, h, m)) /
+#                     (customers.F(z, h, m) * adopt_model.Bass_q(z, h, m) / adopt_model.Bass_p(z, h, m) + 1),
+#                 ) / (adopt_model.Bass_p(z, h, m) + adopt_model.Bass_q(z, h, m))
+#             # Calculate incremental DG build
+#             customers.A(z, h, m, :) .=
+#                 (
+#                     1.0 - exp(
+#                         -(adopt_model.Bass_p(z, h, m) + adopt_model.Bass_q(z, h, m)) *
+#                         (customers.year(z, h, m) + 1),
+#                     )
+#                 ) / (
+#                     1.0 +
+#                     (adopt_model.Bass_q(z, h, m) / adopt_model.Bass_p(z, h, m)) * exp(
+#                         -(adopt_model.Bass_p(z, h, m) + adopt_model.Bass_q(z, h, m)) *
+#                         (customers.year(z, h, m) + 1),
+#                     )
+#                 )
+#             customers.x_DG_new(h, z, m, :) .=
+#                 max(0.0, customers.A(z, h, m) * customers.MaxDG(z, h, m) - customers.x_DG_E(h, z, m))
+#         else
+#             customers.x_DG_new(h, z, m, :) .= 0.0
+#         end
+#     end
+
+#     for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
+#         customers.x_DG_new_my(reg_year_index, h, z, m, :) .= customers.x_DG_new(h, z, m)
+#         customers.MaxDG_my(reg_year_index, z, h, m, :) .= customers.MaxDG(z, h, m)
+#     end
+
+#     # x_DG_aggregate_after = initialize_param("x_DG_aggregate_after", model_data.index_h, customers.index_m)
+#     # for h in model_data.index_h, m in customers.index_m
+#     #     x_DG_aggregate_after(h, m, :) .= sum(customers.x_DG_new_my(reg_year_index, h, z, m) for z in model_data.index_z)
+#     # end
+
+#     # @info "Original new DG" x_DG_before
+#     # @info "New new DG" customers.x_DG_new
+
+#     return compute_difference_percentage_maximum_one_norm([(x_DG_before, customers.x_DG_new)])
+# end
+
+
+############ BTM PV+Storage adoption ############
 function solve_agent_problem!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
@@ -398,6 +607,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
+    jump_model
 )
     regulator = get_agent(Regulator, agent_store)
     utility = get_agent(Utility, agent_store)
@@ -412,6 +622,11 @@ function solve_agent_problem!(
     for h in model_data.index_h, z in model_data.index_z, m in customers.index_m
         x_DG_before(h, z, m, :) .= customers.x_DG_new_my(reg_year_index, h, z, m)
     end
+
+    # x_DG_aggregate_before = initialize_param("x_DG_aggregate_before", model_data.index_h, customers.index_m)
+    # for h in model_data.index_h, m in customers.index_m
+    #     x_DG_aggregate_before(h, m, :) .= sum(customers.x_DG_new_my(reg_year_index, h, z, m) for z in model_data.index_z)
+    # end
 
     adopt_model = customers.pv_adoption_model
 
@@ -429,7 +644,7 @@ function solve_agent_problem!(
         customers.CapEx_DG(z, h, m, :) .= customers.CapEx_DG_my(reg_year_index, z, h, m)
         if w_iter >= 2
             customers.x_DG_E(h, z, m, :) .=
-                customers.x_DG_E_my(reg_year_index, h, m) + sum(
+                customers.x_DG_E_my(reg_year_index, h, z, m) + sum(
                     customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                     y in model_data.year(first(model_data.index_y_fix)):(reg_year - 1)
                 )
@@ -439,87 +654,266 @@ function solve_agent_problem!(
     end
 
     # Calculate payback period of DER
-    # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
-    NetProfit = make_keyed_array(model_data.index_z, model_data.index_h, customers.index_m)
-    for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
-        # value of distributed generation (offset load)
-        NetProfit(z, h, m, :) .=
+    # The NetProfit represents the energy saving/credit per representative agent for optimally operated PV+storage, assuming the optimal DER technology size
+
+    Payment_before_PVStor = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        Payment_before_PVStor(z, h, :) .=
             sum(
                 model_data.omega(d) * delta_t *
                 regulator.p(z, h, d, t) *
-                min(
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG(z, h, m),
-                ) for d in model_data.index_d, t in model_data.index_t
-            ) +
-            # value of distributed generation (excess generation)
-            sum(
-                model_data.omega(d) * delta_t *
-                regulator.p_ex(z, h, d, t) *
-                max(
-                    0,
-                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG(z, h, m) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) for d in model_data.index_d, t in model_data.index_t
-            ) -
-            # cost of distributed generation 
-            customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m)
+                customers.d(h, z, d, t) * (1 - utility.loss_dist) for d in model_data.index_d, t in model_data.index_t
+            )
     end
 
-    for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
-        if NetProfit(z, h, m) >= 0.0
-            customers.Payback(z, h, m, :) .=
-                customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) / NetProfit(z, h, m)
+    Payment_after_PVStor = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+
+        Customer_PV_Storage_Opti = get_new_jump_model(customers_opts.solvers)
+
+        # units in MWh
+        @variable(Customer_PV_Storage_Opti, net_load[model_data.index_d, model_data.index_t])
+        @variable(Customer_PV_Storage_Opti, net_load_plus[model_data.index_d, model_data.index_t] >= 0)
+        @variable(Customer_PV_Storage_Opti, net_load_minus[model_data.index_d, model_data.index_t] <= 0)
+        @variable(Customer_PV_Storage_Opti, stor_charge[model_data.index_d, model_data.index_t] >= 0)
+        @variable(Customer_PV_Storage_Opti, stor_discharge[model_data.index_d, model_data.index_t] >= 0)
+        @variable(Customer_PV_Storage_Opti, stor_energy[model_data.index_d, model_data.index_t] >= 0)
+
+        objective_function_dist = begin
+            sum(
+                model_data.omega(d) * delta_t *
+                regulator.p(z, h, d, t) *
+                net_load_plus[d, t] + 
+                model_data.omega(d) * delta_t *
+                regulator.p_ex(z, h, d, t) *
+                net_load_minus[d, t] for d in model_data.index_d, t in model_data.index_t
+            )
+        end
+        @objective(Customer_PV_Storage_Opti, Min, objective_function_dist)
+
+        # for net load balance constraints, need to convert things to kWh, otherwise customers.d(h, z, d, t) * (1 - utility.loss_dist) and 
+        net_load_balance = 
+            (d, t) -> begin
+                (net_load[d, t] - customers.d(h, z, d, t) * (1 - utility.loss_dist) 
+                            + customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG(z, h, :BTMPV) 
+                            - stor_charge[d, t] + stor_discharge[d, t])
+            end
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_net_load_balance[
+                d in model_data.index_d,
+                t in model_data.index_t,
+            ],
+            net_load_balance(d, t) == 0.0
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_net_load_plus[
+                d in model_data.index_d,
+                t in model_data.index_t,
+            ],
+            net_load_plus[d, t] >= net_load[d, t]
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_net_load_balance_plus_minus[
+                d in model_data.index_d,
+                t in model_data.index_t,
+            ],
+            net_load[d, t] == net_load_plus[d, t] + net_load_minus[d, t]
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_stor_energy_balance[
+                d in model_data.index_d,
+                t in model_data.index_t.elements[2:end],
+            ],
+            stor_energy[d, t] == stor_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t +
+                stor_charge[d, t] * delta_t
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_stor_energy_balance_0[
+                d in model_data.index_d,
+                t in [model_data.index_t.elements[1]],
+            ],
+            stor_energy[d, t] == customers.initial_energy_dist_stor(z, h, d) - stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t + stor_charge[d, t] * delta_t
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_stor_energy_upper_bound[
+                d in model_data.index_d,
+                t in model_data.index_t,
+            ],
+            stor_energy[d, t] <= customers.duration_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage) 
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_stor_discharge_upper_bound[
+                d in model_data.index_d,
+                t in model_data.index_t,
+            ],
+            stor_discharge[d, t] <= customers.rte_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage)
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_stor_charge_upper_bound[
+                d in model_data.index_d,
+                t in model_data.index_t,
+            ],
+            stor_charge[d, t] <= customers.Opti_DG(z, h, :BTMStorage)
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_stor_discharge_energy_upper_bound[
+                d in model_data.index_d,
+                t in model_data.index_t.elements[2:end],
+            ],
+            stor_discharge[d, t] * delta_t <= 
+            stor_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_stor_discharge_energy_upper_bound_0[
+                d in model_data.index_d,
+                t in [model_data.index_t.elements[1]],
+            ],
+            stor_discharge[d, t] * delta_t <= customers.initial_energy_dist_stor(z, h, d)
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_stor_charge_energy_upper_bound[
+                d in model_data.index_d,
+                t in model_data.index_t.elements[2:end],
+            ],
+            stor_charge[d, t] * delta_t <= customers.duration_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage) -
+            stor_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_stor_charge_energy_upper_bound_0[
+                d in model_data.index_d,
+                t in [model_data.index_t.elements[1]],
+            ],
+            stor_charge[d, t] * delta_t <= customers.duration_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage) -
+            customers.initial_energy_dist_stor(z, h, d)
+        )
+
+        # @constraint(
+        #     Customer_PV_Storage_Opti,
+        #     Eq_stor_charge_discharge_upper_bound[
+        #         d in model_data.index_d,
+        #         t in model_data.index_t.elements,
+        #     ],
+        #     stor_charge[d, t] + stor_discharge[d, t] / customers.rte_dist_stor(z, h) <= 
+        #     customers.Opti_DG(z, h, :BTMStorage)
+        # )
+
+        TimerOutputs.@timeit HEM_TIMER "optimize! Customer BTM storage dispatch" begin
+            optimize!(Customer_PV_Storage_Opti)
+        end
+
+        Payment_after_PVStor(z, h, :) .= objective_value(Customer_PV_Storage_Opti)
+
+        for d in model_data.index_d, t in model_data.index_t
+            customers.net_load(reg_year_index, z, h, d, t, :) .= value.(net_load[d, t])
+            customers.net_load_plus(reg_year_index, z, h, d, t, :) .= value.(net_load_plus[d, t])
+            customers.net_load_minus(reg_year_index, z, h, d, t, :) .= value.(net_load_minus[d, t])
+            customers.stor_charge(reg_year_index, z, h, d, t, :) .= value.(stor_charge[d, t])
+            customers.stor_discharge(reg_year_index, z, h, d, t, :) .= value.(stor_discharge[d, t])
+            customers.stor_energy(reg_year_index, z, h, d, t, :) .= value.(stor_energy[d, t])
+        end
+
+    end
+
+    NetProfit = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        NetProfit(z, h, :) .= Payment_before_PVStor(z, h) - Payment_after_PVStor(z, h) -
+            # cost of distributed generation 
+            sum(customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m)
+    end
+
+    for z in model_data.index_z, h in model_data.index_h
+        if NetProfit(z, h) > 0.0
+            customers.Payback_pv_stor(z, h, :) .=
+                sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit(z, h)
             # Calculate maximum market share and maximum DG potential (based on WTP curve)
-            customers.MarketShare(z, h, m, :) .=
+            customers.MarketShare_pv_stor(z, h, :) .=
                 1.0 - Distributions.cdf(
                     Distributions.Gamma(
-                        adopt_model.Shape(z, h, m),
-                        1 / adopt_model.Rate(z, h, m),
+                        adopt_model.Shape(z, h, :BTMPV),
+                        1 / adopt_model.Rate(z, h, :BTMPV),
                     ),
-                    customers.Payback(z, h, m),
+                    customers.Payback_pv_stor(z, h),
                 )
-            customers.MaxDG(z, h, m, :) .=
-                customers.MarketShare(z, h, m) * customers.gamma(z, h) * customers.Opti_DG(z, h, m)
+            customers.MaxDG_pv(z, h, :) .=
+                customers.MarketShare_pv_stor(z, h) * customers.gamma(z, h) * customers.Opti_DG(z, h, :BTMPV)
             # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
-            customers.F(z, h, m, :) .= min(customers.x_DG_E(h, z, m) / customers.MaxDG(z, h, m), 1.0)
+            customers.F_pv(z, h, :) .= min(customers.x_DG_E(h, z, :BTMPV) / customers.MaxDG_pv(z, h), 1.0)
             # Back out the reference year of DER based on the percentage of existing DER
-            customers.year(z, h, m, :) .=
+            customers.year_pv(z, h, :) .=
                 -log(
-                    (1 - customers.F(z, h, m)) /
-                    (customers.F(z, h, m) * adopt_model.Bass_q(z, h, m) / adopt_model.Bass_p(z, h, m) + 1),
-                ) / (adopt_model.Bass_p(z, h, m) + adopt_model.Bass_q(z, h, m))
+                    (1 - customers.F_pv(z, h)) /
+                    (customers.F_pv(z, h) * adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV) + 1),
+                ) / (adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV))
             # Calculate incremental DG build
-            customers.A(z, h, m, :) .=
+            customers.A_pv(z, h, :) .=
                 (
                     1.0 - exp(
-                        -(adopt_model.Bass_p(z, h, m) + adopt_model.Bass_q(z, h, m)) *
-                        (customers.year(z, h, m) + 1),
+                        -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                        (customers.year_pv(z, h) + 1),
                     )
                 ) / (
                     1.0 +
-                    (adopt_model.Bass_q(z, h, m) / adopt_model.Bass_p(z, h, m)) * exp(
-                        -(adopt_model.Bass_p(z, h, m) + adopt_model.Bass_q(z, h, m)) *
-                        (customers.year(z, h, m) + 1),
+                    (adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV)) * exp(
+                        -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                        (customers.year_pv(z, h) + 1),
                     )
                 )
-            customers.x_DG_new(h, z, m, :) .=
-                max(0.0, customers.A(z, h, m) * customers.MaxDG(z, h, m) - customers.x_DG_E(h, z, m))
+            # calculate dpv adoption, then get storage adoption by 
+            # multiplying the ratio of distributed storage to dpv to dpv adoption
+            customers.x_DG_new(h, z, :BTMPV, :) .=
+                max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
+            customers.x_DG_new(h, z, :BTMStorage, :) .=
+                customers.x_DG_new(h, z, :BTMPV) * customers.Opti_DG(z, h, :BTMStorage) / customers.Opti_DG(z, h, :BTMPV)
         else
-            customers.x_DG_new(h, z, m, :) .= 0.0
+            customers.x_DG_new(h, z, :BTMPV, :) .= 0.0
+            customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
         end
     end
 
     for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
         customers.x_DG_new_my(reg_year_index, h, z, m, :) .= customers.x_DG_new(h, z, m)
-        customers.MaxDG_my(reg_year_index, z, h, m, :) .= customers.MaxDG(z, h, m)
+        # customers.MaxDG_my(reg_year_index, z, h, m, :) .= customers.MaxDG(z, h, m)
     end
+
+    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+        customers.rho_DG(h, :BTMStorage, z, d, t, :) .= (customers.stor_discharge(reg_year_index, z, h, d, t) - customers.stor_charge(reg_year_index, z, h, d, t)) / customers.Opti_DG(z, h, :BTMStorage)
+    end
+
+    # x_DG_aggregate_after = initialize_param("x_DG_aggregate_after", model_data.index_h, customers.index_m)
+    # for h in model_data.index_h, m in customers.index_m
+    #     x_DG_aggregate_after(h, m, :) .= sum(customers.x_DG_new_my(reg_year_index, h, z, m) for z in model_data.index_z)
+    # end
 
     # @info "Original new DG" x_DG_before
     # @info "New new DG" customers.x_DG_new
 
-    return compute_difference_percentage_one_norm([(x_DG_before, customers.x_DG_new)])
+    return compute_difference_percentage_maximum_one_norm([(x_DG_before, customers.x_DG_new)])
 end
+
 
 function solve_agent_problem!(
     customers::CustomerGroup,
@@ -826,7 +1220,7 @@ function save_results(
     # Primal Variables
     save_param(
         customers.x_DG_new_my.values,
-        [:Year, :CustomerType, :DERTech],
+        [:Year, :CustomerType, :Zone, :DERTech],
         :Capacity_MW,
         joinpath(export_file_path, "x_DG.csv"),
     )

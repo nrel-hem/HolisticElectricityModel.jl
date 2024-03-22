@@ -1,3 +1,4 @@
+using Revise
 using HolisticElectricityModel
 import HolisticElectricityModelData
 using JuMP
@@ -26,7 +27,7 @@ ba = ["p129", "p130", "p131", "p132", "p133", "p134"]                           
 ba_len = length(ba)
 base_year = 2020                                 # 2018
 future_years = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030]                      # [2019, 2020]
-# future_years = [2021]
+# future_years = [2021, 2022, 2023, 2024, 2025]
 future_years_len = length(future_years)
 ipp_number = 1                                   # 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
@@ -42,7 +43,7 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERUseCase(),                     # DERUseCase(), NullUseCase()
     NullUseCase(),                    # SupplyChoiceUseCase(), NullUseCase()
 )
@@ -85,6 +86,7 @@ ipp_opts = IPPOptions(
         "solve_agent_problem_ipp_mppdc_mccormic_lower" => JuMP.optimizer_with_attributes(
             () -> Gurobi.Optimizer(GUROBI_ENV),
             "Presolve" => 1,
+            "BarHomogeneous" => 1,
             # "OUTPUTLOG" => 0,
         )
     )
@@ -103,7 +105,16 @@ green_developer_opts = GreenDeveloperOptions(
         # "OUTPUTLOG" => 0,
     ),
 )
+
+customers_opts = CustomersOptions(
+    JuMP.optimizer_with_attributes(
+        () -> Gurobi.Optimizer(GUROBI_ENV),
+        # "OUTPUTLOG" => 0,
+    ),
+)
 # ------------------------------------------------------------------------------
+
+jump_model = []
 
 # Run HEM ----------------------------------------------------------------------
 output_dir = run_hem(
@@ -113,6 +124,8 @@ output_dir = run_hem(
     ipp_options=ipp_opts,
     utility_options=utility_opts,
     green_developer_options=green_developer_opts,
+    customers_options=customers_opts,
     force=true,
+    jump_model=jump_model,
 )
 # ------------------------------------------------------------------------------

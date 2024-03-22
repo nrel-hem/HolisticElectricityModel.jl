@@ -1069,340 +1069,337 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
+    jump_model
 )
     return 0.0
 end
 
-function solve_agent_problem!(
-    utility::Utility,
-    utility_opts::AgentOptions,
-    model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
-    agent_store::AgentStore,
-    w_iter,
-)
-    regulator = get_agent(Regulator, agent_store)
-    customers = get_agent(CustomerGroup, agent_store)
-    green_developer = get_agent(GreenDeveloper, agent_store)
+# function solve_agent_problem!(
+#     utility::Utility,
+#     utility_opts::AgentOptions,
+#     model_data::HEMData,
+#     hem_opts::HEMOptions{VerticallyIntegratedUtility},
+#     agent_store::AgentStore,
+#     w_iter,
+# )
+#     regulator = get_agent(Regulator, agent_store)
+#     customers = get_agent(CustomerGroup, agent_store)
+#     green_developer = get_agent(GreenDeveloper, agent_store)
 
-    VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
+#     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
 
-    # Define positive variables
-    @variable(VIUDER_Utility, x_C[model_data.index_y, utility.index_k_new] >= 0)
-    @variable(VIUDER_Utility, x_R[model_data.index_y, utility.index_k_existing] >= 0)
-    @variable(
-        VIUDER_Utility,
-        y_E[model_data.index_y, utility.index_k_existing, model_data.index_t] >= 0
-    )
-    @variable(
-        VIUDER_Utility,
-        y_C[model_data.index_y, utility.index_k_new, model_data.index_t] >= 0
-    )
+#     # Define positive variables
+#     @variable(VIUDER_Utility, x_C[model_data.index_y, utility.index_k_new] >= 0)
+#     @variable(VIUDER_Utility, x_R[model_data.index_y, utility.index_k_existing] >= 0)
+#     @variable(
+#         VIUDER_Utility,
+#         y_E[model_data.index_y, utility.index_k_existing, model_data.index_t] >= 0
+#     )
+#     @variable(
+#         VIUDER_Utility,
+#         y_C[model_data.index_y, utility.index_k_new, model_data.index_t] >= 0
+#     )
 
-    for y in model_data.index_y
-        if y == last(model_data.index_y.elements)
-            utility.pvf_onm(y, :) .= utility.pvf_cap(y) / utility.CRF_default
-        else
-            utility.pvf_onm(y, :) .= utility.pvf_cap(y)
-        end
-    end
+#     for y in model_data.index_y
+#         if y == last(model_data.index_y.elements)
+#             utility.pvf_onm(y, :) .= utility.pvf_cap(y) / utility.CRF_default
+#         else
+#             utility.pvf_onm(y, :) .= utility.pvf_cap(y)
+#         end
+#     end
 
-    fill!(utility.Net_Load_my, NaN)
-    for y in model_data.index_y, t in model_data.index_t
-        utility.Net_Load_my(y, t, :) .=
-            sum(customers.gamma(h) * customers.d_my(y, h, t) for h in model_data.index_h) +
-            utility.eximport_my(y, t) - sum(
-                customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
-                h in model_data.index_h, m in customers.index_m
-            ) - sum(
-                customers.rho_DG(h, m, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                ) for h in model_data.index_h, m in customers.index_m
-            )
-    end
+#     fill!(utility.Net_Load_my, NaN)
+#     for y in model_data.index_y, t in model_data.index_t
+#         utility.Net_Load_my(y, t, :) .=
+#             sum(customers.gamma(h) * customers.d_my(y, h, t) for h in model_data.index_h) +
+#             utility.eximport_my(y, t) - sum(
+#                 customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+#                 h in model_data.index_h, m in customers.index_m
+#             ) - sum(
+#                 customers.rho_DG(h, m, t) * sum(
+#                     customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
+#                     model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+#                 ) for h in model_data.index_h, m in customers.index_m
+#             )
+#     end
 
-    fill!(utility.Max_Net_Load_my, NaN)
-    for y in model_data.index_y
-        utility.Max_Net_Load_my(y, :) .=
-            findmax(Dict(t => utility.Net_Load_my(y, t) for t in model_data.index_t))[1]
-    end
+#     fill!(utility.Max_Net_Load_my, NaN)
+#     for y in model_data.index_y
+#         utility.Max_Net_Load_my(y, :) .=
+#             findmax(Dict(t => utility.Net_Load_my(y, t) for t in model_data.index_t))[1]
+#     end
 
-    Max_Net_Load_my_index = Dict(
-        y =>
-            findmax(Dict(t => utility.Net_Load_my(y, t) for t in model_data.index_t))[2]
-        for y in model_data.index_y
-    )
+#     Max_Net_Load_my_index = Dict(
+#         y =>
+#             findmax(Dict(t => utility.Net_Load_my(y, t) for t in model_data.index_t))[2]
+#         for y in model_data.index_y
+#     )
 
-    fill!(utility.capacity_credit_E_my, NaN)
-    for y in model_data.index_y, k in utility.index_k_existing
-        utility.capacity_credit_E_my(y, k, :) .= utility.rho_E_my(k, Max_Net_Load_my_index[y])
-    end
-    fill!(utility.capacity_credit_C_my, NaN)
-    for y in model_data.index_y, k in utility.index_k_new
-        utility.capacity_credit_C_my(y, k, :) .= utility.rho_C_my(k, Max_Net_Load_my_index[y])
-    end
+#     fill!(utility.capacity_credit_E_my, NaN)
+#     for y in model_data.index_y, k in utility.index_k_existing
+#         utility.capacity_credit_E_my(y, k, :) .= utility.rho_E_my(k, Max_Net_Load_my_index[y])
+#     end
+#     fill!(utility.capacity_credit_C_my, NaN)
+#     for y in model_data.index_y, k in utility.index_k_new
+#         utility.capacity_credit_C_my(y, k, :) .= utility.rho_C_my(k, Max_Net_Load_my_index[y])
+#     end
 
-    fill!(utility.Reserve_req_my, NaN)
-    for y in model_data.index_y
-        utility.Reserve_req_my(y, :) .= (1 + regulator.r) * utility.Max_Net_Load_my(y)
-    end
+#     fill!(utility.Reserve_req_my, NaN)
+#     for y in model_data.index_y
+#         utility.Reserve_req_my(y, :) .= (1 + regulator.r) * utility.Max_Net_Load_my(y)
+#     end
 
-    objective_function = begin
-        sum(
-            # generation costs
-            #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
-            utility.pvf_onm(y) * (
-                sum(
-                    model_data.omega(t) * (utility.v_E_my(y, k, t) * y_E[y, k, t]) for
-                    t in model_data.index_t, k in utility.index_k_existing
-                ) + sum(
-                    model_data.omega(t) * (utility.v_C_my(y, k, t) * y_C[y, k, t]) for
-                    t in model_data.index_t, k in utility.index_k_new
-                )
-            ) +
-            # fixed o&m costs
-            #   fom * (cap exist - cap retiring) + fom * cap new for gen type
-            # the discount factor is applied to fom of existing capacity remaining at year y
-            utility.pvf_onm(y) * sum(
-                utility.fom_E_my(y, k) * (
-                    utility.x_E_my(k) - sum(
-                        x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
-                    )
-                ) for k in utility.index_k_existing
-            ) +
-            # the discount factor is applied to fom of new capacity for every year since year y (when it is built)
-            sum(
-                utility.fom_C_my(y, k) *
-                x_C[y, k] *
-                sum(
-                    utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
-                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
-                ) for k in utility.index_k_new
-            ) +
-            # capital costs
-            # the discout factor is applied to new capacity for the year it is built
-            utility.pvf_cap(y) *
-            sum(utility.CapEx_my(y, k) * x_C[y, k] for k in utility.index_k_new)
+#     objective_function = begin
+#         sum(
+#             # generation costs
+#             #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
+#             utility.pvf_onm(y) * (
+#                 sum(
+#                     model_data.omega(t) * (utility.v_E_my(y, k, t) * y_E[y, k, t]) for
+#                     t in model_data.index_t, k in utility.index_k_existing
+#                 ) + sum(
+#                     model_data.omega(t) * (utility.v_C_my(y, k, t) * y_C[y, k, t]) for
+#                     t in model_data.index_t, k in utility.index_k_new
+#                 )
+#             ) +
+#             # fixed o&m costs
+#             #   fom * (cap exist - cap retiring) + fom * cap new for gen type
+#             # the discount factor is applied to fom of existing capacity remaining at year y
+#             utility.pvf_onm(y) * sum(
+#                 utility.fom_E_my(y, k) * (
+#                     utility.x_E_my(k) - sum(
+#                         x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+#                         model_data.year(first(model_data.index_y)):model_data.year(y)
+#                     )
+#                 ) for k in utility.index_k_existing
+#             ) +
+#             # the discount factor is applied to fom of new capacity for every year since year y (when it is built)
+#             sum(
+#                 utility.fom_C_my(y, k) *
+#                 x_C[y, k] *
+#                 sum(
+#                     utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
+#                     model_data.year(y):model_data.year(last(model_data.index_y.elements))
+#                 ) for k in utility.index_k_new
+#             ) +
+#             # capital costs
+#             # the discout factor is applied to new capacity for the year it is built
+#             utility.pvf_cap(y) *
+#             sum(utility.CapEx_my(y, k) * x_C[y, k] for k in utility.index_k_new)
 
-            for y in model_data.index_y
-        )
-    end
+#             for y in model_data.index_y
+#         )
+#     end
 
-    @objective(VIUDER_Utility, Min, objective_function)
+#     @objective(VIUDER_Utility, Min, objective_function)
 
-    supply_demand_balance =
-        (y, t) -> begin
-            # bulk generation at time t
-            sum(y_E[y, k, t] for k in utility.index_k_existing) +
-            sum(y_C[y, k, t] for k in utility.index_k_new) -
-            # demand at time t
-            sum(customers.gamma(h) * customers.d_my(y, h, t) for h in model_data.index_h) - utility.eximport_my(y, t) +
-            # existing DG generation at time t
-            sum(
-                customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
-                h in model_data.index_h, m in customers.index_m
-            ) +
-            # new DG generation at time t
-            sum(
-                customers.rho_DG(h, m, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                ) for h in model_data.index_h, m in customers.index_m
-            ) +
-            # green technology subscription at time t
-            sum(
-                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
-            )
-        end
+#     supply_demand_balance =
+#         (y, t) -> begin
+#             # bulk generation at time t
+#             sum(y_E[y, k, t] for k in utility.index_k_existing) +
+#             sum(y_C[y, k, t] for k in utility.index_k_new) -
+#             # demand at time t
+#             sum(customers.gamma(h) * customers.d_my(y, h, t) for h in model_data.index_h) - utility.eximport_my(y, t) +
+#             # existing DG generation at time t
+#             sum(
+#                 customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+#                 h in model_data.index_h, m in customers.index_m
+#             ) +
+#             # new DG generation at time t
+#             sum(
+#                 customers.rho_DG(h, m, t) * sum(
+#                     customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
+#                     model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+#                 ) for h in model_data.index_h, m in customers.index_m
+#             ) +
+#             # green technology subscription at time t
+#             sum(
+#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+#                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+#                 for j in model_data.index_j, h in model_data.index_h
+#             )
+#         end
 
-    @constraint(
-        VIUDER_Utility,
-        Eq_miu[y in model_data.index_y, t in model_data.index_t],
-        supply_demand_balance(y, t) >= 0
-    )
+#     @constraint(
+#         VIUDER_Utility,
+#         Eq_miu[y in model_data.index_y, t in model_data.index_t],
+#         supply_demand_balance(y, t) >= 0
+#     )
 
-    # HERE -- once running try defining function over two indices
-    # y_E must be less than available capacity
-    @constraint(
-        VIUDER_Utility,
-        Eq_eta[
-            y in model_data.index_y,
-            k in utility.index_k_existing,
-            t in model_data.index_t,
-        ],
-        utility.rho_E_my(k, t) * (
-            utility.x_E_my(k) - sum(
-                x_R[Symbol(Int(y_symbol)), k] for
-                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - utility.x_R_cumu(k)
-        ) - y_E[y, k, t] >= 0
-    )
-    # y_C must be less than available capacity
-    @constraint(
-        VIUDER_Utility,
-        Eq_lambda[
-            y in model_data.index_y,
-            k in utility.index_k_new,
-            t in model_data.index_t,
-        ],
-        utility.rho_C_my(k, t) * (
-            sum(
-                x_C[Symbol(Int(y_symbol)), k] for
-                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + utility.x_C_cumu(k)
-        ) - y_C[y, k, t] >= 0
-    )
-    # retiring capacity is bounded by existing capacity
-    @constraint(
-        VIUDER_Utility,
-        Eq_sigma[y in model_data.index_y, k in utility.index_k_existing],
-        utility.x_E(k) - sum(
-            x_R[Symbol(Int(y_symbol)), k] for
-            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
-        ) - utility.x_R_cumu(k) >= 0
-    )
+#     # HERE -- once running try defining function over two indices
+#     # y_E must be less than available capacity
+#     @constraint(
+#         VIUDER_Utility,
+#         Eq_eta[
+#             y in model_data.index_y,
+#             k in utility.index_k_existing,
+#             t in model_data.index_t,
+#         ],
+#         utility.rho_E_my(k, t) * (
+#             utility.x_E_my(k) - sum(
+#                 x_R[Symbol(Int(y_symbol)), k] for
+#                 y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+#             ) - utility.x_R_cumu(k)
+#         ) - y_E[y, k, t] >= 0
+#     )
+#     # y_C must be less than available capacity
+#     @constraint(
+#         VIUDER_Utility,
+#         Eq_lambda[
+#             y in model_data.index_y,
+#             k in utility.index_k_new,
+#             t in model_data.index_t,
+#         ],
+#         utility.rho_C_my(k, t) * (
+#             sum(
+#                 x_C[Symbol(Int(y_symbol)), k] for
+#                 y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+#             ) + utility.x_C_cumu(k)
+#         ) - y_C[y, k, t] >= 0
+#     )
+#     # retiring capacity is bounded by existing capacity
+#     @constraint(
+#         VIUDER_Utility,
+#         Eq_sigma[y in model_data.index_y, k in utility.index_k_existing],
+#         utility.x_E(k) - sum(
+#             x_R[Symbol(Int(y_symbol)), k] for
+#             y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+#         ) - utility.x_R_cumu(k) >= 0
+#     )
 
-    planning_reserves =
-        (y, t) -> begin
-            # bulk generation available capacity at time t
-            sum(
-                utility.rho_E_my(k, t) * (
-                    utility.x_E_my(k) - sum(
-                        x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
-                    ) - utility.x_R_cumu(k)
-                ) for k in utility.index_k_existing
-            ) + sum(
-                utility.rho_C_my(k, t) * (
-                    sum(
-                        x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
-                    ) + utility.x_C_cumu(k)
-                ) for k in utility.index_k_new
-            ) +
-            # green technology subscription
-            sum(
-                utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
-            ) -
-            # net_load plus planning reserve
-            (1 + regulator.r) * (
-                sum(
-                    customers.gamma(h) * customers.d_my(y, h, t) for
-                    h in model_data.index_h
-                ) + utility.eximport_my(y, t) - sum(
-                    customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
-                    h in model_data.index_h, m in customers.index_m
-                ) - sum(
-                    customers.rho_DG(h, m, t) * sum(
-                        customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
-                        y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                    ) for h in model_data.index_h, m in customers.index_m
-                )
-            )
-        end
-    @constraint(
-        VIUDER_Utility,
-        Eq_xi[y in model_data.index_y, t in model_data.index_t],
-        planning_reserves(y, t) >= 0
-    )
+#     planning_reserves =
+#         (y, t) -> begin
+#             # bulk generation available capacity at time t
+#             sum(
+#                 utility.rho_E_my(k, t) * (
+#                     utility.x_E_my(k) - sum(
+#                         x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+#                         model_data.year(first(model_data.index_y)):model_data.year(y)
+#                     ) - utility.x_R_cumu(k)
+#                 ) for k in utility.index_k_existing
+#             ) + sum(
+#                 utility.rho_C_my(k, t) * (
+#                     sum(
+#                         x_C[Symbol(Int(y_symbol)), k] for y_symbol in
+#                         model_data.year(first(model_data.index_y)):model_data.year(y)
+#                     ) + utility.x_C_cumu(k)
+#                 ) for k in utility.index_k_new
+#             ) +
+#             # green technology subscription
+#             sum(
+#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+#                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+#                 for j in model_data.index_j, h in model_data.index_h
+#             ) -
+#             # net_load plus planning reserve
+#             (1 + regulator.r) * (
+#                 sum(
+#                     customers.gamma(h) * customers.d_my(y, h, t) for
+#                     h in model_data.index_h
+#                 ) + utility.eximport_my(y, t) - sum(
+#                     customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) for
+#                     h in model_data.index_h, m in customers.index_m
+#                 ) - sum(
+#                     customers.rho_DG(h, m, t) * sum(
+#                         customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+#                         y_symbol in
+#                         model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+#                     ) for h in model_data.index_h, m in customers.index_m
+#                 )
+#             )
+#         end
+#     @constraint(
+#         VIUDER_Utility,
+#         Eq_xi[y in model_data.index_y, t in model_data.index_t],
+#         planning_reserves(y, t) >= 0
+#     )
 
-    planning_reserves_cap =
-        y -> begin
-            # bulk generation available capacity at time t
-            sum(
-                utility.capacity_credit_E_my(y, k) * (
-                    utility.x_E_my(k) - sum(
-                        x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
-                    ) - utility.x_R_cumu(k)
-                ) for k in utility.index_k_existing
-            ) + sum(
-                utility.capacity_credit_C_my(y, k) * (
-                    sum(
-                        x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
-                    ) + utility.x_C_cumu(k)
-                ) for k in utility.index_k_new
-            ) +
-            # green technology subscription
-            sum(
-                utility.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
-            ) -
-            # net_load plus planning reserve
-            utility.Reserve_req_my(y)
-        end
-    @constraint(
-        VIUDER_Utility,
-        Eq_xi_cap[y in model_data.index_y],
-        planning_reserves_cap(y) >= 0
-    )
+#     planning_reserves_cap =
+#         y -> begin
+#             # bulk generation available capacity at time t
+#             sum(
+#                 utility.capacity_credit_E_my(y, k) * (
+#                     utility.x_E_my(k) - sum(
+#                         x_R[Symbol(Int(y_symbol)), k] for y_symbol in
+#                         model_data.year(first(model_data.index_y)):model_data.year(y)
+#                     ) - utility.x_R_cumu(k)
+#                 ) for k in utility.index_k_existing
+#             ) + sum(
+#                 utility.capacity_credit_C_my(y, k) * (
+#                     sum(
+#                         x_C[Symbol(Int(y_symbol)), k] for y_symbol in
+#                         model_data.year(first(model_data.index_y)):model_data.year(y)
+#                     ) + utility.x_C_cumu(k)
+#                 ) for k in utility.index_k_new
+#             ) +
+#             # green technology subscription
+#             sum(
+#                 utility.capacity_credit_C_my(y, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
+#                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+#                 for j in model_data.index_j, h in model_data.index_h
+#             ) -
+#             # net_load plus planning reserve
+#             utility.Reserve_req_my(y)
+#         end
+#     @constraint(
+#         VIUDER_Utility,
+#         Eq_xi_cap[y in model_data.index_y],
+#         planning_reserves_cap(y) >= 0
+#     )
 
-    # RPS constraint
-    @constraint(
-        VIUDER_Utility,
-        Eq_rps[y in model_data.index_y],
-        sum(
-            model_data.omega(t) * (y_E[y, rps, t] + y_C[y, rps, t]) for
-            rps in utility.index_rps, t in model_data.index_t
-        ) -
-        utility.RPS(y) *
-        sum(model_data.omega(t) * utility.Net_Load_my(y, t) for t in model_data.index_t) >=
-        0
-    )
+#     # RPS constraint
+#     @constraint(
+#         VIUDER_Utility,
+#         Eq_rps[y in model_data.index_y],
+#         sum(
+#             model_data.omega(t) * (y_E[y, rps, t] + y_C[y, rps, t]) for
+#             rps in utility.index_rps, t in model_data.index_t
+#         ) -
+#         utility.RPS(y) *
+#         sum(model_data.omega(t) * utility.Net_Load_my(y, t) for t in model_data.index_t) >=
+#         0
+#     )
 
-    TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 1" begin
-        optimize!(VIUDER_Utility)
-    end
+#     TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 1" begin
+#         optimize!(VIUDER_Utility)
+#     end
 
-    # record current primary variable values
-    for y in model_data.index_y, k in utility.index_k_existing, t in model_data.index_t
-        utility.y_E_my(y, k, t, :) .= value.(y_E[y, k, t])
-    end
+#     # record current primary variable values
+#     for y in model_data.index_y, k in utility.index_k_existing, t in model_data.index_t
+#         utility.y_E_my(y, k, t, :) .= value.(y_E[y, k, t])
+#     end
 
-    for y in model_data.index_y, k in utility.index_k_new, t in model_data.index_t
-        utility.y_C_my(y, k, t, :) .= value.(y_C[y, k, t])
-    end
+#     for y in model_data.index_y, k in utility.index_k_new, t in model_data.index_t
+#         utility.y_C_my(y, k, t, :) .= value.(y_C[y, k, t])
+#     end
 
-    x_R_before = ParamArray(utility.x_R_my)
-    x_C_before = ParamArray(utility.x_C_my)
-    for y in model_data.index_y, k in utility.index_k_existing
-        utility.x_R_my(y, k, :) .= value.(x_R[y, k])
-    end
+#     x_R_before = ParamArray(utility.x_R_my)
+#     x_C_before = ParamArray(utility.x_C_my)
+#     for y in model_data.index_y, k in utility.index_k_existing
+#         utility.x_R_my(y, k, :) .= value.(x_R[y, k])
+#     end
 
-    for y in model_data.index_y, k in utility.index_k_new
-        utility.x_C_my(y, k, :) .= value.(x_C[y, k])
-    end
+#     for y in model_data.index_y, k in utility.index_k_new
+#         utility.x_C_my(y, k, :) .= value.(x_C[y, k])
+#     end
 
-    for y in model_data.index_y, t in model_data.index_t
-        utility.miu_my(y, t, :) .= dual.(Eq_miu[y, t])
-    end
+#     for y in model_data.index_y, t in model_data.index_t
+#         utility.miu_my(y, t, :) .= dual.(Eq_miu[y, t])
+#     end
 
-    for y in model_data.index_y
-        utility.rec_my(y, :) .= dual.(Eq_rps[y]) ./ utility.pvf_onm(y)  # exact REC needs to be carefully evaluated
-    end
+#     for y in model_data.index_y
+#         utility.rec_my(y, :) .= dual.(Eq_rps[y]) ./ utility.pvf_onm(y)  # exact REC needs to be carefully evaluated
+#     end
 
-    # @info "Original built capacity" x_C_before
-    # @info "New built capacity" utility.x_C_my
+#     # @info "Original built capacity" x_C_before
+#     # @info "New built capacity" utility.x_C_my
 
-    # report change in key variables from previous iteration to this one
-    return compute_difference_percentage_one_norm([
-        (x_R_before, utility.x_R_my),
-        (x_C_before, utility.x_C_my),
-    ])
-end
-
-
-
-
+#     # report change in key variables from previous iteration to this one
+#     return compute_difference_percentage_one_norm([
+#         (x_R_before, utility.x_R_my),
+#         (x_C_before, utility.x_C_my),
+#     ])
+# end
 
 
 ############### utility capacity expansion with transmission and storage ###############
@@ -1413,6 +1410,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
+    jump_model
 )
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
@@ -1420,6 +1418,15 @@ function solve_agent_problem!(
 
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+
+    x_R_aggregate_before = initialize_param("x_R_aggregate_before", model_data.index_y, utility.index_k_existing)
+    x_C_aggregate_before = initialize_param("x_C_aggregate_before", model_data.index_y, utility.index_k_new)
+    for y in model_data.index_y, k in utility.index_k_existing
+        x_R_aggregate_before(y, k, :) .= sum(utility.x_R_my(y, k, z) for z in model_data.index_z)
+    end
+    for y in model_data.index_y, k in utility.index_k_new
+        x_C_aggregate_before(y, k, :) .= sum(utility.x_C_my(y, k, z) for z in model_data.index_z)
+    end
 
     # Define positive variables
     @variable(VIUDER_Utility, x_C[model_data.index_y, utility.index_k_new, model_data.index_z] >= 0)
@@ -1469,6 +1476,15 @@ function solve_agent_problem!(
         flow_cap[model_data.index_y, utility.index_l]
     )
 
+    ####### fix variables to reasonable range #######
+    for y in model_data.index_y, z in model_data.index_z
+        set_upper_bound(x_R[y, Symbol("nuclear"), z], 1.0)
+        # fix(x_R[y, :nuclear, z], 0.0, force=true)
+        # set_upper_bound(x_C[y, Symbol("lfill-gas"), z], 10.0)
+        # set_upper_bound(x_C[y, Symbol("coaloldscr"), z], 10.0)
+        # set_upper_bound(x_C[y, Symbol("coalolduns"), z], 10.0)
+        # set_upper_bound(x_C[y, Symbol("o-g-s"), z], 10.0)
+    end
 
     for y in model_data.index_y
         if y == last(model_data.index_y.elements)
@@ -2087,6 +2103,21 @@ function solve_agent_problem!(
                     ) + utility.x_C_cumu(k, z)
                 ) for k in utility.index_k_new
             ) +
+            sum(
+                utility.capacity_credit_stor_E_my(y, z, s) * (
+                    utility.x_stor_E_my(z, s) - sum(
+                        x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) - utility.x_stor_R_cumu(s, z)
+                ) for s in utility.index_stor_existing
+            ) + sum(
+                utility.capacity_credit_stor_C_my(y, z, s) * (
+                    sum(
+                        x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) + utility.x_stor_C_cumu(s, z)
+                ) for s in utility.index_stor_new
+            ) +
             # green technology subscription
             sum(
                 utility.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -2123,18 +2154,18 @@ function solve_agent_problem!(
         flow_cap[y, l] - utility.trans_capacity(l, :max) <= 0
     )
 
-    # # RPS constraint
-    # @constraint(
-    #     VIUDER_Utility,
-    #     Eq_rps[y in model_data.index_y],
-    #     sum(
-    #         model_data.omega(t) * (y_E[y, rps, t] + y_C[y, rps, t]) for
-    #         rps in utility.index_rps, t in model_data.index_t
-    #     ) -
-    #     utility.RPS(y) *
-    #     sum(model_data.omega(t) * utility.Net_Load_my(y, t) for t in model_data.index_t) >=
-    #     0
-    # )
+    # RPS constraint
+    @constraint(
+        VIUDER_Utility,
+        Eq_rps[y in model_data.index_y],
+        sum(
+            model_data.omega(d) * delta_t * (y_E[y, rps, z, d, t] + y_C[y, rps, z, d, t]) for
+            rps in utility.index_rps, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        ) -
+        utility.RPS(y) *
+        sum(model_data.omega(d) * delta_t * utility.Net_Load_my(y, z, d, t) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t) >=
+        0
+    )
 
     TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 1" begin
         optimize!(VIUDER_Utility)
@@ -2176,6 +2207,15 @@ function solve_agent_problem!(
         utility.flow_cap_my(y, l, :) .= value.(flow_cap[y, l])
     end
 
+    # x_R_aggregate_after = initialize_param("x_R_aggregate_after", model_data.index_y, utility.index_k_existing)
+    # x_C_aggregate_after = initialize_param("x_C_aggregate_after", model_data.index_y, utility.index_k_new)
+    # for y in model_data.index_y, k in utility.index_k_existing
+    #     x_R_aggregate_after(y, k, :) .= sum(utility.x_R_my(y, k, z) for z in model_data.index_z)
+    # end
+    # for y in model_data.index_y, k in utility.index_k_new
+    #     x_C_aggregate_after(y, k, :) .= sum(utility.x_C_my(y, k, z) for z in model_data.index_z)
+    # end
+
     # for y in model_data.index_y
     #     utility.rec_my(y, :) .= dual.(Eq_rps[y]) ./ utility.pvf_onm(y)  # exact REC needs to be carefully evaluated
     # end
@@ -2184,47 +2224,47 @@ function solve_agent_problem!(
     # @info "New built capacity" utility.x_C_my
 
     # report change in key variables from previous iteration to this one
-    # return compute_difference_percentage_one_norm([
-    #     (x_R_before, utility.x_R_my),
-    #     (x_C_before, utility.x_C_my),
-    # ])
+    return compute_difference_percentage_maximum_one_norm([
+        (x_R_before, utility.x_R_my),
+        (x_C_before, utility.x_C_my),
+    ])
 end
 
 
 
 
-function save_results(
-    utility::Utility,
-    utility_opts::AgentOptions,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
-    export_file_path::AbstractString,
-)
-    # Primal Variables
-    save_param(
-        utility.y_E_my.values,
-        [:Year, :GenTech, :Time],
-        :Generation_MWh,
-        joinpath(export_file_path, "y_E.csv"),
-    )
-    save_param(
-        utility.y_C_my.values,
-        [:Year, :GenTech, :Time],
-        :Generation_MWh,
-        joinpath(export_file_path, "y_C.csv"),
-    )
-    save_param(
-        utility.x_R_my.values,
-        [:Year, :GenTech],
-        :Capacity_MW,
-        joinpath(export_file_path, "x_R.csv"),
-    )
-    save_param(
-        utility.x_C_my.values,
-        [:Year, :GenTech],
-        :Capacity_MW,
-        joinpath(export_file_path, "x_C.csv"),
-    )
-end
+# function save_results(
+#     utility::Utility,
+#     utility_opts::AgentOptions,
+#     hem_opts::HEMOptions{VerticallyIntegratedUtility},
+#     export_file_path::AbstractString,
+# )
+#     # Primal Variables
+#     save_param(
+#         utility.y_E_my.values,
+#         [:Year, :GenTech, :Time],
+#         :Generation_MWh,
+#         joinpath(export_file_path, "y_E.csv"),
+#     )
+#     save_param(
+#         utility.y_C_my.values,
+#         [:Year, :GenTech, :Time],
+#         :Generation_MWh,
+#         joinpath(export_file_path, "y_C.csv"),
+#     )
+#     save_param(
+#         utility.x_R_my.values,
+#         [:Year, :GenTech],
+#         :Capacity_MW,
+#         joinpath(export_file_path, "x_R.csv"),
+#     )
+#     save_param(
+#         utility.x_C_my.values,
+#         [:Year, :GenTech],
+#         :Capacity_MW,
+#         joinpath(export_file_path, "x_C.csv"),
+#     )
+# end
 
 
 function save_results(
@@ -2270,12 +2310,12 @@ function save_results(
         :Capacity_MW,
         joinpath(export_file_path, "x_stor_C.csv"),
     )
-    # save_param(
-    #     utility.LMP_my.values,
-    #     [:Year, :Zone, :Day, :Time],
-    #     :MarginalCost,
-    #     joinpath(export_file_path, "LMP.csv"),
-    # )
+    save_param(
+        utility.p_energy_cem_my.values,
+        [:Year, :Zone, :Day, :Time],
+        :MarginalCost,
+        joinpath(export_file_path, "LMP.csv"),
+    )
     save_param(
         utility.charge_E_my.values,
         [:Year, :StorTech, :Zone, :Day, :Time],
@@ -3460,11 +3500,19 @@ end
 Update Utility cumulative parameters
 """
 function update_cumulative!(model_data::HEMData, utility::Utility)
-    for k in utility.index_k_existing
-        utility.x_R_cumu(k,:) .= utility.x_R_cumu(k) + utility.x_R_my(first(model_data.index_y),k)
+    for k in utility.index_k_existing, z in model_data.index_z
+        utility.x_R_cumu(k, z, :) .= utility.x_R_cumu(k, z) + utility.x_R_my(first(model_data.index_y), k, z)
     end
 
-    for k in utility.index_k_new
-        utility.x_C_cumu(k,:) .= utility.x_C_cumu(k) + utility.x_C_my(first(model_data.index_y),k)
+    for k in utility.index_k_new, z in model_data.index_z
+        utility.x_C_cumu(k, z, :) .= utility.x_C_cumu(k, z) + utility.x_C_my(first(model_data.index_y), k, z)
+    end
+
+    for s in utility.index_stor_existing, z in model_data.index_z
+        utility.x_stor_R_cumu(s, z, :) .= utility.x_stor_R_cumu(s, z) + utility.x_stor_R_my(first(model_data.index_y), s, z)
+    end
+
+    for s in utility.index_stor_new, z in model_data.index_z
+        utility.x_stor_C_cumu(s, z, :) .= utility.x_stor_C_cumu(s, z) + utility.x_stor_C_my(first(model_data.index_y), s, z)
     end
 end

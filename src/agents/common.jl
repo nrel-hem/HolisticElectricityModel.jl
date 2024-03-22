@@ -290,6 +290,7 @@ function solve_equilibrium_problem!(
     export_file_path::AbstractString,
     max_iter::Int64,
     window_length::Int64,
+    jump_model::Any,
 )
     store = AgentStore(agents_and_opts)
     TimerOutputs.reset_timer!(HEM_TIMER)
@@ -300,6 +301,7 @@ function solve_equilibrium_problem!(
             model_data.index_y.elements =
                 model_data.index_y_fix.elements[w:(w + window_length - 1)]
             i = 0
+            diff_iter = []
             for i in 1:max_iter
                 diff_vec = []
 
@@ -313,12 +315,16 @@ function solve_equilibrium_problem!(
                             hem_opts,
                             store,
                             w,
+                            jump_model
                         )
                     end
+                    @info "$(diff_one)"
                     push!(diff_vec, diff_one)
                 end
                 diff = maximum(diff_vec)
                 @info "Iteration $i value: $diff"
+                push!(diff_iter, diff)
+                @info "Iteration $i value vector: $diff_iter"
 
                 if diff < model_data.epsilon
                     break

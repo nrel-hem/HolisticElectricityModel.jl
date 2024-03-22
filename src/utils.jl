@@ -223,6 +223,19 @@ function compute_difference_percentage_one_norm(before_after_pairs)
     return result
 end
 
+function compute_difference_percentage_maximum_one_norm(before_after_pairs)
+    result_vec = []
+    for (before, after) in before_after_pairs
+        for i in Iterators.product(AxisKeys.axiskeys(before)...)
+            result_one = 
+                before(i...) == 0.0 ? abs(after(i...) - before(i...)) : abs(after(i...) - before(i...)) / before(i...)
+            push!(result_vec, result_one)
+        end
+    end
+    result = maximum(result_vec)
+    return result
+end
+
 """
 Sets the log level to, e.g., Logging.Debug, Logging.Warn. Currently only 
 implemented for ConsoleLogger.

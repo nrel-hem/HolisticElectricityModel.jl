@@ -56,6 +56,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, <:Union{NullUseCase,DERUseCase}, SupplyChoiceUseCase},
     agent_store::AgentStore,
     w_iter,
+    jump_model,
 )
 
     utility = get_agent(Utility, agent_store)
@@ -131,6 +132,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
+    jump_model
 )
 
     return 0.0

@@ -19,9 +19,11 @@ function run_hem(
     regulator_options::Union{RegulatorOptions, NullAgentOptions}=NullAgentOptions(),
     utility_options::Union{UtilityOptions, NullAgentOptions}=NullAgentOptions(),
     green_developer_options::Union{GreenDeveloperOptions, NullAgentOptions}=NullAgentOptions(),
-    max_iterations=100,
-    window_length=5,
+    customers_options::Union{CustomersOptions, NullAgentOptions}=NullAgentOptions(),
+    max_iterations=1,
+    window_length=3,
     force=false,
+    jump_model::Any
 )
     model_data = HEMData(input_dir)
     regulator = Regulator(input_dir, model_data)
@@ -34,7 +36,7 @@ function run_hem(
         AgentAndOptions(utility, utility_options),
         AgentAndOptions(ipp, ipp_options),
         AgentAndOptions(regulator, regulator_options),
-        AgentAndOptions(customers, NullAgentOptions()),
+        AgentAndOptions(customers, customers_options),
         AgentAndOptions(green_developer, green_developer_options),
         # AgentAndOptions(distribution_utility, NullAgentOptions()),
     ]
@@ -62,6 +64,7 @@ function run_hem(
             output_dir,
             max_iterations,
             window_length,
+            jump_model
         )
     finally
         close(logger)

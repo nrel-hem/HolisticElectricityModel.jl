@@ -42,6 +42,7 @@ export RegulatorOptions
 export GreenDeveloperOptions
 export IPPOptions
 export UtilityOptions
+export CustomersOptions
 
 # Policies
 export FlatRate, TOU                                    # tariff structures
