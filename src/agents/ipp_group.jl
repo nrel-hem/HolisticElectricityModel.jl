@@ -5976,19 +5976,19 @@ function solve_agent_problem_ipp_cap(
     # eta_param = CSV.read(joinpath("/home/nguo/HolisticElectricityModel-Data/outputs/ba_1_base_2018_future_1_ipps_1", "eta.csv"), DataFrame)
     # lambda_param = CSV.read(joinpath("/home/nguo/HolisticElectricityModel-Data/outputs/ba_1_base_2018_future_1_ipps_1", "lambda.csv"), DataFrame)
  
-    # eta_upper_bound_adj = 1.015
-    # eta_lower_bound_adj = 0.985
-    # lambda_upper_bound_adj = 1.015
-    # lambda_lower_bound_adj = 0.985
-    # battery_upper_bound_adj = 1.015
-    # battery_lower_bound_adj = 0.985
+    eta_upper_bound_adj = 1.015
+    eta_lower_bound_adj = 0.985
+    lambda_upper_bound_adj = 1.015
+    lambda_lower_bound_adj = 0.985
+    battery_upper_bound_adj = 1.015
+    battery_lower_bound_adj = 0.985
 
-    eta_upper_bound_adj = 1.001
-    eta_lower_bound_adj = 0.999
-    lambda_upper_bound_adj = 1.001
-    lambda_lower_bound_adj = 0.999
-    battery_upper_bound_adj = 1.001
-    battery_lower_bound_adj = 0.999
+    # eta_upper_bound_adj = 1.001
+    # eta_lower_bound_adj = 0.999
+    # lambda_upper_bound_adj = 1.001
+    # lambda_lower_bound_adj = 0.999
+    # battery_upper_bound_adj = 1.001
+    # battery_lower_bound_adj = 0.999
 
     # eta_upper_bound_adj = 10.0
     # eta_lower_bound_adj = 10.0
