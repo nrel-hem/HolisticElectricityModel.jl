@@ -33,7 +33,7 @@ First, [set up an HPC account with a username and password](https://www.nrel.gov
     ```bash
     $ cd /kfs2/projects/hem/HolisticElectricityModel.jl
     ```
-Note: Logan's directory is set-up for a Quick Start run. We will assume one has navigated to the below subdirectory for the remainder of our Quick Start instructions.
+- Note: Logan's directory is set-up for a Quick Start run. We will assume one has navigated to the below subdirectory for the remainder of our Quick Start instructions.
     ```bash
     $ cd /kfs2/projects/hem/Github/Graham/HolisticElectricityModel.jl
     ```
