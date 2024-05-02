@@ -7,7 +7,8 @@ end
 
 @testset "Construct IpoptSolver with attributes" begin
     import_ipopt()
-    attr = JuMP.optimizer_with_attributes(Ipopt.Optimizer, "tol" => 1e-6, "print_level" => 0)
+    attr =
+        JuMP.optimizer_with_attributes(Ipopt.Optimizer, "tol" => 1e-6, "print_level" => 0)
     solver = IpoptSolver(attr)
     model = HEM.get_new_jump_model(solver)
     @test model isa JuMP.Model
@@ -30,7 +31,8 @@ end
 end
 
 @testset "Make JuMP model" begin
-    attr = JuMP.optimizer_with_attributes(Ipopt.Optimizer, "tol" => 1e-6, "print_level" => 0)
+    attr =
+        JuMP.optimizer_with_attributes(Ipopt.Optimizer, "tol" => 1e-6, "print_level" => 0)
     model = HEM.make_jump_model(attr)
     @test model isa JuMP.Model
 end

@@ -249,11 +249,18 @@ function Utility(
         prose_name = "RPS-qualified technologies",
     )
 
-    index_stor_existing = read_set(input_filename, "index_stor_existing", "index_stor_existing")
+    index_stor_existing =
+        read_set(input_filename, "index_stor_existing", "index_stor_existing")
     index_stor_new = read_set(input_filename, "index_stor_new", "index_stor_new")
     index_l = read_set(input_filename, "index_l", "index_l")
 
-    eximport = read_param("eximport", input_filename, "Export", model_data.index_t, [model_data.index_z, model_data.index_d])
+    eximport = read_param(
+        "eximport",
+        input_filename,
+        "Export",
+        model_data.index_t,
+        [model_data.index_z, model_data.index_d],
+    )
 
     min_max = Dimension(
         "min_max",
@@ -265,9 +272,15 @@ function Utility(
     peak_eximport =
         ParamScalar("Peak_eximport", findmax(eximport)[1], description = "peak export")
 
-    FOMNew = read_param("FOM_new", input_filename, "FOMNew", index_k_new, [model_data.index_z])
-    CapExNew =
-        read_param("CapEx_new", input_filename, "CapExNew", index_k_new, [model_data.index_z])
+    FOMNew =
+        read_param("FOM_new", input_filename, "FOMNew", index_k_new, [model_data.index_z])
+    CapExNew = read_param(
+        "CapEx_new",
+        input_filename,
+        "CapExNew",
+        index_k_new,
+        [model_data.index_z],
+    )
     LifetimeNew = read_param("Lifetime_new", input_filename, "LifetimeNew", index_k_new)
     debt_ratio = ParamScalar("DebtRatio", 0.6, description = "debt ratio")
     cost_of_debt = ParamScalar("COD", 0.06, description = "cost of debt")
@@ -284,7 +297,13 @@ function Utility(
         FixedCostNew(z, k, :) .= FOMNew(z, k) + CapExNew(z, k) * CRF[k]
     end
 
-    CapExOld = read_param("CapEx_existing", input_filename, "CapExOld", index_k_existing, [model_data.index_z])
+    CapExOld = read_param(
+        "CapEx_existing",
+        input_filename,
+        "CapExOld",
+        index_k_existing,
+        [model_data.index_z],
+    )
     CumuTaxDepreOld = read_param(
         "CumuTaxDepre_existing",
         input_filename,
@@ -314,13 +333,15 @@ function Utility(
 
     ADITOld = make_keyed_array(model_data.index_z, index_k_existing)
     for z in model_data.index_z, k in index_k_existing
-        ADITOld(z, k, :) .= CapExOld(z, k) * (CumuTaxDepreOld(k) - CumuAccoutDepreOld(k)) * tax_rate +
-        ITCOld(k) * CapExOld(z, k) * (1 - CumuITCAmortOld(k))
+        ADITOld(z, k, :) .=
+            CapExOld(z, k) * (CumuTaxDepreOld(k) - CumuAccoutDepreOld(k)) * tax_rate +
+            ITCOld(k) * CapExOld(z, k) * (1 - CumuITCAmortOld(k))
     end
 
     RateBaseNoWCOld = make_keyed_array(model_data.index_z, index_k_existing)
     for z in model_data.index_z, k in index_k_existing
-        RateBaseNoWCOld(z, k, :) .= CapExOld(z, k) * (1 - CumuAccoutDepreOld(k)) - ADITOld(z, k)
+        RateBaseNoWCOld(z, k, :) .=
+            CapExOld(z, k) * (1 - CumuAccoutDepreOld(k)) - ADITOld(z, k)
     end
 
     CumuTaxDepreNew =
@@ -333,13 +354,15 @@ function Utility(
 
     ADITNew = make_keyed_array(model_data.index_z, index_k_new)
     for z in model_data.index_z, k in index_k_new
-        ADITNew(z, k, :) .= CapExNew(z, k) * (CumuTaxDepreNew(k) - CumuAccoutDepreNew(k)) * tax_rate +
-        ITCNew(k) * CapExNew(z, k) * (1 - CumuITCAmortNew(k))
+        ADITNew(z, k, :) .=
+            CapExNew(z, k) * (CumuTaxDepreNew(k) - CumuAccoutDepreNew(k)) * tax_rate +
+            ITCNew(k) * CapExNew(z, k) * (1 - CumuITCAmortNew(k))
     end
 
     RateBaseNoWCNew = make_keyed_array(model_data.index_z, index_k_new)
     for z in model_data.index_z, k in index_k_new
-        RateBaseNoWCNew(z, k, :) .= CapExNew(z, k) * (1 - CumuAccoutDepreNew(k)) - ADITNew(z, k)
+        RateBaseNoWCNew(z, k, :) .=
+            CapExNew(z, k) * (1 - CumuAccoutDepreNew(k)) - ADITNew(z, k)
     end
 
     eximport_my = read_param(
@@ -352,8 +375,12 @@ function Utility(
 
     peak_eximport_my = make_keyed_array(model_data.index_y, model_data.index_z)
     for y in model_data.index_y, z in model_data.index_z
-        peak_eximport_my(y, z, :) .=
-            findmax(Dict((d, t) => eximport_my(y, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
+        peak_eximport_my(y, z, :) .= findmax(
+            Dict(
+                (d, t) => eximport_my(y, z, d, t) for d in model_data.index_d,
+                t in model_data.index_t
+            ),
+        )[1]
     end
 
     # array_eximport_my = zeros(length(model_data.index_y), length(model_data.index_z), length(model_data.index_d), length(model_data.index_t))
@@ -381,10 +408,20 @@ function Utility(
     end
 
     # capital expense of existing units ($/MW)
-    CapExOld_my =
-        read_param("CapEx_existing_my", input_filename, "CapExOld", index_k_existing, [model_data.index_z])
-    CapExStorOld_my =
-        read_param("CapExStor_existing_my", input_filename, "CapExStorOld", index_stor_existing, [model_data.index_z])
+    CapExOld_my = read_param(
+        "CapEx_existing_my",
+        input_filename,
+        "CapExOld",
+        index_k_existing,
+        [model_data.index_z],
+    )
+    CapExStorOld_my = read_param(
+        "CapExStor_existing_my",
+        input_filename,
+        "CapExStorOld",
+        index_stor_existing,
+        [model_data.index_z],
+    )
     # cumulative tax depreciation of existing units (%)
     CumuTaxDepreOld_my = read_param(
         "CumuTaxDepre_existing_my",
@@ -447,7 +484,8 @@ function Utility(
     )
     # ITC of existing units (%)
     ITCOld_my = read_param("ITC_existing_my", input_filename, "ITCOld", index_k_existing)
-    ITCStorOld_my = read_param("ITCStor_existing_my", input_filename, "ITCStorOld", index_stor_existing)
+    ITCStorOld_my =
+        read_param("ITCStor_existing_my", input_filename, "ITCStorOld", index_stor_existing)
     # cumulative ITC ammortization of existing units (%)
     CumuITCAmortOld_my = read_param(
         "CumuITCAmort_existing_my",
@@ -486,24 +524,29 @@ function Utility(
             tax_rate + ITCOld_my(k) * CapExOld_my(z, k) * (1 - CumuITCAmortOld_my(y, k))
     end
     # rate base (without working capital) ($/MW)
-    RateBaseNoWCOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_k_existing)
+    RateBaseNoWCOld_my =
+        make_keyed_array(model_data.index_y, model_data.index_z, index_k_existing)
     for y in model_data.index_y, z in model_data.index_z, k in index_k_existing
         RateBaseNoWCOld_my(y, z, k, :) .=
             CapExOld_my(z, k) * (1 - CumuAccoutDepreOld_my(y, k)) - ADITOld_my(y, z, k)
     end
 
-    ADITStorOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_stor_existing)
+    ADITStorOld_my =
+        make_keyed_array(model_data.index_y, model_data.index_z, index_stor_existing)
     for y in model_data.index_y, z in model_data.index_z, s in index_stor_existing
         ADITStorOld_my(y, z, s, :) .=
             CapExStorOld_my(z, s) *
             (CumuTaxDepreStorOld_my(y, s) - CumuAccoutDepreStorOld_my(y, s)) *
-            tax_rate + ITCStorOld_my(s) * CapExStorOld_my(z, s) * (1 - CumuITCAmortStorOld_my(y, s))
+            tax_rate +
+            ITCStorOld_my(s) * CapExStorOld_my(z, s) * (1 - CumuITCAmortStorOld_my(y, s))
     end
     # rate base (without working capital) ($/MW)
-    RateBaseNoWCStorOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_stor_existing)
+    RateBaseNoWCStorOld_my =
+        make_keyed_array(model_data.index_y, model_data.index_z, index_stor_existing)
     for y in model_data.index_y, z in model_data.index_z, s in index_stor_existing
         RateBaseNoWCStorOld_my(y, z, s, :) .=
-            CapExStorOld_my(z, s) * (1 - CumuAccoutDepreStorOld_my(y, s)) - ADITStorOld_my(y, z, s)
+            CapExStorOld_my(z, s) * (1 - CumuAccoutDepreStorOld_my(y, s)) -
+            ADITStorOld_my(y, z, s)
     end
 
     # cumulative tax depreciation of new units (for each schedule year) (%)
@@ -635,7 +678,11 @@ function Utility(
             index_k_existing,
             [model_data.index_z],
         ),
-        ParamArray("f_C", Tuple(push!(copy([model_data.index_z]), index_k_new)), FixedCostNew),
+        ParamArray(
+            "f_C",
+            Tuple(push!(copy([model_data.index_z]), index_k_new)),
+            FixedCostNew,
+        ),
         read_param(
             "v_E",
             input_filename,
@@ -707,7 +754,13 @@ function Utility(
         cost_of_equity,
         tax_rate,
         ParamScalar("DaysofWC", 45.0, description = "number of days of working capital"),
-        read_param("x_E_my", input_filename, "ExistingCapacity", index_k_existing, [model_data.index_z]),
+        read_param(
+            "x_E_my",
+            input_filename,
+            "ExistingCapacity",
+            index_k_existing,
+            [model_data.index_z],
+        ),
         read_param(
             "x_stor_E_my",
             input_filename,
@@ -727,7 +780,7 @@ function Utility(
             input_filename,
             "FOMNewmy",
             index_k_new,
-            [model_data.index_y,model_data.index_z],
+            [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "fom_stor_E_my",
@@ -828,12 +881,7 @@ function Utility(
             "ExistingStorDuration",
             index_stor_existing,
         ),
-        read_param(
-            "stor_duration_new",
-            input_filename,
-            "NewStorDuration",
-            index_stor_new,
-        ),
+        read_param("stor_duration_new", input_filename, "NewStorDuration", index_stor_new),
         read_param(
             "trans_topology",
             input_filename,
@@ -856,15 +904,49 @@ function Utility(
             model_data.index_d,
             model_data.index_t,
         ),
-        initialize_param("y_C_my", model_data.index_y, index_k_new, model_data.index_z, model_data.index_d, model_data.index_t),
-        initialize_param("x_R_my", model_data.index_y, index_k_existing, model_data.index_z),
+        initialize_param(
+            "y_C_my",
+            model_data.index_y,
+            index_k_new,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "x_R_my",
+            model_data.index_y,
+            index_k_existing,
+            model_data.index_z,
+        ),
         initialize_param("x_C_my", model_data.index_y, index_k_new, model_data.index_z),
-        initialize_param("x_stor_R_my", model_data.index_y, index_stor_existing, model_data.index_z),
-        initialize_param("x_stor_C_my", model_data.index_y, index_stor_new, model_data.index_z),
+        initialize_param(
+            "x_stor_R_my",
+            model_data.index_y,
+            index_stor_existing,
+            model_data.index_z,
+        ),
+        initialize_param(
+            "x_stor_C_my",
+            model_data.index_y,
+            index_stor_new,
+            model_data.index_z,
+        ),
         initialize_param("x_stor_R_cumu", index_stor_existing, model_data.index_z),
         initialize_param("x_stor_C_cumu", index_stor_new, model_data.index_z),
-        initialize_param("miu_my", model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t),
-        initialize_param("p_energy_cem_my", model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t),
+        initialize_param(
+            "miu_my",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "p_energy_cem_my",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ),
         initialize_param("xi_cap_my", model_data.index_y, model_data.index_z),
         CapExOld_my,
         CapExStorOld_my,
@@ -899,7 +981,9 @@ function Utility(
         ),
         ParamArray(
             "RateBaseNoWCStor_existing_my",
-            Tuple(push!(copy([model_data.index_y]), model_data.index_z, index_stor_existing)),
+            Tuple(
+                push!(copy([model_data.index_y]), model_data.index_z, index_stor_existing),
+            ),
             RateBaseNoWCStorOld_my,
         ),
         CumuTaxDepreNew_my,
@@ -946,7 +1030,13 @@ function Utility(
             index_stor_new,
             [model_data.index_y, model_data.index_z],
         ),
-        initialize_param("Net_Load_my", model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t),
+        initialize_param(
+            "Net_Load_my",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ),
         initialize_param("Max_Net_Load_my", model_data.index_y, model_data.index_z),
         initialize_param("Reserve_req_my", model_data.index_y, model_data.index_z),
         initialize_param("flow_cap_my", model_data.index_y, index_l),
@@ -1022,7 +1112,7 @@ function Utility(
             model_data.index_d,
             model_data.index_t,
         ),
-        Dict()
+        Dict(),
         # initialize_param("x_R_feasible", model_data.index_y, index_k_existing),
         # initialize_param("x_C_feasible", model_data.index_y, index_k_new),
         # ParamScalar("obj_feasible", 1.0, description = "feasible objective value"),
@@ -1069,7 +1159,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
 )
     return 0.0
 end
@@ -1410,71 +1500,137 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
 )
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
 
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t =
+        parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) -
+        parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
 
-    x_R_aggregate_before = initialize_param("x_R_aggregate_before", model_data.index_y, utility.index_k_existing)
-    x_C_aggregate_before = initialize_param("x_C_aggregate_before", model_data.index_y, utility.index_k_new)
+    x_R_aggregate_before = initialize_param(
+        "x_R_aggregate_before",
+        model_data.index_y,
+        utility.index_k_existing,
+    )
+    x_C_aggregate_before =
+        initialize_param("x_C_aggregate_before", model_data.index_y, utility.index_k_new)
     for y in model_data.index_y, k in utility.index_k_existing
-        x_R_aggregate_before(y, k, :) .= sum(utility.x_R_my(y, k, z) for z in model_data.index_z)
+        x_R_aggregate_before(y, k, :) .=
+            sum(utility.x_R_my(y, k, z) for z in model_data.index_z)
     end
     for y in model_data.index_y, k in utility.index_k_new
-        x_C_aggregate_before(y, k, :) .= sum(utility.x_C_my(y, k, z) for z in model_data.index_z)
+        x_C_aggregate_before(y, k, :) .=
+            sum(utility.x_C_my(y, k, z) for z in model_data.index_z)
     end
 
     # Define positive variables
-    @variable(VIUDER_Utility, x_C[model_data.index_y, utility.index_k_new, model_data.index_z] >= 0)
-    @variable(VIUDER_Utility, x_R[model_data.index_y, utility.index_k_existing, model_data.index_z] >= 0)
-    @variable(VIUDER_Utility, x_stor_C[model_data.index_y, utility.index_stor_new, model_data.index_z] >= 0)
-    @variable(VIUDER_Utility, x_stor_R[model_data.index_y, utility.index_stor_existing, model_data.index_z] >= 0)
+    @variable(
+        VIUDER_Utility,
+        x_C[model_data.index_y, utility.index_k_new, model_data.index_z] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        x_R[model_data.index_y, utility.index_k_existing, model_data.index_z] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        x_stor_C[model_data.index_y, utility.index_stor_new, model_data.index_z] >= 0
+    )
+    @variable(
+        VIUDER_Utility,
+        x_stor_R[model_data.index_y, utility.index_stor_existing, model_data.index_z] >= 0
+    )
 
     @variable(
         VIUDER_Utility,
-        y_E[model_data.index_y, utility.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        y_E[
+            model_data.index_y,
+            utility.index_k_existing,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ] >= 0
     )
     @variable(
         VIUDER_Utility,
-        y_C[model_data.index_y, utility.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        y_C[
+            model_data.index_y,
+            utility.index_k_new,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ] >= 0
     )
 
     @variable(
         VIUDER_Utility,
-        charge_E[model_data.index_y, utility.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        charge_E[
+            model_data.index_y,
+            utility.index_stor_existing,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ] >= 0
     )
     @variable(
         VIUDER_Utility,
-        discharge_E[model_data.index_y, utility.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        discharge_E[
+            model_data.index_y,
+            utility.index_stor_existing,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ] >= 0
     )
     @variable(
         VIUDER_Utility,
-        charge_C[model_data.index_y, utility.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        charge_C[
+            model_data.index_y,
+            utility.index_stor_new,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ] >= 0
     )
     @variable(
         VIUDER_Utility,
-        discharge_C[model_data.index_y, utility.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        discharge_C[
+            model_data.index_y,
+            utility.index_stor_new,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ] >= 0
     )
     @variable(
         VIUDER_Utility,
-        energy_E[model_data.index_y, utility.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        energy_E[
+            model_data.index_y,
+            utility.index_stor_existing,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ] >= 0
     )
     @variable(
         VIUDER_Utility,
-        energy_C[model_data.index_y, utility.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        energy_C[
+            model_data.index_y,
+            utility.index_stor_new,
+            model_data.index_z,
+            model_data.index_d,
+            model_data.index_t,
+        ] >= 0
     )
     @variable(
         VIUDER_Utility,
         flow[model_data.index_y, utility.index_l, model_data.index_d, model_data.index_t]
     )
-    @variable(
-        VIUDER_Utility,
-        flow_cap[model_data.index_y, utility.index_l]
-    )
+    @variable(VIUDER_Utility, flow_cap[model_data.index_y, utility.index_l])
 
     ####### fix variables to reasonable range #######
     for y in model_data.index_y, z in model_data.index_z
@@ -1495,27 +1651,42 @@ function solve_agent_problem!(
     end
 
     fill!(utility.Net_Load_my, NaN)
-    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+    for y in model_data.index_y,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
         utility.Net_Load_my(y, z, d, t, :) .=
-            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - 
             sum(
+                customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for
+                h in model_data.index_h
+            ) - sum(
                 customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
                 h in model_data.index_h, m in customers.index_m
             ) - sum(
                 customers.rho_DG(h, m, z, d, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
             )
     end
     fill!(utility.Max_Net_Load_my, NaN)
     Max_Net_Load_my_dict = Dict()
     for y in model_data.index_y, z in model_data.index_z
-        utility.Max_Net_Load_my(y, z, :) .=
-            findmax(Dict((d, t) => utility.Net_Load_my(y, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
+        utility.Max_Net_Load_my(y, z, :) .= findmax(
+            Dict(
+                (d, t) => utility.Net_Load_my(y, z, d, t) for d in model_data.index_d,
+                t in model_data.index_t
+            ),
+        )[1]
         push!(
             Max_Net_Load_my_dict,
-            (y, z) => findmax(Dict((d, t) => utility.Net_Load_my(y, z, d, t) for d in model_data.index_d, t in model_data.index_t))[2],
+            (y, z) => findmax(
+                Dict(
+                    (d, t) => utility.Net_Load_my(y, z, d, t) for
+                    d in model_data.index_d, t in model_data.index_t
+                ),
+            )[2],
         )
     end
     utility.Max_Net_Load_my_dict = Max_Net_Load_my_dict
@@ -1538,7 +1709,8 @@ function solve_agent_problem!(
 
     fill!(utility.Reserve_req_my, NaN)
     for y in model_data.index_y, z in model_data.index_z
-        utility.Reserve_req_my(y, z, :) .= (1 .+ regulator.r(z, y)) .* utility.Max_Net_Load_my(y, z)
+        utility.Reserve_req_my(y, z, :) .=
+            (1 .+ regulator.r(z, y)) .* utility.Max_Net_Load_my(y, z)
     end
 
     objective_function = begin
@@ -1547,14 +1719,17 @@ function solve_agent_problem!(
             #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
             utility.pvf_onm(y) * (
                 sum(
-                    model_data.omega(d) * delta_t *
+                    model_data.omega(d) *
+                    delta_t *
                     (utility.v_E_my(y, k, z, d, t) * y_E[y, k, z, d, t]) for
-                    d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in utility.index_k_existing
-                ) + 
-                sum(
-                    model_data.omega(d) * delta_t *
+                    d in model_data.index_d, t in model_data.index_t,
+                    z in model_data.index_z, k in utility.index_k_existing
+                ) + sum(
+                    model_data.omega(d) *
+                    delta_t *
                     (utility.v_C_my(y, k, z, d, t) * y_C[y, k, z, d, t]) for
-                    d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in utility.index_k_new
+                    d in model_data.index_d, t in model_data.index_t,
+                    z in model_data.index_z, k in utility.index_k_new
                 )
             ) +
             # fixed o&m costs
@@ -1563,8 +1738,8 @@ function solve_agent_problem!(
             utility.pvf_onm(y) * sum(
                 utility.fom_E_my(y, z, k) * (
                     utility.x_E_my(z, k) - sum(
-                        x_R[Symbol(Int(y_symbol)), k, z] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        x_R[Symbol(Int(y_symbol)), k, z] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     )
                 ) for k in utility.index_k_existing, z in model_data.index_z
             ) +
@@ -1573,22 +1748,26 @@ function solve_agent_problem!(
                 utility.fom_C_my(y, z, k) *
                 x_C[y, k, z] *
                 sum(
-                    utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
-                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
+                    utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol =
+                        model_data.year(y):model_data.year(
+                            last(model_data.index_y.elements),
+                        )
                 ) for k in utility.index_k_new, z in model_data.index_z
             ) +
             # capital costs
             #   capex * cap new for gen type
             # the discout factor is applied to new capacity for the year it is built
-            utility.pvf_cap(y) *
-            sum(utility.CapEx_my(y, z, k) * x_C[y, k, z] for k in utility.index_k_new, z in model_data.index_z) +
+            utility.pvf_cap(y) * sum(
+                utility.CapEx_my(y, z, k) * x_C[y, k, z] for k in utility.index_k_new,
+                z in model_data.index_z
+            ) +
             # fixed costs
             #   fom * (cap exist - cap retiring) for stor type
             utility.pvf_onm(y) * sum(
                 utility.fom_stor_E_my(y, z, s) * (
-                    utility.x_stor_E_my(z, s)- sum(
-                        x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    utility.x_stor_E_my(z, s) - sum(
+                        x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     )
                 ) for s in utility.index_stor_existing, z in model_data.index_z
             ) +
@@ -1598,15 +1777,18 @@ function solve_agent_problem!(
                 utility.fom_stor_C_my(y, z, s) *
                 x_stor_C[y, s, z] *
                 sum(
-                    utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
-                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
+                    utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol =
+                        model_data.year(y):model_data.year(
+                            last(model_data.index_y.elements),
+                        )
                 ) for s in utility.index_stor_new, z in model_data.index_z
             ) +
             # fixed costs
             #   capex * cap new for stor type
-            utility.pvf_cap(y) *
-            sum(utility.CapEx_stor_my(y, z, s) * x_stor_C[y, s, z] for s in utility.index_stor_new, z in model_data.index_z)
-            for y in model_data.index_y
+            utility.pvf_cap(y) * sum(
+                utility.CapEx_stor_my(y, z, s) * x_stor_C[y, s, z] for
+                s in utility.index_stor_new, z in model_data.index_z
+            ) for y in model_data.index_y
         )
     end
 
@@ -1626,7 +1808,10 @@ function solve_agent_problem!(
             sum(charge_E[y, s, z, d, t] for s in utility.index_stor_existing) -
             sum(charge_C[y, s, z, d, t] for s in utility.index_stor_new) -
             # demand at time t
-            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - utility.eximport_my(y, z, d, t) +
+            sum(
+                customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for
+                h in model_data.index_h
+            ) - utility.eximport_my(y, z, d, t) +
             # existing DG generation at time t
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
@@ -1635,21 +1820,27 @@ function solve_agent_problem!(
             # new DG generation at time t
             sum(
                 customers.rho_DG(h, m, z, d, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
             ) +
             # green technology subscription at time t
             sum(
-                utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
+                utility.rho_C_my(j, z, d, t) * sum(
+                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                ) for j in model_data.index_j, h in model_data.index_h
             )
         end
 
     @constraint(
         VIUDER_Utility,
-        Eq_miu[y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t],
+        Eq_miu[
+            y in model_data.index_y,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t,
+        ],
         supply_demand_balance(y, z, d, t) >= 0
     )
 
@@ -1666,8 +1857,8 @@ function solve_agent_problem!(
         ],
         utility.rho_E_my(k, z, d, t) * (
             utility.x_E_my(z, k) - sum(
-                x_R[Symbol(Int(y_symbol)), k, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_R[Symbol(Int(y_symbol)), k, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) - utility.x_R_cumu(k, z)
         ) - y_E[y, k, z, d, t] >= 0
     )
@@ -1683,27 +1874,35 @@ function solve_agent_problem!(
         ],
         utility.rho_C_my(k, z, d, t) * (
             sum(
-                x_C[Symbol(Int(y_symbol)), k, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_C[Symbol(Int(y_symbol)), k, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_C_cumu(k, z)
         ) - y_C[y, k, z, d, t] >= 0
     )
 
     @constraint(
         VIUDER_Utility,
-        Eq_sigma[y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z],
+        Eq_sigma[
+            y in model_data.index_y,
+            k in utility.index_k_existing,
+            z in model_data.index_z,
+        ],
         utility.x_E_my(z, k) - sum(
             x_R[Symbol(Int(y_symbol)), k, z] for
-            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+            y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
         ) - utility.x_R_cumu(k, z) >= 0
     )
 
     @constraint(
         VIUDER_Utility,
-        Eq_sigma_stor[y in model_data.index_y, s in utility.index_stor_existing, z in model_data.index_z],
+        Eq_sigma_stor[
+            y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+        ],
         utility.x_stor_E_my(z, s) - sum(
             x_stor_R[Symbol(Int(y_symbol)), s, z] for
-            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+            y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
         ) - utility.x_stor_R_cumu(s, z) >= 0
     )
 
@@ -1738,8 +1937,18 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements[2:end],
         ],
-        energy_E[y, s, z, d, t] == energy_E[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) * delta_t +
-            charge_E[y, s, z, d, t] * delta_t
+        energy_E[y, s, z, d, t] ==
+        energy_E[
+            y,
+            s,
+            z,
+            d,
+            model_data.index_t.elements[findall(
+                x -> x == (model_data.time(t) - delta_t),
+                model_data.time.values,
+            )][1],
+        ] - discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) * delta_t +
+        charge_E[y, s, z, d, t] * delta_t
     )
 
     @constraint(
@@ -1751,8 +1960,10 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in [model_data.index_t.elements[1]],
         ],
-        energy_E[y, s, z, d, t] == utility.initial_energy_existing_my(y, s, z, d) - discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) * delta_t +
-            charge_E[y, s, z, d, t] * delta_t
+        energy_E[y, s, z, d, t] ==
+        utility.initial_energy_existing_my(y, s, z, d) -
+        discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) * delta_t +
+        charge_E[y, s, z, d, t] * delta_t
     )
 
     @constraint(
@@ -1764,10 +1975,11 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        energy_E[y, s, z, d, t] <= utility.stor_duration_existing(s) * (
+        energy_E[y, s, z, d, t] <=
+        utility.stor_duration_existing(s) * (
             utility.x_stor_E_my(z, s) - sum(
-                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) - utility.x_stor_R_cumu(s, z)
         )
     )
@@ -1781,10 +1993,11 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        discharge_E[y, s, z, d, t] <= utility.rte_stor_E_my(y, z, s) * (
+        discharge_E[y, s, z, d, t] <=
+        utility.rte_stor_E_my(y, z, s) * (
             utility.x_stor_E_my(z, s) - sum(
-                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) - utility.x_stor_R_cumu(s, z)
         )
     )
@@ -1798,11 +2011,11 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        charge_E[y, s, z, d, t] <= 
-            utility.x_stor_E_my(z, s) - sum(
-                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - utility.x_stor_R_cumu(s, z)
+        charge_E[y, s, z, d, t] <=
+        utility.x_stor_E_my(z, s) - sum(
+            x_stor_R[Symbol(Int(y_symbol)), s, z] for
+            y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
+        ) - utility.x_stor_R_cumu(s, z)
     )
 
     @constraint(
@@ -1814,8 +2027,16 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements[2:end],
         ],
-        discharge_E[y, s, z, d, t] * delta_t <= 
-        energy_E[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+        discharge_E[y, s, z, d, t] * delta_t <= energy_E[
+            y,
+            s,
+            z,
+            d,
+            model_data.index_t.elements[findall(
+                x -> x == (model_data.time(t) - delta_t),
+                model_data.time.values,
+            )][1],
+        ]
     )
 
     @constraint(
@@ -1827,7 +2048,7 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in [model_data.index_t.elements[1]],
         ],
-        discharge_E[y, s, z, d, t] * delta_t <= 
+        discharge_E[y, s, z, d, t] * delta_t <=
         utility.initial_energy_existing_my(y, s, z, d)
     )
 
@@ -1840,13 +2061,22 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements[2:end],
         ],
-        charge_E[y, s, z, d, t] * delta_t <= utility.stor_duration_existing(s) * (
+        charge_E[y, s, z, d, t] * delta_t <=
+        utility.stor_duration_existing(s) * (
             utility.x_stor_E_my(z, s) - sum(
-                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) - utility.x_stor_R_cumu(s, z)
-        ) -
-        energy_E[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+        ) - energy_E[
+            y,
+            s,
+            z,
+            d,
+            model_data.index_t.elements[findall(
+                x -> x == (model_data.time(t) - delta_t),
+                model_data.time.values,
+            )][1],
+        ]
     )
 
     @constraint(
@@ -1858,13 +2088,13 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in [model_data.index_t.elements[1]],
         ],
-        charge_E[y, s, z, d, t] * delta_t <= utility.stor_duration_existing(s) * (
+        charge_E[y, s, z, d, t] * delta_t <=
+        utility.stor_duration_existing(s) * (
             utility.x_stor_E_my(z, s) - sum(
-                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_stor_R[Symbol(Int(y_symbol)), s, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) - utility.x_stor_R_cumu(s, z)
-        ) -
-        utility.initial_energy_existing_my(y, s, z, d)
+        ) - utility.initial_energy_existing_my(y, s, z, d)
     )
 
     @constraint(
@@ -1876,11 +2106,12 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements,
         ],
-        charge_E[y, s, z, d, t] + discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) <= 
-            utility.x_stor_E_my(z, s) - sum(
-                x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - utility.x_stor_R_cumu(s, z)
+        charge_E[y, s, z, d, t] +
+        discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) <=
+        utility.x_stor_E_my(z, s) - sum(
+            x_stor_R[Symbol(Int(y_symbol)), s, z] for
+            y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
+        ) - utility.x_stor_R_cumu(s, z)
     )
 
     @constraint(
@@ -1892,8 +2123,18 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements[2:end],
         ],
-        energy_C[y, s, z, d, t] == energy_C[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) * delta_t +
-            charge_C[y, s, z, d, t] * delta_t
+        energy_C[y, s, z, d, t] ==
+        energy_C[
+            y,
+            s,
+            z,
+            d,
+            model_data.index_t.elements[findall(
+                x -> x == (model_data.time(t) - delta_t),
+                model_data.time.values,
+            )][1],
+        ] - discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) * delta_t +
+        charge_C[y, s, z, d, t] * delta_t
     )
 
     @constraint(
@@ -1905,8 +2146,10 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in [model_data.index_t.elements[1]],
         ],
-        energy_C[y, s, z, d, t] == utility.initial_energy_new_my(y, s, z, d) - discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) * delta_t +
-            charge_C[y, s, z, d, t] * delta_t
+        energy_C[y, s, z, d, t] ==
+        utility.initial_energy_new_my(y, s, z, d) -
+        discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) * delta_t +
+        charge_C[y, s, z, d, t] * delta_t
     )
 
     @constraint(
@@ -1918,10 +2161,11 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        energy_C[y, s, z, d, t] <= utility.stor_duration_new(s) * (
+        energy_C[y, s, z, d, t] <=
+        utility.stor_duration_new(s) * (
             sum(
-                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_stor_C_cumu(s, z)
         )
     )
@@ -1935,10 +2179,11 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        discharge_C[y, s, z, d, t] <= utility.rte_stor_C_my(y, z, s) * (
+        discharge_C[y, s, z, d, t] <=
+        utility.rte_stor_C_my(y, z, s) * (
             sum(
-                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_stor_C_cumu(s, z)
         )
     )
@@ -1952,11 +2197,11 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        charge_C[y, s, z, d, t] <= 
-            sum(
-                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + utility.x_stor_C_cumu(s, z)
+        charge_C[y, s, z, d, t] <=
+        sum(
+            x_stor_C[Symbol(Int(y_symbol)), s, z] for
+            y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
+        ) + utility.x_stor_C_cumu(s, z)
     )
 
     @constraint(
@@ -1968,8 +2213,16 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements[2:end],
         ],
-        discharge_C[y, s, z, d, t] * delta_t <= 
-        energy_C[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+        discharge_C[y, s, z, d, t] * delta_t <= energy_C[
+            y,
+            s,
+            z,
+            d,
+            model_data.index_t.elements[findall(
+                x -> x == (model_data.time(t) - delta_t),
+                model_data.time.values,
+            )][1],
+        ]
     )
 
     @constraint(
@@ -1981,8 +2234,7 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in [model_data.index_t.elements[1]],
         ],
-        discharge_C[y, s, z, d, t] * delta_t <= 
-        utility.initial_energy_new_my(y, s, z, d)
+        discharge_C[y, s, z, d, t] * delta_t <= utility.initial_energy_new_my(y, s, z, d)
     )
 
     @constraint(
@@ -1994,13 +2246,22 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements[2:end],
         ],
-        charge_C[y, s, z, d, t] * delta_t <= utility.stor_duration_new(s) * (
+        charge_C[y, s, z, d, t] * delta_t <=
+        utility.stor_duration_new(s) * (
             sum(
-                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_stor_C_cumu(s, z)
-        ) -
-        energy_C[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+        ) - energy_C[
+            y,
+            s,
+            z,
+            d,
+            model_data.index_t.elements[findall(
+                x -> x == (model_data.time(t) - delta_t),
+                model_data.time.values,
+            )][1],
+        ]
     )
 
     @constraint(
@@ -2012,13 +2273,13 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in [model_data.index_t.elements[1]],
         ],
-        charge_C[y, s, z, d, t] * delta_t <= utility.stor_duration_new(s) * (
+        charge_C[y, s, z, d, t] * delta_t <=
+        utility.stor_duration_new(s) * (
             sum(
-                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
+                x_stor_C[Symbol(Int(y_symbol)), s, z] for
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_stor_C_cumu(s, z)
-        ) -
-        utility.initial_energy_new_my(y, s, z, d)
+        ) - utility.initial_energy_new_my(y, s, z, d)
     )
 
     @constraint(
@@ -2030,11 +2291,12 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements,
         ],
-        charge_C[y, s, z, d, t] + discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) <= 
-            sum(
-                x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + utility.x_stor_C_cumu(s, z)
+        charge_C[y, s, z, d, t] +
+        discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) <=
+        sum(
+            x_stor_C[Symbol(Int(y_symbol)), s, z] for
+            y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
+        ) + utility.x_stor_C_cumu(s, z)
     )
 
 
@@ -2091,42 +2353,49 @@ function solve_agent_problem!(
             sum(
                 utility.capacity_credit_E_my(y, z, k) * (
                     utility.x_E_my(z, k) - sum(
-                        x_R[Symbol(Int(y_symbol)), k, z] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        x_R[Symbol(Int(y_symbol)), k, z] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     ) - utility.x_R_cumu(k, z)
                 ) for k in utility.index_k_existing
-            ) + sum(
+            ) +
+            sum(
                 utility.capacity_credit_C_my(y, z, k) * (
                     sum(
-                        x_C[Symbol(Int(y_symbol)), k, z] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        x_C[Symbol(Int(y_symbol)), k, z] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     ) + utility.x_C_cumu(k, z)
                 ) for k in utility.index_k_new
             ) +
             sum(
                 utility.capacity_credit_stor_E_my(y, z, s) * (
                     utility.x_stor_E_my(z, s) - sum(
-                        x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     ) - utility.x_stor_R_cumu(s, z)
                 ) for s in utility.index_stor_existing
-            ) + sum(
+            ) +
+            sum(
                 utility.capacity_credit_stor_C_my(y, z, s) * (
                     sum(
-                        x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     ) + utility.x_stor_C_cumu(s, z)
                 ) for s in utility.index_stor_new
             ) +
             # green technology subscription
             sum(
-                utility.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
+                utility.capacity_credit_C_my(y, z, j) * sum(
+                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                ) for j in model_data.index_j, h in model_data.index_h
             ) -
             # flow out of zone z
-            sum(utility.trans_topology(l, z) * flow_cap[y, l] for l in utility.index_l) -
-            utility.eximport_my(y, z, Max_Net_Load_my_dict[y, z][1], Max_Net_Load_my_dict[y, z][2]) - 
+            sum(utility.trans_topology(l, z) * flow_cap[y, l] for l in utility.index_l) - utility.eximport_my(
+                y,
+                z,
+                Max_Net_Load_my_dict[y, z][1],
+                Max_Net_Load_my_dict[y, z][2],
+            ) -
             # net_load plus planning reserve
             utility.Reserve_req_my(y, z)
         end
@@ -2138,19 +2407,13 @@ function solve_agent_problem!(
 
     @constraint(
         VIUDER_Utility,
-        Eq_cap_flow_lower[
-            y in model_data.index_y,
-            l in utility.index_l,
-        ],
+        Eq_cap_flow_lower[y in model_data.index_y, l in utility.index_l],
         flow_cap[y, l] - utility.trans_capacity(l, :min) >= 0
     )
 
     @constraint(
         VIUDER_Utility,
-        Eq_cap_flow_upper[
-            y in model_data.index_y,
-            l in utility.index_l,
-        ],
+        Eq_cap_flow_upper[y in model_data.index_y, l in utility.index_l],
         flow_cap[y, l] - utility.trans_capacity(l, :max) <= 0
     )
 
@@ -2159,12 +2422,14 @@ function solve_agent_problem!(
         VIUDER_Utility,
         Eq_rps[y in model_data.index_y],
         sum(
-            model_data.omega(d) * delta_t * (y_E[y, rps, z, d, t] + y_C[y, rps, z, d, t]) for
-            rps in utility.index_rps, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            model_data.omega(d) * delta_t * (y_E[y, rps, z, d, t] + y_C[y, rps, z, d, t])
+            for rps in utility.index_rps, z in model_data.index_z, d in model_data.index_d,
+            t in model_data.index_t
         ) -
-        utility.RPS(y) *
-        sum(model_data.omega(d) * delta_t * utility.Net_Load_my(y, z, d, t) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t) >=
-        0
+        utility.RPS(y) * sum(
+            model_data.omega(d) * delta_t * utility.Net_Load_my(y, z, d, t) for
+            z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        ) >= 0
     )
 
     TimerOutputs.@timeit HEM_TIMER "optimize! VIUDER_Utility 1" begin
@@ -2172,11 +2437,21 @@ function solve_agent_problem!(
     end
 
     # record current primary variable values
-    for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+    for y in model_data.index_y,
+        k in utility.index_k_existing,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
         utility.y_E_my(y, k, z, d, t, :) .= value.(y_E[y, k, z, d, t])
     end
 
-    for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+    for y in model_data.index_y,
+        k in utility.index_k_new,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
         utility.y_C_my(y, k, z, d, t, :) .= value.(y_C[y, k, z, d, t])
     end
 
@@ -2190,16 +2465,26 @@ function solve_agent_problem!(
         utility.x_C_my(y, k, z, :) .= value.(x_C[y, k, z])
     end
 
-    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+    for y in model_data.index_y,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
         utility.miu_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t])
-        utility.p_energy_cem_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t]) ./ (utility.pvf_onm(y) .* model_data.omega(d) .* delta_t)
+        utility.p_energy_cem_my(y, z, d, t, :) .=
+            dual.(Eq_miu[y, z, d, t]) ./
+            (utility.pvf_onm(y) .* model_data.omega(d) .* delta_t)
     end
 
     for y in model_data.index_y, z in model_data.index_z
         utility.p_cap_cem_my(y, z, :) .= dual.(Eq_xi_cap[y, z]) ./ utility.pvf_onm(y)
     end
 
-    for y in model_data.index_y, l in utility.index_l, d in model_data.index_d, t in model_data.index_t
+    for y in model_data.index_y,
+        l in utility.index_l,
+        d in model_data.index_d,
+        t in model_data.index_t
+
         utility.flow_my(y, l, d, t, :) .= value.(flow[y, l, d, t])
     end
 
@@ -2379,14 +2664,14 @@ function welfare_calculation!(
     Utility_total_emission_my = make_keyed_array(model_data.index_y_fix)
 
     for y in model_data.index_y_fix
-        Utility_Revenue_my(y,:) .= regulator.revenue_req_my(y) + regulator.othercost(y)
-        Utility_Cost_my(y,:) .= regulator.cost_my(y) + regulator.othercost(y)
-        Utility_debt_interest_my(y,:) .= regulator.debt_interest_my(y)
-        Utility_income_tax_my(y,:) .= regulator.income_tax_my(y)
-        Utility_operational_cost_my(y,:) .= regulator.operational_cost_my(y)
-        Utility_depreciation_my(y,:) .= regulator.depreciation_my(y)
-        Utility_depreciation_tax_my(y,:) .= regulator.depreciation_tax_my(y)
-        Utility_total_emission_my(y,:) .=
+        Utility_Revenue_my(y, :) .= regulator.revenue_req_my(y) + regulator.othercost(y)
+        Utility_Cost_my(y, :) .= regulator.cost_my(y) + regulator.othercost(y)
+        Utility_debt_interest_my(y, :) .= regulator.debt_interest_my(y)
+        Utility_income_tax_my(y, :) .= regulator.income_tax_my(y)
+        Utility_operational_cost_my(y, :) .= regulator.operational_cost_my(y)
+        Utility_depreciation_my(y, :) .= regulator.depreciation_my(y)
+        Utility_depreciation_tax_my(y, :) .= regulator.depreciation_tax_my(y)
+        Utility_total_emission_my(y, :) .=
             sum(
                 model_data.omega(t) * (
                     sum(
@@ -2442,9 +2727,9 @@ function solve_agent_problem_decomposition_by_year(
 
     for y in model_data.index_y
         if y == last(model_data.index_y.elements)
-            utility.pvf_onm(y,:) .= utility.pvf_cap(y) / utility.CRF_default
+            utility.pvf_onm(y, :) .= utility.pvf_cap(y) / utility.CRF_default
         else
-            utility.pvf_onm(y,:) .= utility.pvf_cap(y)
+            utility.pvf_onm(y, :) .= utility.pvf_cap(y)
         end
     end
 
@@ -2457,8 +2742,8 @@ function solve_agent_problem_decomposition_by_year(
                 h in model_data.index_h, m in customers.index_m
             ) - sum(
                 customers.rho_DG(h, m, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
             )
     end
@@ -2475,15 +2760,17 @@ function solve_agent_problem_decomposition_by_year(
     )
     fill!(utility.capacity_credit_E_my, NaN)
     for y in model_data.index_y, k in utility.index_k_existing
-        utility.capacity_credit_E_my(y, k, :) .= utility.rho_E_my(k, Max_Net_Load_my_index[y])
+        utility.capacity_credit_E_my(y, k, :) .=
+            utility.rho_E_my(k, Max_Net_Load_my_index[y])
     end
     fill!(utility.capacity_credit_C_my, NaN)
     for y in model_data.index_y, k in utility.index_k_new
-        utility.capacity_credit_C_my(y, k, :) .= utility.rho_C_my(k, Max_Net_Load_my_index[y])
+        utility.capacity_credit_C_my(y, k, :) .=
+            utility.rho_C_my(k, Max_Net_Load_my_index[y])
     end
     fill!(utility.Reserve_req_my, NaN)
     for y in model_data.index_y
-        utility.Reserve_req_my(y,:) .= (1 + regulator.r) * utility.Max_Net_Load_my(y)
+        utility.Reserve_req_my(y, :) .= (1 + regulator.r) * utility.Max_Net_Load_my(y)
     end
 
     y = year
@@ -2499,16 +2786,16 @@ function solve_agent_problem_decomposition_by_year(
         Lagrange_terms = begin
             sum(
                 utility.L_R_my(year, Symbol(Int(y_decision)), k) * x_R[year, k] for
-                y_decision in
-                (model_data.year(first(model_data.index_y)) + 1):model_data.year(last(
-                    model_data.index_y.elements,
-                )), k in utility.index_k_existing
+                y_decision =
+                    (model_data.year(first(model_data.index_y))+1):model_data.year(
+                        last(model_data.index_y.elements),
+                    ), k in utility.index_k_existing
             ) + sum(
                 utility.L_C_my(year, Symbol(Int(y_decision)), k) * x_C[year, k] for
-                y_decision in
-                (model_data.year(first(model_data.index_y)) + 1):model_data.year(last(
-                    model_data.index_y.elements,
-                )), k in utility.index_k_new
+                y_decision =
+                    (model_data.year(first(model_data.index_y))+1):model_data.year(
+                        last(model_data.index_y.elements),
+                    ), k in utility.index_k_new
             )
         end
     elseif (model_data.year(year) == model_data.year(last(model_data.index_y.elements))) &&
@@ -2516,40 +2803,36 @@ function solve_agent_problem_decomposition_by_year(
         Lagrange_terms = begin
             -sum(
                 utility.L_R_my(Symbol(Int(y_inv_ret)), year, k) *
-                x_R[Symbol(Int(y_inv_ret)), k] for y_inv_ret in
-                model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
-                k in utility.index_k_existing
+                x_R[Symbol(Int(y_inv_ret)), k] for y_inv_ret =
+                    model_data.year(first(model_data.index_y)):(model_data.year(year)-1), k in utility.index_k_existing
             ) - sum(
                 utility.L_C_my(Symbol(Int(y_inv_ret)), year, k) *
-                x_C[Symbol(Int(y_inv_ret)), k] for y_inv_ret in
-                model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
-                k in utility.index_k_new
+                x_C[Symbol(Int(y_inv_ret)), k] for y_inv_ret =
+                    model_data.year(first(model_data.index_y)):(model_data.year(year)-1), k in utility.index_k_new
             )
         end
     else
         Lagrange_terms = begin
             sum(
                 utility.L_R_my(year, Symbol(Int(y_decision)), k) * x_R[year, k] for
-                y_decision in
-                (model_data.year(year) + 1):model_data.year(last(
-                    model_data.index_y.elements,
-                )), k in utility.index_k_existing
+                y_decision =
+                    (model_data.year(year)+1):model_data.year(
+                        last(model_data.index_y.elements),
+                    ), k in utility.index_k_existing
             ) + sum(
                 utility.L_C_my(year, Symbol(Int(y_decision)), k) * x_C[year, k] for
-                y_decision in
-                (model_data.year(year) + 1):model_data.year(last(
-                    model_data.index_y.elements,
-                )), k in utility.index_k_new
+                y_decision =
+                    (model_data.year(year)+1):model_data.year(
+                        last(model_data.index_y.elements),
+                    ), k in utility.index_k_new
             ) - sum(
                 utility.L_R_my(Symbol(Int(y_inv_ret)), year, k) *
-                x_R[Symbol(Int(y_inv_ret)), k] for y_inv_ret in
-                model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
-                k in utility.index_k_existing
+                x_R[Symbol(Int(y_inv_ret)), k] for y_inv_ret =
+                    model_data.year(first(model_data.index_y)):(model_data.year(year)-1), k in utility.index_k_existing
             ) - sum(
                 utility.L_C_my(Symbol(Int(y_inv_ret)), year, k) *
-                x_C[Symbol(Int(y_inv_ret)), k] for y_inv_ret in
-                model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
-                k in utility.index_k_new
+                x_C[Symbol(Int(y_inv_ret)), k] for y_inv_ret =
+                    model_data.year(first(model_data.index_y)):(model_data.year(year)-1), k in utility.index_k_new
             )
         end
     end
@@ -2572,8 +2855,8 @@ function solve_agent_problem_decomposition_by_year(
         utility.pvf_onm(y) * sum(
             utility.fom_E_my(y, k) * (
                 utility.x_E_my(k) - sum(
-                    x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                    x_R[Symbol(Int(y_symbol)), k] for y_symbol =
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
                 )
             ) for k in utility.index_k_existing
         ) +
@@ -2582,8 +2865,8 @@ function solve_agent_problem_decomposition_by_year(
             utility.fom_C_my(y, k) *
             x_C[y, k] *
             sum(
-                utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
-                model_data.year(y):model_data.year(last(model_data.index_y.elements))
+                utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol =
+                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
             ) for k in utility.index_k_new
         ) +
         # capital costs
@@ -2611,8 +2894,8 @@ function solve_agent_problem_decomposition_by_year(
             # new DG generation at time t
             sum(
                 customers.rho_DG(h, m, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
             )
         end
@@ -2631,7 +2914,7 @@ function solve_agent_problem_decomposition_by_year(
         utility.rho_E_my(k, t) * (
             utility.x_E_my(k) - sum(
                 x_R[Symbol(Int(y_symbol)), k] for
-                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) - utility.x_R_cumu(k)
         ) - y_E[k, t] >= 0
     )
@@ -2642,7 +2925,7 @@ function solve_agent_problem_decomposition_by_year(
         utility.rho_C_my(k, t) * (
             sum(
                 x_C[Symbol(Int(y_symbol)), k] for
-                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_C_cumu(k)
         ) - y_C[k, t] >= 0
     )
@@ -2652,7 +2935,7 @@ function solve_agent_problem_decomposition_by_year(
         Eq_sigma[k in utility.index_k_existing],
         utility.x_E(k) - sum(
             x_R[Symbol(Int(y_symbol)), k] for
-            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+            y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
         ) - utility.x_R_cumu(k) >= 0
     )
 
@@ -2662,15 +2945,15 @@ function solve_agent_problem_decomposition_by_year(
             sum(
                 utility.rho_E_my(k, t) * (
                     utility.x_E_my(k) - sum(
-                        x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        x_R[Symbol(Int(y_symbol)), k] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     ) - utility.x_R_cumu(k)
                 ) for k in utility.index_k_existing
             ) + sum(
                 utility.rho_C_my(k, t) * (
                     sum(
-                        x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        x_C[Symbol(Int(y_symbol)), k] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     ) + utility.x_C_cumu(k)
                 ) for k in utility.index_k_new
             ) -
@@ -2685,8 +2968,10 @@ function solve_agent_problem_decomposition_by_year(
                 ) - sum(
                     customers.rho_DG(h, m, t) * sum(
                         customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
-                        y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        y_symbol =
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(
+                                y,
+                            )
                     ) for h in model_data.index_h, m in customers.index_m
                 )
             )
@@ -2698,15 +2983,15 @@ function solve_agent_problem_decomposition_by_year(
         sum(
             utility.capacity_credit_E_my(y, k) * (
                 utility.x_E_my(k) - sum(
-                    x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                    x_R[Symbol(Int(y_symbol)), k] for y_symbol =
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
                 ) - utility.x_R_cumu(k)
             ) for k in utility.index_k_existing
         ) + sum(
             utility.capacity_credit_C_my(y, k) * (
                 sum(
-                    x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                    x_C[Symbol(Int(y_symbol)), k] for y_symbol =
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
                 ) + utility.x_C_cumu(k)
             ) for k in utility.index_k_new
         ) -
@@ -2732,14 +3017,14 @@ function solve_agent_problem_decomposition_by_year(
         optimize!(VIUDER_Utility)
     end
 
-    for y_inv_ret in model_data.year(first(model_data.index_y)):model_data.year(year),
+    for y_inv_ret = model_data.year(first(model_data.index_y)):model_data.year(year),
         k in utility.index_k_existing
 
         utility.x_R_my_decomp(Symbol(Int(y_inv_ret)), year, k, :) .=
             value.(x_R[Symbol(Int(y_inv_ret)), k])
     end
 
-    for y_inv_ret in model_data.year(first(model_data.index_y)):model_data.year(year),
+    for y_inv_ret = model_data.year(first(model_data.index_y)):model_data.year(year),
         k in utility.index_k_new
 
         utility.x_C_my_decomp(Symbol(Int(y_inv_ret)), year, k, :) .=
@@ -2782,7 +3067,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
     @variable(VIUDER_Utility, y_C[utility.index_k_new, model_data.index_t] >= 0)
     # fix previous year solution
     if model_data.year(year) > model_data.year(first(model_data.index_y))
-        for y in model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
+        for y = model_data.year(first(model_data.index_y)):(model_data.year(year)-1),
             k in utility.index_k_existing
 
             fix(
@@ -2791,7 +3076,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
                 force = true,
             )
         end
-        for y in model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
+        for y = model_data.year(first(model_data.index_y)):(model_data.year(year)-1),
             k in utility.index_k_new
 
             fix(
@@ -2819,14 +3104,14 @@ function solve_agent_problem_decomposition_by_year_feasible(
                 h in model_data.index_h, m in customers.index_m
             ) - sum(
                 customers.rho_DG(h, m, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
             )
     end
     fill!(utility.Max_Net_Load_my, NaN)
     for y in model_data.index_y
-        utility.Max_Net_Load_my(y,:) .=
+        utility.Max_Net_Load_my(y, :) .=
             findmax((t => utility.Net_Load_my(y, t) for t in model_data.index_t))[1]
     end
 
@@ -2837,11 +3122,13 @@ function solve_agent_problem_decomposition_by_year_feasible(
     )
     fill!(utility.capacity_credit_E_my, NaN)
     for y in model_data.index_y, k in utility.index_k_existing
-        utility.capacity_credit_E_my(y, k, :) .= utility.rho_E_my(k, Max_Net_Load_my_index[y])
+        utility.capacity_credit_E_my(y, k, :) .=
+            utility.rho_E_my(k, Max_Net_Load_my_index[y])
     end
     fill!(utility.capacity_credit_C_my, NaN)
     for y in model_data.index_y, k in utility.index_k_new
-        utility.capacity_credit_C_my(y, k, :) .= utility.rho_C_my(k, Max_Net_Load_my_index[y])
+        utility.capacity_credit_C_my(y, k, :) .=
+            utility.rho_C_my(k, Max_Net_Load_my_index[y])
     end
     fill!(utility.Reserve_req_my, NaN)
     for y in model_data.index_y
@@ -2861,16 +3148,16 @@ function solve_agent_problem_decomposition_by_year_feasible(
         Lagrange_terms = begin
             sum(
                 utility.L_R_my(year, Symbol(Int(y_decision)), k) * x_R[year, k] for
-                y_decision in
-                (model_data.year(first(model_data.index_y)) + 1):model_data.year(last(
-                    model_data.index_y.elements,
-                )), k in utility.index_k_existing
+                y_decision =
+                    (model_data.year(first(model_data.index_y))+1):model_data.year(
+                        last(model_data.index_y.elements),
+                    ), k in utility.index_k_existing
             ) + sum(
                 utility.L_C_my(year, Symbol(Int(y_decision)), k) * x_C[year, k] for
-                y_decision in
-                (model_data.year(first(model_data.index_y)) + 1):model_data.year(last(
-                    model_data.index_y.elements,
-                )), k in utility.index_k_new
+                y_decision =
+                    (model_data.year(first(model_data.index_y))+1):model_data.year(
+                        last(model_data.index_y.elements),
+                    ), k in utility.index_k_new
             )
         end
     elseif (model_data.year(year) == model_data.year(last(model_data.index_y.elements))) &&
@@ -2878,40 +3165,36 @@ function solve_agent_problem_decomposition_by_year_feasible(
         Lagrange_terms = begin
             -sum(
                 utility.L_R_my(Symbol(Int(y_inv_ret)), year, k) *
-                x_R[Symbol(Int(y_inv_ret)), k] for y_inv_ret in
-                model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
-                k in utility.index_k_existing
+                x_R[Symbol(Int(y_inv_ret)), k] for y_inv_ret =
+                    model_data.year(first(model_data.index_y)):(model_data.year(year)-1), k in utility.index_k_existing
             ) - sum(
                 utility.L_C_my(Symbol(Int(y_inv_ret)), year, k) *
-                x_C[Symbol(Int(y_inv_ret)), k] for y_inv_ret in
-                model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
-                k in utility.index_k_new
+                x_C[Symbol(Int(y_inv_ret)), k] for y_inv_ret =
+                    model_data.year(first(model_data.index_y)):(model_data.year(year)-1), k in utility.index_k_new
             )
         end
     else
         Lagrange_terms = begin
             sum(
                 utility.L_R_my(year, Symbol(Int(y_decision)), k) * x_R[year, k] for
-                y_decision in
-                (model_data.year(year) + 1):model_data.year(last(
-                    model_data.index_y.elements,
-                )), k in utility.index_k_existing
+                y_decision =
+                    (model_data.year(year)+1):model_data.year(
+                        last(model_data.index_y.elements),
+                    ), k in utility.index_k_existing
             ) + sum(
                 utility.L_C_my(year, Symbol(Int(y_decision)), k) * x_C[year, k] for
-                y_decision in
-                (model_data.year(year) + 1):model_data.year(last(
-                    model_data.index_y.elements,
-                )), k in utility.index_k_new
+                y_decision =
+                    (model_data.year(year)+1):model_data.year(
+                        last(model_data.index_y.elements),
+                    ), k in utility.index_k_new
             ) - sum(
                 utility.L_R_my(Symbol(Int(y_inv_ret)), year, k) *
-                x_R[Symbol(Int(y_inv_ret)), k] for y_inv_ret in
-                model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
-                k in utility.index_k_existing
+                x_R[Symbol(Int(y_inv_ret)), k] for y_inv_ret =
+                    model_data.year(first(model_data.index_y)):(model_data.year(year)-1), k in utility.index_k_existing
             ) - sum(
                 utility.L_C_my(Symbol(Int(y_inv_ret)), year, k) *
-                x_C[Symbol(Int(y_inv_ret)), k] for y_inv_ret in
-                model_data.year(first(model_data.index_y)):(model_data.year(year) - 1),
-                k in utility.index_k_new
+                x_C[Symbol(Int(y_inv_ret)), k] for y_inv_ret =
+                    model_data.year(first(model_data.index_y)):(model_data.year(year)-1), k in utility.index_k_new
             )
         end
     end
@@ -2934,8 +3217,8 @@ function solve_agent_problem_decomposition_by_year_feasible(
         utility.pvf_onm(y) * sum(
             utility.fom_E_my(y, k) * (
                 utility.x_E_my(k) - sum(
-                    x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                    x_R[Symbol(Int(y_symbol)), k] for y_symbol =
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
                 )
             ) for k in utility.index_k_existing
         ) +
@@ -2944,8 +3227,8 @@ function solve_agent_problem_decomposition_by_year_feasible(
             utility.fom_C_my(y, k) *
             x_C[y, k] *
             sum(
-                utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
-                model_data.year(y):model_data.year(last(model_data.index_y.elements))
+                utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol =
+                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
             ) for k in utility.index_k_new
         ) +
         # capital costs
@@ -2973,8 +3256,8 @@ function solve_agent_problem_decomposition_by_year_feasible(
             # new DG generation at time t
             sum(
                 customers.rho_DG(h, m, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
             )
         end
@@ -2993,7 +3276,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
         utility.rho_E_my(k, t) * (
             utility.x_E_my(k) - sum(
                 x_R[Symbol(Int(y_symbol)), k] for
-                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) - utility.x_R_cumu(k)
         ) - y_E[k, t] >= 0
     )
@@ -3004,7 +3287,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
         utility.rho_C_my(k, t) * (
             sum(
                 x_C[Symbol(Int(y_symbol)), k] for
-                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_C_cumu(k)
         ) - y_C[k, t] >= 0
     )
@@ -3014,7 +3297,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
         Eq_sigma[k in utility.index_k_existing],
         utility.x_E(k) - sum(
             x_R[Symbol(Int(y_symbol)), k] for
-            y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+            y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
         ) - utility.x_R_cumu(k) >= 0
     )
 
@@ -3024,15 +3307,15 @@ function solve_agent_problem_decomposition_by_year_feasible(
             sum(
                 utility.rho_E_my(k, t) * (
                     utility.x_E_my(k) - sum(
-                        x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        x_R[Symbol(Int(y_symbol)), k] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     ) - utility.x_R_cumu(k)
                 ) for k in utility.index_k_existing
             ) + sum(
                 utility.rho_C_my(k, t) * (
                     sum(
-                        x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        x_C[Symbol(Int(y_symbol)), k] for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     ) + utility.x_C_cumu(k)
                 ) for k in utility.index_k_new
             ) -
@@ -3047,8 +3330,10 @@ function solve_agent_problem_decomposition_by_year_feasible(
                 ) - sum(
                     customers.rho_DG(h, m, t) * sum(
                         customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
-                        y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        y_symbol =
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(
+                                y,
+                            )
                     ) for h in model_data.index_h, m in customers.index_m
                 )
             )
@@ -3060,15 +3345,15 @@ function solve_agent_problem_decomposition_by_year_feasible(
         sum(
             utility.capacity_credit_E_my(y, k) * (
                 utility.x_E_my(k) - sum(
-                    x_R[Symbol(Int(y_symbol)), k] for y_symbol in
-                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                    x_R[Symbol(Int(y_symbol)), k] for y_symbol =
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
                 ) - utility.x_R_cumu(k)
             ) for k in utility.index_k_existing
         ) + sum(
             utility.capacity_credit_C_my(y, k) * (
                 sum(
-                    x_C[Symbol(Int(y_symbol)), k] for y_symbol in
-                    model_data.year(first(model_data.index_y)):model_data.year(y)
+                    x_C[Symbol(Int(y_symbol)), k] for y_symbol =
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
                 ) + utility.x_C_cumu(k)
             ) for k in utility.index_k_new
         ) -
@@ -3150,8 +3435,8 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
             utility.pvf_onm(y) * sum(
                 utility.fom_E_my(y, k) * (
                     utility.x_E_my(k) - sum(
-                        utility.x_R_feasible(Symbol(Int(y_symbol)), k) for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                        utility.x_R_feasible(Symbol(Int(y_symbol)), k) for y_symbol =
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
                     )
                 ) for k in utility.index_k_existing
             ) +
@@ -3160,8 +3445,10 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
                 utility.fom_C_my(y, k) *
                 utility.x_C_feasible(y, k) *
                 sum(
-                    utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol in
-                    model_data.year(y):model_data.year(last(model_data.index_y.elements))
+                    utility.pvf_onm(Symbol(Int(y_symbol))) for y_symbol =
+                        model_data.year(y):model_data.year(
+                            last(model_data.index_y.elements),
+                        )
                 ) for k in utility.index_k_new
             ) +
             # capital costs
@@ -3192,8 +3479,8 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
             # new DG generation at time t
             sum(
                 customers.rho_DG(h, m, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
             )
         end
@@ -3216,7 +3503,7 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
         utility.rho_E_my(k, t) * (
             utility.x_E_my(k) - sum(
                 utility.x_R_feasible(Symbol(Int(y_symbol)), k) for
-                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) - utility.x_R_cumu(k)
         ) - y_E[y, k, t] >= 0
     )
@@ -3231,7 +3518,7 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
         utility.rho_C_my(k, t) * (
             sum(
                 utility.x_C_feasible(Symbol(Int(y_symbol)), k) for
-                y_symbol in model_data.year(first(model_data.index_y)):model_data.year(y)
+                y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_C_cumu(k)
         ) - y_C[y, k, t] >= 0
     )
@@ -3397,12 +3684,12 @@ function solve_agent_problem_decomposition_by_year_master(
         LB = utility.obj_lower_bound
 
         alpha_denominator = 0
-        for y_inv_ret in
-            model_data.year(first(model_data.index_y)):(model_data.year(last(
-            model_data.index_y.elements,
-        )) - 1)
-            for y_decision in
-                (y_inv_ret + 1):model_data.year(last(model_data.index_y.elements))
+        for y_inv_ret =
+            model_data.year(first(model_data.index_y)):(model_data.year(
+                last(model_data.index_y.elements),
+            )-1)
+            for y_decision =
+                (y_inv_ret+1):model_data.year(last(model_data.index_y.elements))
                 alpha_denominator =
                     alpha_denominator +
                     sum(
@@ -3437,10 +3724,12 @@ function solve_agent_problem_decomposition_by_year_master(
         alpha =
             rho * (utility.obj_upper_bound - utility.obj_lower_bound) / alpha_denominator
 
-        for y_inv_ret in
-            model_data.year(first(model_data.index_y)):(model_data.year(last(model_data.index_y.elements)) - 1)
-            for y_decision in
-                (y_inv_ret + 1):model_data.year(last(model_data.index_y.elements))
+        for y_inv_ret =
+            model_data.year(first(model_data.index_y)):(model_data.year(
+                last(model_data.index_y.elements),
+            )-1)
+            for y_decision =
+                (y_inv_ret+1):model_data.year(last(model_data.index_y.elements))
                 for k in utility.index_k_existing
                     utility.L_R_my(Symbol(Int(y_inv_ret)), Symbol(Int(y_decision)), k, :) .=
                         utility.L_R_my(Symbol(Int(y_inv_ret)), Symbol(Int(y_decision)), k) +
@@ -3501,18 +3790,24 @@ Update Utility cumulative parameters
 """
 function update_cumulative!(model_data::HEMData, utility::Utility)
     for k in utility.index_k_existing, z in model_data.index_z
-        utility.x_R_cumu(k, z, :) .= utility.x_R_cumu(k, z) + utility.x_R_my(first(model_data.index_y), k, z)
+        utility.x_R_cumu(k, z, :) .=
+            utility.x_R_cumu(k, z) + utility.x_R_my(first(model_data.index_y), k, z)
     end
 
     for k in utility.index_k_new, z in model_data.index_z
-        utility.x_C_cumu(k, z, :) .= utility.x_C_cumu(k, z) + utility.x_C_my(first(model_data.index_y), k, z)
+        utility.x_C_cumu(k, z, :) .=
+            utility.x_C_cumu(k, z) + utility.x_C_my(first(model_data.index_y), k, z)
     end
 
     for s in utility.index_stor_existing, z in model_data.index_z
-        utility.x_stor_R_cumu(s, z, :) .= utility.x_stor_R_cumu(s, z) + utility.x_stor_R_my(first(model_data.index_y), s, z)
+        utility.x_stor_R_cumu(s, z, :) .=
+            utility.x_stor_R_cumu(s, z) +
+            utility.x_stor_R_my(first(model_data.index_y), s, z)
     end
 
     for s in utility.index_stor_new, z in model_data.index_z
-        utility.x_stor_C_cumu(s, z, :) .= utility.x_stor_C_cumu(s, z) + utility.x_stor_C_my(first(model_data.index_y), s, z)
+        utility.x_stor_C_cumu(s, z, :) .=
+            utility.x_stor_C_cumu(s, z) +
+            utility.x_stor_C_my(first(model_data.index_y), s, z)
     end
 end

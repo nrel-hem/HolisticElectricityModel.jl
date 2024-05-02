@@ -28,7 +28,15 @@ future_years_len = length(future_years)
 ipp_number = 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
-input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"
+input_dir_name =
+    "ba_" *
+    "$ba_len" *
+    "_base_" *
+    "$base_year" *
+    "_future_" *
+    "$future_years_len" *
+    "_ipps_" *
+    "$ipp_number"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 mkpath(input_dir)
 
@@ -59,9 +67,8 @@ ipp_opts = IPPOptions(
             () -> Xpress.Optimizer(),
             # "OUTPUTLOG" => 0,
         ),
-        "Lagrange_Feasible_Cap" => JuMP.optimizer_with_attributes(
-            () -> Xpress.Optimizer()
-        ),
+        "Lagrange_Feasible_Cap" =>
+            JuMP.optimizer_with_attributes(() -> Xpress.Optimizer()),
         "solve_agent_problem_ipp_cap" => JuMP.optimizer_with_attributes(
             () -> Gurobi.Optimizer(GUROBI_ENV),
             "Presolve" => 0,
@@ -72,37 +79,34 @@ ipp_opts = IPPOptions(
             "Presolve" => 1,
             # "OUTPUTLOG" => 0,
         ),
-        "solve_agent_problem_ipp_mppdc_mccormic_lower" => JuMP.optimizer_with_attributes(
-            () -> Gurobi.Optimizer(GUROBI_ENV),
-            "Presolve" => 1,
-            # "OUTPUTLOG" => 0,
-        )
-    )
-)
-
-utility_opts = UtilityOptions(
-    JuMP.optimizer_with_attributes(
-        () -> Xpress.Optimizer(),
-        # "OUTPUTLOG" => 0,
+        "solve_agent_problem_ipp_mppdc_mccormic_lower" =>
+            JuMP.optimizer_with_attributes(
+                () -> Gurobi.Optimizer(GUROBI_ENV),
+                "Presolve" => 1,
+                # "OUTPUTLOG" => 0,
+            ),
     ),
 )
 
-green_developer_opts = GreenDeveloperOptions(
-    JuMP.optimizer_with_attributes(
-        () -> Xpress.Optimizer(),
-        # "OUTPUTLOG" => 0,
-    ),
-)
+utility_opts = UtilityOptions(JuMP.optimizer_with_attributes(
+    () -> Xpress.Optimizer(),
+    # "OUTPUTLOG" => 0,
+))
+
+green_developer_opts = GreenDeveloperOptions(JuMP.optimizer_with_attributes(
+    () -> Xpress.Optimizer(),
+    # "OUTPUTLOG" => 0,
+))
 # ------------------------------------------------------------------------------
 
 # Run HEM ----------------------------------------------------------------------
 output_dir = run_hem(
     input_dir,
     hem_opts,
-    regulator_options=regulator_opts,
-    ipp_options=ipp_opts,
-    utility_options=utility_opts,
-    green_developer_options=green_developer_opts,
-    force=true,
+    regulator_options = regulator_opts,
+    ipp_options = ipp_opts,
+    utility_options = utility_opts,
+    green_developer_options = green_developer_opts,
+    force = true,
 )
 # ------------------------------------------------------------------------------

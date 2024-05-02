@@ -41,13 +41,8 @@ function read_param(
     description::AbstractString = "",
 )
     vals = read_record_file(KeyedArray, dirpath, filename, 1)
-    result = ParamArray(
-        name,
-        (index,),
-        vals,
-        prose_name = prose_name,
-        description = description,
-    )
+    result =
+        ParamArray(name, (index,), vals, prose_name = prose_name, description = description)
     @debug "Loaded $filename" result
     return result
 end
@@ -134,17 +129,19 @@ function read_keyed_array(file::CSV.File, num_dims)
     end
 
     index_names = Vector{Vector{Symbol}}(undef, num_dims)
-    for i in 1:(num_dims - 1)
+    for i = 1:(num_dims-1)
         index_names[i] = Symbol.(unique(Tables.getcolumn(file, i)))
     end
     index_names[num_dims] = Symbol.(file.names[num_dims:end])
 
-    data =
-        KeyedArray(Array{Float64, num_dims}(undef, length.(index_names)...), Tuple(index_names))
-    for i in 1:(file.rows)
-        indices = [Symbol(Tables.getcolumn(file, j)[i]) for j in 1:(num_dims - 1)]
-        data(indices...,:,:) .=
-            [Tables.getcolumn(file, x + num_dims - 1)[i] for x in 1:length(index_names[end])]
+    data = KeyedArray(
+        Array{Float64,num_dims}(undef, length.(index_names)...),
+        Tuple(index_names),
+    )
+    for i = 1:(file.rows)
+        indices = [Symbol(Tables.getcolumn(file, j)[i]) for j = 1:(num_dims-1)]
+        data(indices..., :, :) .=
+            [Tables.getcolumn(file, x + num_dims - 1)[i] for x = 1:length(index_names[end])]
     end
 
     return data
@@ -214,7 +211,8 @@ function compute_difference_percentage_one_norm(before_after_pairs)
     result_vec = []
     for (before, after) in before_after_pairs
         result_one = sum((
-            before(i...) == 0.0 ? abs(after(i...) - before(i...)) : abs(after(i...) - before(i...)) / before(i...) for
+            before(i...) == 0.0 ? abs(after(i...) - before(i...)) :
+            abs(after(i...) - before(i...)) / before(i...) for
             i in Iterators.product(AxisKeys.axiskeys(before)...)
         ))
         push!(result_vec, result_one)
@@ -227,8 +225,9 @@ function compute_difference_percentage_maximum_one_norm(before_after_pairs)
     result_vec = []
     for (before, after) in before_after_pairs
         for i in Iterators.product(AxisKeys.axiskeys(before)...)
-            result_one = 
-                before(i...) == 0.0 ? abs(after(i...) - before(i...)) : abs(after(i...) - before(i...)) / before(i...)
+            result_one =
+                before(i...) == 0.0 ? abs(after(i...) - before(i...)) :
+                abs(after(i...) - before(i...)) / before(i...)
             push!(result_vec, result_one)
         end
     end
@@ -282,7 +281,7 @@ close(logger)
 function configure_logging(;
     console_level = Logging.Error,
     file_level = Logging.Info,
-    filename::Union{Nothing, AbstractString} = "hem.log",
+    filename::Union{Nothing,AbstractString} = "hem.log",
 )
     return IS.configure_logging(
         console = true,
@@ -310,7 +309,7 @@ function initialize_param(
     return ParamArray(
         name,
         (index,),
-        initialize_keyed_array(index; value=value),
+        initialize_keyed_array(index; value = value),
         prose_name = prose_name,
         description = description,
     )
@@ -332,7 +331,7 @@ function initialize_param(
         ParamArray(
             name,
             indices,
-            initialize_keyed_array(indices...; value=value),
+            initialize_keyed_array(indices...; value = value),
             prose_name = prose_name,
             description = description,
         )

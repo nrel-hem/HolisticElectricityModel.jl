@@ -29,7 +29,7 @@ get_description(data::AbstractData) = data.description
 
 abstract type AbstractDimension <: AbstractData end
 
-const DimensionKey{N} = NTuple{N, Symbol}
+const DimensionKey{N} = NTuple{N,Symbol}
 
 """
 Behaves like a Vector of Symbols with additional metadata fields.
@@ -76,7 +76,7 @@ abstract type HEMParameter <: AbstractData end
 """
 Behaves like a number with additional metadata fields.
 """
-mutable struct ParamScalar{T <: Number} <: HEMParameter
+mutable struct ParamScalar{T<:Number} <: HEMParameter
     name::String
     prose_name::String
     description::String
@@ -87,12 +87,7 @@ function ParamScalar(name::AbstractString, value::Number; prose_name = "", descr
     return ParamScalar(name, prose_name, description, value)
 end
 
-@forward ParamScalar.value Base.isless, 
-Base.isgreater, 
-Base.:+, 
-Base.:*, 
-Base.:-, 
-Base.:/
+@forward ParamScalar.value Base.isless, Base.isgreater, Base.:+, Base.:*, Base.:-, Base.:/
 
 Base.:+(x::Number, y::ParamScalar) = x + y.value
 Base.:-(x::Number, y::ParamScalar) = x - y.value
@@ -120,7 +115,7 @@ mutable struct ParamArray{N} <: HEMParameter
     name::String
     prose_name::String
     description::String
-    dims::NTuple{N, Dimension}
+    dims::NTuple{N,Dimension}
     values::KeyedArray
 end
 
@@ -143,7 +138,7 @@ end
 
 function ParamArray(
     name::AbstractString,
-    dims::NTuple{N, Dimension},
+    dims::NTuple{N,Dimension},
     vals::KeyedArray;
     prose_name = "",
     description = "",
@@ -153,8 +148,8 @@ end
 
 function ParamArray(
     name::AbstractString,
-    dims::NTuple{N, Dimension},
-    vals::Array{Float64, N}; # TODO: Replace with something more general than Float64
+    dims::NTuple{N,Dimension},
+    vals::Array{Float64,N}; # TODO: Replace with something more general than Float64
     prose_name = "",
     description = "",
 ) where {N}
@@ -163,27 +158,24 @@ function ParamArray(
         prose_name,
         description,
         dims,
-        KeyedArray(
-            vals;
-            [get_pair(dim) for dim in dims]...
-        ),
+        KeyedArray(vals; [get_pair(dim) for dim in dims]...),
     )
 end
 
-@forward ParamArray.values Base.length, 
-    Base.getindex,
-    Base.setindex!,
-    Base.iterate,
-    Base.findmax,
-    Base.fill!,
-    Base.size,
-    Base.axes,
-    Base.eachindex,
-    Base.keys,
-    Base.strides,
-    Base.transpose,
-    Base.IndexStyle,
-    AxisKeys.axiskeys
+@forward ParamArray.values Base.length,
+Base.getindex,
+Base.setindex!,
+Base.iterate,
+Base.findmax,
+Base.fill!,
+Base.size,
+Base.axes,
+Base.eachindex,
+Base.keys,
+Base.strides,
+Base.transpose,
+Base.IndexStyle,
+AxisKeys.axiskeys
 
 Base.pointer(A::ParamArray, i::Integer) = Base.pointer(A.values, i)
 
@@ -206,17 +198,17 @@ Return an uninitialized KeyedArray from any number of Dimension values.
 """
 function make_keyed_array(indices...; fill_nan = true)
     array = KeyedArray(
-        Array{Float64, length(indices)}(undef, length.(indices)...);
+        Array{Float64,length(indices)}(undef, length.(indices)...);
         [get_pair(x) for x in indices]...,
     )
     fill_nan && fill!(array.data, NaN)
     return array
 end
 
-function initialize_keyed_array(indices...; value=0.0)
+function initialize_keyed_array(indices...; value = 0.0)
     array = try
         KeyedArray(
-            Array{Float64, length(indices)}(undef, length.(indices)...);
+            Array{Float64,length(indices)}(undef, length.(indices)...);
             [get_pair(x) for x in indices]...,
         )
     catch e

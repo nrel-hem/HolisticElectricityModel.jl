@@ -136,9 +136,11 @@ abstract type Options end
 
 get_file_prefix(::Options) = String("")
 
-struct HEMOptions{T <: MarketStructure, 
-                  U <: Union{NullUseCase,DERUseCase}, 
-                  V <: Union{NullUseCase,SupplyChoiceUseCase}} <: Options
+struct HEMOptions{
+    T<:MarketStructure,
+    U<:Union{NullUseCase,DERUseCase},
+    V<:Union{NullUseCase,SupplyChoiceUseCase},
+} <: Options
     market_structure::T
 
     # use case switches
@@ -147,9 +149,14 @@ struct HEMOptions{T <: MarketStructure,
 end
 
 function get_file_prefix(options::HEMOptions)
-    return join(["$(typeof(options.der_use_case))", 
-                 "$(typeof(options.supply_choice_use_case))",
-                 "$(typeof(options.market_structure))"],"_")
+    return join(
+        [
+            "$(typeof(options.der_use_case))",
+            "$(typeof(options.supply_choice_use_case))",
+            "$(typeof(options.market_structure))",
+        ],
+        "_",
+    )
 end
 
 """
@@ -200,19 +207,19 @@ get_file_prefix(::AbstractAgent) = String("")
 abstract type AgentOptions <: Options end
 struct NullAgentOptions <: AgentOptions end
 
-struct AgentAndOptions{T <: AbstractAgent, U <: AgentOptions}
+struct AgentAndOptions{T<:AbstractAgent,U<:AgentOptions}
     agent::T
     options::U
 end
 
-AgentOrOptions = Union{AbstractAgent, Options}
+AgentOrOptions = Union{AbstractAgent,Options}
 
 struct AgentStore
-    data::OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}
+    data::OrderedDict{DataType,OrderedDict{String,AgentAndOptions}}
 end
 
 function AgentStore(agents_and_opts::Vector{AgentAndOptions})
-    data = OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}()
+    data = OrderedDict{DataType,OrderedDict{String,AgentAndOptions}}()
     for item in agents_and_opts
         type = typeof(item.agent)
         id = get_id(item.agent)
@@ -221,7 +228,7 @@ function AgentStore(agents_and_opts::Vector{AgentAndOptions})
             haskey(sub_dict, id) && error("$type agent with ID = $id is already stored")
             sub_dict[id] = item
         else
-            data[type] = OrderedDict{String, AgentAndOptions}()
+            data[type] = OrderedDict{String,AgentAndOptions}()
             data[type][id] = item
         end
     end
@@ -234,7 +241,7 @@ Return the agent of the given type and ID from the store.
 
 If there is only one agent of the given type then `id` is optional.
 """
-function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: AbstractAgent}
+function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T<:AbstractAgent}
     !haskey(store.data, T) && error("No agents of type $T are stored.")
     agents_and_opts = store.data[T]
 
@@ -260,7 +267,7 @@ function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndO
     for item in agents_and_opts
         push!(items, item.options, item.agent)
     end
-    
+
     # call get_file_prefix on each item
     file_prefix = Vector{String}()
     for item in items
@@ -269,7 +276,7 @@ function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndO
             push!(file_prefix, val)
         end
     end
-    file_prefix = string("Results_",join(file_prefix, "_"))
+    file_prefix = string("Results_", join(file_prefix, "_"))
     return file_prefix
 end
 
@@ -297,12 +304,12 @@ function solve_equilibrium_problem!(
 
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
-        for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+        for w = 1:(length(model_data.index_y_fix)-window_length+1)  # loop over windows
             model_data.index_y.elements =
-                model_data.index_y_fix.elements[w:(w + window_length - 1)]
+                model_data.index_y_fix.elements[w:(w+window_length-1)]
             i = 0
             diff_iter = []
-            for i in 1:max_iter
+            for i = 1:max_iter
                 diff_vec = []
 
                 for (agent, options) in iter_agents_and_options(store)
@@ -315,7 +322,7 @@ function solve_equilibrium_problem!(
                             hem_opts,
                             store,
                             w,
-                            jump_model
+                            jump_model,
                         )
                     end
                     @info "$(diff_one)"
@@ -363,13 +370,14 @@ function solve_equilibrium_problem!(
 
     if hem_opts.supply_choice_use_case isa NullUseCase
         Welfare_green_developer = [
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix)]
+            initialize_keyed_array(model_data.index_y_fix),
+            initialize_keyed_array(model_data.index_y_fix),
+            initialize_keyed_array(model_data.index_y_fix),
+            initialize_keyed_array(model_data.index_y_fix),
+            initialize_keyed_array(model_data.index_y_fix),
+            initialize_keyed_array(model_data.index_y_fix),
+            initialize_keyed_array(model_data.index_y_fix),
+        ]
     else
         z = store.data[GreenDeveloper]["default"]
         Welfare_green_developer =
@@ -381,10 +389,7 @@ function solve_equilibrium_problem!(
     @info "\n$(HEM_TIMER)\n"
 end
 
-function update_cumulative!(
-    model_data::HEMData,
-    agents_and_opts::Vector{AgentAndOptions},
-)
+function update_cumulative!(model_data::HEMData, agents_and_opts::Vector{AgentAndOptions})
     for item in agents_and_opts
         update_cumulative!(model_data, item.agent)
     end

@@ -30,9 +30,9 @@ julia> solver = IpoptSolver(ipopt)
 ```
 """
 struct IpoptSolver <: HEMSolver
-    attributes::Union{Nothing, MOI.OptimizerWithAttributes}
+    attributes::Union{Nothing,MOI.OptimizerWithAttributes}
 
-    IpoptSolver(attributes=nothing) = new(attributes)
+    IpoptSolver(attributes = nothing) = new(attributes)
 end
 
 
@@ -63,9 +63,9 @@ julia> solver = XpressSolver(xpress)
 ```
 """
 struct XpressSolver <: HEMSolver
-    attributes::Union{Nothing, MOI.OptimizerWithAttributes}
+    attributes::Union{Nothing,MOI.OptimizerWithAttributes}
 
-    XpressSolver(attributes=nothing) = new(attributes)
+    XpressSolver(attributes = nothing) = new(attributes)
 end
 
 function get_new_jump_model(hem_solver::XpressSolver)
@@ -95,9 +95,9 @@ julia> solver = GurobiSolver(gurobi)
 """
 struct GurobiSolver <: HEMSolver
     env::Any
-    attributes::Union{Nothing, MOI.OptimizerWithAttributes}
+    attributes::Union{Nothing,MOI.OptimizerWithAttributes}
 
-    GurobiSolver(env, attributes=nothing) = new(GurobiSolver(env, attributes))
+    GurobiSolver(env, attributes = nothing) = new(GurobiSolver(env, attributes))
 end
 
 function get_new_jump_model(hem_solver::GurobiSolver)

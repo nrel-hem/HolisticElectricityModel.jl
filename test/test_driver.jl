@@ -8,7 +8,8 @@ driver_name = "driver_xpress.jl"
     scenario_dir = basename(dirname(output_dir))
     results_dir = basename(output_dir)
 
-    expected_results_dir = joinpath(BASE_DIR, "test", "driver_outputs", scenario_dir, results_dir)
+    expected_results_dir =
+        joinpath(BASE_DIR, "test", "driver_outputs", scenario_dir, results_dir)
     for exp_file in readdir(expected_results_dir, join = true)
         !(splitext(exp_file)[2] == ".csv") && continue
         actual = sort!(read_dataframe(joinpath(output_dir, basename(exp_file))))

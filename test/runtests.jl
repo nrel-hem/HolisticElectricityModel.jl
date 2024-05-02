@@ -13,7 +13,10 @@ Aqua.test_undefined_exports(HolisticElectricityModel)
 # EH: This next test is failing and I don't know how to fix. 
 #     I would expect all tests to run and then tell me which ones failed?
 #Aqua.test_ambiguities(HolisticElectricityModel)
-Aqua.test_stale_deps(HolisticElectricityModel; ignore=[:JuliaFormatter,:Aqua,:TestSetExtensions,:Xpress,:Gurobi,:Revise])
+Aqua.test_stale_deps(
+    HolisticElectricityModel;
+    ignore = [:JuliaFormatter, :Aqua, :TestSetExtensions, :Xpress, :Gurobi, :Revise],
+)
 # EH: This next test is failing and I don't know how to fix. 
 #     I would expect all tests to run and then tell me which ones failed?
 #Aqua.test_deps_compat(HolisticElectricityModel)

@@ -15,16 +15,16 @@ Solve the problem with the given inputs.
 function run_hem(
     input_dir::AbstractString,
     options::HEMOptions;
-    ipp_options::Union{IPPOptions, NullAgentOptions}=NullAgentOptions(),
-    regulator_options::Union{RegulatorOptions, NullAgentOptions}=NullAgentOptions(),
-    utility_options::Union{UtilityOptions, NullAgentOptions}=NullAgentOptions(),
-    green_developer_options::Union{GreenDeveloperOptions, NullAgentOptions}=NullAgentOptions(),
-    customers_options::Union{CustomersOptions, NullAgentOptions}=NullAgentOptions(),
-    max_iterations=1,
+    ipp_options::Union{IPPOptions,NullAgentOptions} = NullAgentOptions(),
+    regulator_options::Union{RegulatorOptions,NullAgentOptions} = NullAgentOptions(),
+    utility_options::Union{UtilityOptions,NullAgentOptions} = NullAgentOptions(),
+    green_developer_options::Union{GreenDeveloperOptions,NullAgentOptions} = NullAgentOptions(),
+    customers_options::Union{CustomersOptions,NullAgentOptions} = NullAgentOptions(),
+    max_iterations = 1,
     #window_length=3,
-    window_length=1,
-    force=false,
-    jump_model::Any
+    window_length = 1,
+    force = false,
+    jump_model::Any,
 )
     model_data = HEMData(input_dir)
     regulator = Regulator(input_dir, model_data)
@@ -45,9 +45,11 @@ function run_hem(
     output_dir = joinpath(input_dir, get_file_prefix(options, agents_and_opts))
     if isdir(output_dir)
         if force
-            rm(output_dir, recursive=true)
+            rm(output_dir, recursive = true)
         else
-            error("$output_dir already exists. Move the existing directory or set force=true to overwrite.")
+            error(
+                "$output_dir already exists. Move the existing directory or set force=true to overwrite.",
+            )
         end
     end
     mkdir(output_dir)
@@ -65,11 +67,11 @@ function run_hem(
             output_dir,
             max_iterations,
             window_length,
-            jump_model
+            jump_model,
         )
     finally
         close(logger)
     end
-    
+
     return output_dir
 end
