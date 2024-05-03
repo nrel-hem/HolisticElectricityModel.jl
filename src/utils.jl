@@ -1,8 +1,3 @@
-# Question: Also, when should I specify types?
-# Answer: When necessary for dispatch, and often for clarity. 
-#         Always use AbstractString, not String.
-#         Iterables can be tricky--go with duck typing when you can in that case
-
 """
     read_set(filename, filename)
 
@@ -12,15 +7,15 @@ function read_set(
     dirpath::AbstractString,
     filename::AbstractString,
     name::AbstractString;
-    prose_name = "",
-    description = "",
+    prose_name="",
+    description="",
 )
     vals = read_record_file(DataFrame, dirpath, filename)
     result = Dimension(
         name,
         Symbol.(names(DataFrame(vals))),
-        prose_name = prose_name,
-        description = description,
+        prose_name=prose_name,
+        description=description,
     )
     @info "Loaded $filename = $result" result
     return result
@@ -37,16 +32,16 @@ function read_param(
     dirpath::AbstractString,
     filename::AbstractString,
     index::Dimension;
-    prose_name::AbstractString = "",
-    description::AbstractString = "",
+    prose_name::AbstractString="",
+    description::AbstractString="",
 )
     vals = read_record_file(KeyedArray, dirpath, filename, 1)
     result = ParamArray(
         name,
         (index,),
         vals,
-        prose_name = prose_name,
-        description = description,
+        prose_name=prose_name,
+        description=description,
     )
     @debug "Loaded $filename" result
     return result
@@ -67,8 +62,8 @@ function read_param(
     filename::AbstractString,
     column_index::Dimension,
     row_indices::Vector{Dimension};
-    prose_name::AbstractString = "",
-    description::AbstractString = "",
+    prose_name::AbstractString="",
+    description::AbstractString="",
 )
     dims = Tuple(push!(copy(row_indices), column_index))
     vals = read_record_file(KeyedArray, dirpath, filename, length(dims))
@@ -93,7 +88,7 @@ function read_param(
     end
     # TODO DT: make negative test to verify that conflicting inputs are rejected.
     result =
-        ParamArray(name, dims, vals, prose_name = prose_name, description = description)
+        ParamArray(name, dims, vals, prose_name=prose_name, description=description)
     @debug "Loaded $filename" result
     return result
 end
@@ -280,20 +275,20 @@ close(logger)
 ```
 """
 function configure_logging(;
-    console_level = Logging.Error,
-    file_level = Logging.Info,
-    filename::Union{Nothing, AbstractString} = "hem.log",
+    console_level=Logging.Error,
+    file_level=Logging.Info,
+    filename::Union{Nothing,AbstractString}="hem.log",
 )
     return IS.configure_logging(
-        console = true,
-        console_stream = stderr,
-        console_level = console_level,
-        file = filename !== nothing,
-        filename = filename,
-        file_level = file_level,
-        file_mode = "w+",
-        tracker = nothing,
-        set_global = true,
+        console=true,
+        console_stream=stderr,
+        console_level=console_level,
+        file=filename !== nothing,
+        filename=filename,
+        file_level=file_level,
+        file_mode="w+",
+        tracker=nothing,
+        set_global=true,
     )
 end
 
@@ -303,16 +298,16 @@ Returns a ParamArray with all values set to value.
 function initialize_param(
     name::AbstractString,
     index::Dimension;
-    value = 0.0,
-    prose_name = "",
-    description = "",
+    value=0.0,
+    prose_name="",
+    description="",
 )
     return ParamArray(
         name,
         (index,),
         initialize_keyed_array(index; value=value),
-        prose_name = prose_name,
-        description = description,
+        prose_name=prose_name,
+        description=description,
     )
 end
 
@@ -323,9 +318,9 @@ Iterators.product(indices...).
 function initialize_param(
     name::AbstractString,
     indices...;
-    value = 0.0,
-    prose_name = "",
-    description = "",
+    value=0.0,
+    prose_name="",
+    description="",
 )
     num_dims = length(indices)
     param = try
@@ -333,8 +328,8 @@ function initialize_param(
             name,
             indices,
             initialize_keyed_array(indices...; value=value),
-            prose_name = prose_name,
-            description = description,
+            prose_name=prose_name,
+            description=description,
         )
     catch e
         @info "Failed to initialize parameter $name"
