@@ -1,7 +1,3 @@
-# ------------------------------------------------------------------------------
-# Base Data Types
-# ------------------------------------------------------------------------------
-
 abstract type AbstractData end
 
 # Required interface functions:
@@ -44,8 +40,8 @@ end
 function Dimension(
     name::AbstractString,
     elements::Vector{Symbol};
-    prose_name = "",
-    description = "",
+    prose_name="",
+    description="",
 )
     return Dimension(name, prose_name, description, elements)
 end
@@ -65,8 +61,8 @@ Dimension(x::Dimension) = Dimension(x.name, x.prose_name, x.description, copy(x.
 function Dimension(
     dim::Dimension,
     name::AbstractString;
-    prose_name::AbstractString = "",
-    description::AbstractString = "",
+    prose_name::AbstractString="",
+    description::AbstractString="",
 )
     return Dimension(name, prose_name, description, copy(dim.elements))
 end
@@ -83,7 +79,7 @@ mutable struct ParamScalar{T<:Number} <: HEMParameter
     value::T
 end
 
-function ParamScalar(name::AbstractString, value::Number; prose_name = "", description = "")
+function ParamScalar(name::AbstractString, value::Number; prose_name="", description="")
     return ParamScalar(name, prose_name, description, value)
 end
 
@@ -103,8 +99,8 @@ ParamScalar(param::ParamScalar) =
 function ParamScalar(
     param::ParamScalar,
     name::AbstractString;
-    prose_name::AbstractString = "",
-    description::AbstractString = "",
+    prose_name::AbstractString="",
+    description::AbstractString="",
 )
     return ParamScalar(name, prose_name, description, copy(param.value))
 end
@@ -130,8 +126,8 @@ ParamArray(param::ParamArray) = ParamArray(
 function ParamArray(
     param::ParamArray,
     name::AbstractString;
-    prose_name::AbstractString = "",
-    description::AbstractString = "",
+    prose_name::AbstractString="",
+    description::AbstractString="",
 )
     return ParamArray(name, prose_name, description, param.dims, copy(param.values))
 end
@@ -140,8 +136,8 @@ function ParamArray(
     name::AbstractString,
     dims::NTuple{N,Dimension},
     vals::KeyedArray;
-    prose_name = "",
-    description = "",
+    prose_name="",
+    description="",
 ) where {N}
     return ParamArray(name, prose_name, description, dims, vals)
 end
@@ -150,8 +146,8 @@ function ParamArray(
     name::AbstractString,
     dims::NTuple{N,Dimension},
     vals::Array{Float64,N}; # TODO: Replace with something more general than Float64
-    prose_name = "",
-    description = "",
+    prose_name="",
+    description="",
 ) where {N}
     return ParamArray(
         name,
@@ -196,7 +192,7 @@ AxisKeys.axiskeys(A::ParamArray, d::Int) = AxisKeys.axiskeys(A.values, d)
 """
 Return an uninitialized KeyedArray from any number of Dimension values.
 """
-function make_keyed_array(indices...; fill_nan = true)
+function make_keyed_array(indices...; fill_nan=true)
     array = KeyedArray(
         Array{Float64,length(indices)}(undef, length.(indices)...);
         [get_pair(x) for x in indices]...,
@@ -205,7 +201,7 @@ function make_keyed_array(indices...; fill_nan = true)
     return array
 end
 
-function initialize_keyed_array(indices...; value = 0.0)
+function initialize_keyed_array(indices...; value=0.0)
     array = try
         KeyedArray(
             Array{Float64,length(indices)}(undef, length.(indices)...);
