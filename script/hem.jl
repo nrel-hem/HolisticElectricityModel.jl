@@ -17,7 +17,7 @@ input_path = joinpath(hem_data_dir, "inputs")
 test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
 # Parse inputs
-config = YAML.load_file("hem_config.yaml")
+config = YAML.load_file(joinpath(base_dir, "scripts", "hem_config.yaml"))
 bal_areas = config["balancing_areas"]
 base_year = config["base_year"]
 num_future_years = config["num_future_years"]
