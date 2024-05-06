@@ -178,12 +178,12 @@ jump_model = []
 output_dir = run_hem(
     input_dir,
     hem_opts,
-    regulator_options=regulator_opts,
-    ipp_options=ipp_opts,
-    utility_options=utility_opts,
-    green_developer_options=green_developer_opts,
-    customers_options=customers_opts,
-    force=true,
-    jump_model=jump_model,
+    regulator_options = regulator_opts,
+    ipp_options = ipp_opts,
+    utility_options = utility_opts,
+    green_developer_options = green_developer_opts,
+    customers_options = customers_opts,
+    force = true,
+    jump_model = jump_model,
 )
 # ------------------------------------------------------------------------------
