@@ -363,13 +363,14 @@ function solve_equilibrium_problem!(
 
     # if hem_opts.supply_choice_use_case isa NullUseCase
     #     Welfare_green_developer = [
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix)]
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #     ]
     # else
     #     z = store.data[GreenDeveloper]["default"]
     #     Welfare_green_developer =
