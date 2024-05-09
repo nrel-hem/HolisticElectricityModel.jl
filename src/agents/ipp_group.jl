@@ -5983,8 +5983,9 @@ function solve_agent_problem_ipp_cap(
     # battery_upper_bound_adj = 1.015
     # battery_lower_bound_adj = 0.985
 
-    eta_upper_bound_adj = 1.001
-    eta_lower_bound_adj = 0.999
+    # adjust these bounds may make the problem easier to solve! But it may also hurt the duality gap.
+    eta_upper_bound_adj = 1.01 # 1.001
+    eta_lower_bound_adj = 0.99 # 0.999
     lambda_upper_bound_adj = 1.001
     lambda_lower_bound_adj = 0.999
     battery_upper_bound_adj = 1.001
@@ -6031,7 +6032,8 @@ function solve_agent_problem_ipp_cap(
             for z in model_data.index_z
                 # need to have constraints in the optimization as well
                 if k == Symbol("nuclear")
-                    X_R_cumu_U(y, k, z, :) .= min(ipp.x_E_my(p_star, z, k) - ipp.x_R_cumu(p_star, k, z), 1.0)
+                    # X_R_cumu_U(y, k, z, :) .= min(ipp.x_E_my(p_star, z, k) - ipp.x_R_cumu(p_star, k, z), 1.0)
+                    X_R_cumu_U(y, k, z, :) .= ipp.x_E_my(p_star, z, k) - ipp.x_R_cumu(p_star, k, z)
                 else
                     X_R_cumu_U(y, k, z, :) .= ipp.x_E_my(p_star, z, k) - ipp.x_R_cumu(p_star, k, z)
                 end
@@ -6248,8 +6250,8 @@ function solve_agent_problem_ipp_cap(
     @variable(WMDER_IPP, x_R_mce[model_data.index_y, ipp.index_k_existing, model_data.index_z] >= 0)
     @variable(WMDER_IPP, x_stor_R_mce[model_data.index_y, ipp.index_stor_existing, model_data.index_z] >= 0)
     # cumulative investment of p_star
-    @variable(WMDER_IPP, 0 <= x_C_mce[model_data.index_y, ipp.index_k_new, model_data.index_z] <= 5000.0)
-    @variable(WMDER_IPP, 0 <= x_stor_C_mce[model_data.index_y, ipp.index_stor_new, model_data.index_z] <= 5000.0)
+    @variable(WMDER_IPP, x_C_mce[model_data.index_y, ipp.index_k_new, model_data.index_z] >= 0)
+    @variable(WMDER_IPP, x_stor_C_mce[model_data.index_y, ipp.index_stor_new, model_data.index_z] >= 0)
 
     # adjust upper bound of X_C for specific technology
     for y in model_data.index_y, z in model_data.index_z, k in ipp.index_k_existing
@@ -6258,10 +6260,21 @@ function solve_agent_problem_ipp_cap(
     for y in model_data.index_y, z in model_data.index_z, s in ipp.index_stor_existing
         set_upper_bound(x_stor_R_mce[y, s, z], X_R_stor_cumu_U(y, s, z))
     end
+
     for y in model_data.index_y, z in model_data.index_z, k in ipp.index_k_new
         set_upper_bound(x_C_mce[y, k, z], X_C_cumu_U(y, k, z))
     end
-    
+    for y in model_data.index_y, z in model_data.index_z, s in ipp.index_stor_new
+        set_upper_bound(x_stor_C_mce[y, s, z], X_C_stor_cumu_U(y, s, z))
+    end
+
+    # the constraint that makes multi-year look-ahead hard to solve
+    for y in model_data.index_y, z in model_data.index_z
+        fix(x_R[y, :nuclear, z], 0.0; force = true)
+        fix(x_R[y, :nuclear, z], 0.0; force = true)
+    end
+
+    constraint_scaling = 1.0
 
     @variable(
         WMDER_IPP,
@@ -6944,6 +6957,17 @@ function solve_agent_problem_ipp_cap(
     end
 
     @objective(WMDER_IPP, Max, objective_function)
+
+    # @constraint(
+    #     WMDER_IPP,
+    #     Eq_fix_retirement_p130[y in model_data.index_y],
+    #     x_R[Symbol(y), :nuclear, :p130] <= 10.0
+    # )
+    # @constraint(
+    #     WMDER_IPP,
+    #     Eq_fix_retirement_p132[y in model_data.index_y],
+    #     x_R[Symbol(y), :nuclear, :p132] <= 10.0
+    # )
     
     @constraint(
         WMDER_IPP,
@@ -8105,6 +8129,7 @@ function solve_agent_problem_ipp_cap(
     )
 
     # McCormick-envelope relaxation
+    # apply constraint_scaling here
     @constraint(
         WMDER_IPP,
         Eq_mce_eta_x_R_p_star_LL[
@@ -8114,8 +8139,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_eta_x_R_p_star[y, k, z, d, t] >= X_R_cumu_L(y, k, z) * eta[y, p_star, k, z, d, t] + 
-        eta_L(y, k, z, d, t) * x_R_mce[y, k, z] - eta_L(y, k, z, d, t) * X_R_cumu_L(y, k, z)
+        mce_eta_x_R_p_star[y, k, z, d, t] / constraint_scaling >= (X_R_cumu_L(y, k, z) * eta[y, p_star, k, z, d, t] + 
+        eta_L(y, k, z, d, t) * x_R_mce[y, k, z] - eta_L(y, k, z, d, t) * X_R_cumu_L(y, k, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8126,8 +8151,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_eta_x_R_p_star[y, k, z, d, t] >= - eta_U(y, k, z, d, t) * X_R_cumu_U(y, k, z) +
-        eta_U(y, k, z, d, t) * x_R_mce[y, k, z] + eta[y, p_star, k, z, d, t] * X_R_cumu_U(y, k, z)
+        mce_eta_x_R_p_star[y, k, z, d, t] / constraint_scaling >= (- eta_U(y, k, z, d, t) * X_R_cumu_U(y, k, z) +
+        eta_U(y, k, z, d, t) * x_R_mce[y, k, z] + eta[y, p_star, k, z, d, t] * X_R_cumu_U(y, k, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8138,8 +8163,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_eta_x_R_p_star[y, k, z, d, t] <= X_R_cumu_U(y, k, z) * eta[y, p_star, k, z, d, t] -
-        eta_L(y, k, z, d, t) * X_R_cumu_U(y, k, z) + eta_L(y, k, z, d, t) * x_R_mce[y, k, z]
+        mce_eta_x_R_p_star[y, k, z, d, t] / constraint_scaling <= (X_R_cumu_U(y, k, z) * eta[y, p_star, k, z, d, t] -
+        eta_L(y, k, z, d, t) * X_R_cumu_U(y, k, z) + eta_L(y, k, z, d, t) * x_R_mce[y, k, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8150,8 +8175,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_eta_x_R_p_star[y, k, z, d, t] <= eta_U(y, k, z, d, t) * x_R_mce[y, k, z] -
-        eta_U(y, k, z, d, t) * X_R_cumu_L(y, k, z) + X_R_cumu_L(y, k, z) * eta[y, p_star, k, z, d, t]
+        mce_eta_x_R_p_star[y, k, z, d, t] / constraint_scaling <= (eta_U(y, k, z, d, t) * x_R_mce[y, k, z] -
+        eta_U(y, k, z, d, t) * X_R_cumu_L(y, k, z) + X_R_cumu_L(y, k, z) * eta[y, p_star, k, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8163,8 +8188,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_lambda_x_C_p_star[y, k, z, d, t] >= X_C_cumu_L(y, k, z) * lambda[y, p_star, k, z, d, t] + 
-        lambda_L(y, k, z, d, t) * x_C_mce[y, k, z] - lambda_L(y, k, z, d, t) * X_C_cumu_L(y, k, z)
+        mce_lambda_x_C_p_star[y, k, z, d, t] / constraint_scaling >= (X_C_cumu_L(y, k, z) * lambda[y, p_star, k, z, d, t] + 
+        lambda_L(y, k, z, d, t) * x_C_mce[y, k, z] - lambda_L(y, k, z, d, t) * X_C_cumu_L(y, k, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8175,8 +8200,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_lambda_x_C_p_star[y, k, z, d, t] >= - lambda_U(y, k, z, d, t) * X_C_cumu_U(y, k, z) +
-        lambda_U(y, k, z, d, t) * x_C_mce[y, k, z] + lambda[y, p_star, k, z, d, t] * X_C_cumu_U(y, k, z)
+        mce_lambda_x_C_p_star[y, k, z, d, t] / constraint_scaling >= (- lambda_U(y, k, z, d, t) * X_C_cumu_U(y, k, z) +
+        lambda_U(y, k, z, d, t) * x_C_mce[y, k, z] + lambda[y, p_star, k, z, d, t] * X_C_cumu_U(y, k, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8187,8 +8212,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_lambda_x_C_p_star[y, k, z, d, t] <= X_C_cumu_U(y, k, z) * lambda[y, p_star, k, z, d, t] -
-        lambda_L(y, k, z, d, t) * X_C_cumu_U(y, k, z) + lambda_L(y, k, z, d, t) * x_C_mce[y, k, z]
+        mce_lambda_x_C_p_star[y, k, z, d, t] / constraint_scaling <= (X_C_cumu_U(y, k, z) * lambda[y, p_star, k, z, d, t] -
+        lambda_L(y, k, z, d, t) * X_C_cumu_U(y, k, z) + lambda_L(y, k, z, d, t) * x_C_mce[y, k, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8199,8 +8224,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_lambda_x_C_p_star[y, k, z, d, t] <= lambda_U(y, k, z, d, t) * x_C_mce[y, k, z] -
-        lambda_U(y, k, z, d, t) * X_C_cumu_L(y, k, z) + X_C_cumu_L(y, k, z) * lambda[y, p_star, k, z, d, t]
+        mce_lambda_x_C_p_star[y, k, z, d, t] / constraint_scaling <= (lambda_U(y, k, z, d, t) * x_C_mce[y, k, z] -
+        lambda_U(y, k, z, d, t) * X_C_cumu_L(y, k, z) + X_C_cumu_L(y, k, z) * lambda[y, p_star, k, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8212,8 +8237,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_energy_x_stor_R_p_star[y, s, z, d, t] >= X_R_stor_cumu_L(y, s, z) * theta_E_energy[y, p_star, s, z, d, t] + 
-        theta_E_energy_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - theta_E_energy_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)
+        mce_theta_E_energy_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (X_R_stor_cumu_L(y, s, z) * theta_E_energy[y, p_star, s, z, d, t] + 
+        theta_E_energy_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - theta_E_energy_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8224,8 +8249,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_energy_x_stor_R_p_star[y, s, z, d, t] >= - theta_E_energy_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
-        theta_E_energy_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + theta_E_energy[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)
+        mce_theta_E_energy_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (- theta_E_energy_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
+        theta_E_energy_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + theta_E_energy[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8236,8 +8261,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_energy_x_stor_R_p_star[y, s, z, d, t] <= X_R_stor_cumu_U(y, s, z) * theta_E_energy[y, p_star, s, z, d, t] -
-        theta_E_energy_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + theta_E_energy_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]
+        mce_theta_E_energy_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (X_R_stor_cumu_U(y, s, z) * theta_E_energy[y, p_star, s, z, d, t] -
+        theta_E_energy_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + theta_E_energy_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8248,8 +8273,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_energy_x_stor_R_p_star[y, s, z, d, t] <= theta_E_energy_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
-        theta_E_energy_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * theta_E_energy[y, p_star, s, z, d, t]
+        mce_theta_E_energy_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (theta_E_energy_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
+        theta_E_energy_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * theta_E_energy[y, p_star, s, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8261,8 +8286,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_discharge_x_stor_R_p_star[y, s, z, d, t] >= X_R_stor_cumu_L(y, s, z) * theta_E_discharge[y, p_star, s, z, d, t] + 
-        theta_E_discharge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - theta_E_discharge_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)
+        mce_theta_E_discharge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (X_R_stor_cumu_L(y, s, z) * theta_E_discharge[y, p_star, s, z, d, t] + 
+        theta_E_discharge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - theta_E_discharge_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8273,8 +8298,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_discharge_x_stor_R_p_star[y, s, z, d, t] >= - theta_E_discharge_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
-        theta_E_discharge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + theta_E_discharge[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)
+        mce_theta_E_discharge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (- theta_E_discharge_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
+        theta_E_discharge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + theta_E_discharge[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8285,8 +8310,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_discharge_x_stor_R_p_star[y, s, z, d, t] <= X_R_stor_cumu_U(y, s, z) * theta_E_discharge[y, p_star, s, z, d, t] -
-        theta_E_discharge_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + theta_E_discharge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]
+        mce_theta_E_discharge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (X_R_stor_cumu_U(y, s, z) * theta_E_discharge[y, p_star, s, z, d, t] -
+        theta_E_discharge_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + theta_E_discharge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8297,8 +8322,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_discharge_x_stor_R_p_star[y, s, z, d, t] <= theta_E_discharge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
-        theta_E_discharge_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * theta_E_discharge[y, p_star, s, z, d, t]
+        mce_theta_E_discharge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (theta_E_discharge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
+        theta_E_discharge_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * theta_E_discharge[y, p_star, s, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8310,8 +8335,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_charge_x_stor_R_p_star[y, s, z, d, t] >= X_R_stor_cumu_L(y, s, z) * theta_E_charge[y, p_star, s, z, d, t] + 
-        theta_E_charge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - theta_E_charge_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)
+        mce_theta_E_charge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (X_R_stor_cumu_L(y, s, z) * theta_E_charge[y, p_star, s, z, d, t] + 
+        theta_E_charge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - theta_E_charge_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8322,8 +8347,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_charge_x_stor_R_p_star[y, s, z, d, t] >= - theta_E_charge_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
-        theta_E_charge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + theta_E_charge[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)
+        mce_theta_E_charge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (- theta_E_charge_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
+        theta_E_charge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + theta_E_charge[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8334,8 +8359,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_charge_x_stor_R_p_star[y, s, z, d, t] <= X_R_stor_cumu_U(y, s, z) * theta_E_charge[y, p_star, s, z, d, t] -
-        theta_E_charge_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + theta_E_charge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]
+        mce_theta_E_charge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (X_R_stor_cumu_U(y, s, z) * theta_E_charge[y, p_star, s, z, d, t] -
+        theta_E_charge_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + theta_E_charge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8346,8 +8371,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_E_charge_x_stor_R_p_star[y, s, z, d, t] <= theta_E_charge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
-        theta_E_charge_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * theta_E_charge[y, p_star, s, z, d, t]
+        mce_theta_E_charge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (theta_E_charge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
+        theta_E_charge_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * theta_E_charge[y, p_star, s, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8359,8 +8384,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_pi_E_charge_x_stor_R_p_star[y, s, z, d, t] >= X_R_stor_cumu_L(y, s, z) * pi_E_charge[y, p_star, s, z, d, t] + 
-        pi_E_charge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - pi_E_charge_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)
+        mce_pi_E_charge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (X_R_stor_cumu_L(y, s, z) * pi_E_charge[y, p_star, s, z, d, t] + 
+        pi_E_charge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - pi_E_charge_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8371,8 +8396,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_pi_E_charge_x_stor_R_p_star[y, s, z, d, t] >= - pi_E_charge_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
-        pi_E_charge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + pi_E_charge[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)
+        mce_pi_E_charge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (- pi_E_charge_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
+        pi_E_charge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + pi_E_charge[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8383,8 +8408,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_pi_E_charge_x_stor_R_p_star[y, s, z, d, t] <= X_R_stor_cumu_U(y, s, z) * pi_E_charge[y, p_star, s, z, d, t] -
-        pi_E_charge_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + pi_E_charge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]
+        mce_pi_E_charge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (X_R_stor_cumu_U(y, s, z) * pi_E_charge[y, p_star, s, z, d, t] -
+        pi_E_charge_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + pi_E_charge_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8395,8 +8420,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_pi_E_charge_x_stor_R_p_star[y, s, z, d, t] <= pi_E_charge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
-        pi_E_charge_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * pi_E_charge[y, p_star, s, z, d, t]
+        mce_pi_E_charge_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (pi_E_charge_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
+        pi_E_charge_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * pi_E_charge[y, p_star, s, z, d, t]) / constraint_scaling
     )
     
     @constraint(
@@ -8408,8 +8433,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_kappa_E_x_stor_R_p_star[y, s, z, d, t] >= X_R_stor_cumu_L(y, s, z) * kappa_E[y, p_star, s, z, d, t] + 
-        kappa_E_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - kappa_E_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)
+        mce_kappa_E_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (X_R_stor_cumu_L(y, s, z) * kappa_E[y, p_star, s, z, d, t] + 
+        kappa_E_L(y, s, z, d, t) * x_stor_R_mce[y, s, z] - kappa_E_L(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8420,8 +8445,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_kappa_E_x_stor_R_p_star[y, s, z, d, t] >= - kappa_E_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
-        kappa_E_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + kappa_E[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)
+        mce_kappa_E_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling >= (- kappa_E_U(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) +
+        kappa_E_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] + kappa_E[y, p_star, s, z, d, t] * X_R_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8432,8 +8457,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_kappa_E_x_stor_R_p_star[y, s, z, d, t] <= X_R_stor_cumu_U(y, s, z) * kappa_E[y, p_star, s, z, d, t] -
-        kappa_E_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + kappa_E_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]
+        mce_kappa_E_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (X_R_stor_cumu_U(y, s, z) * kappa_E[y, p_star, s, z, d, t] -
+        kappa_E_L(y, s, z, d, t) * X_R_stor_cumu_U(y, s, z) + kappa_E_L(y, s, z, d, t) * x_stor_R_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8444,8 +8469,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_kappa_E_x_stor_R_p_star[y, s, z, d, t] <= kappa_E_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
-        kappa_E_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * kappa_E[y, p_star, s, z, d, t]
+        mce_kappa_E_x_stor_R_p_star[y, s, z, d, t] / constraint_scaling <= (kappa_E_U(y, s, z, d, t) * x_stor_R_mce[y, s, z] -
+        kappa_E_U(y, s, z, d, t) * X_R_stor_cumu_L(y, s, z) + X_R_stor_cumu_L(y, s, z) * kappa_E[y, p_star, s, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8457,8 +8482,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_energy_x_stor_C_p_star[y, s, z, d, t] >= X_C_stor_cumu_L(y, s, z) * theta_C_energy[y, p_star, s, z, d, t] + 
-        theta_C_energy_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - theta_C_energy_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)
+        mce_theta_C_energy_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (X_C_stor_cumu_L(y, s, z) * theta_C_energy[y, p_star, s, z, d, t] + 
+        theta_C_energy_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - theta_C_energy_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8469,8 +8494,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_energy_x_stor_C_p_star[y, s, z, d, t] >= - theta_C_energy_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
-        theta_C_energy_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + theta_C_energy[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)
+        mce_theta_C_energy_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (- theta_C_energy_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
+        theta_C_energy_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + theta_C_energy[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8481,8 +8506,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_energy_x_stor_C_p_star[y, s, z, d, t] <= X_C_stor_cumu_U(y, s, z) * theta_C_energy[y, p_star, s, z, d, t] -
-        theta_C_energy_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + theta_C_energy_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]
+        mce_theta_C_energy_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (X_C_stor_cumu_U(y, s, z) * theta_C_energy[y, p_star, s, z, d, t] -
+        theta_C_energy_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + theta_C_energy_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8493,8 +8518,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_energy_x_stor_C_p_star[y, s, z, d, t] <= theta_C_energy_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
-        theta_C_energy_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * theta_C_energy[y, p_star, s, z, d, t]
+        mce_theta_C_energy_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (theta_C_energy_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
+        theta_C_energy_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * theta_C_energy[y, p_star, s, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8506,8 +8531,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_discharge_x_stor_C_p_star[y, s, z, d, t] >= X_C_stor_cumu_L(y, s, z) * theta_C_discharge[y, p_star, s, z, d, t] + 
-        theta_C_discharge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - theta_C_discharge_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)
+        mce_theta_C_discharge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (X_C_stor_cumu_L(y, s, z) * theta_C_discharge[y, p_star, s, z, d, t] + 
+        theta_C_discharge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - theta_C_discharge_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8518,8 +8543,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_discharge_x_stor_C_p_star[y, s, z, d, t] >= - theta_C_discharge_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
-        theta_C_discharge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + theta_C_discharge[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)
+        mce_theta_C_discharge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (- theta_C_discharge_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
+        theta_C_discharge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + theta_C_discharge[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8530,8 +8555,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_discharge_x_stor_C_p_star[y, s, z, d, t] <= X_C_stor_cumu_U(y, s, z) * theta_C_discharge[y, p_star, s, z, d, t] -
-        theta_C_discharge_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + theta_C_discharge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]
+        mce_theta_C_discharge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (X_C_stor_cumu_U(y, s, z) * theta_C_discharge[y, p_star, s, z, d, t] -
+        theta_C_discharge_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + theta_C_discharge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8542,8 +8567,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_discharge_x_stor_C_p_star[y, s, z, d, t] <= theta_C_discharge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
-        theta_C_discharge_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * theta_C_discharge[y, p_star, s, z, d, t]
+        mce_theta_C_discharge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (theta_C_discharge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
+        theta_C_discharge_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * theta_C_discharge[y, p_star, s, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8555,8 +8580,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_charge_x_stor_C_p_star[y, s, z, d, t] >= X_C_stor_cumu_L(y, s, z) * theta_C_charge[y, p_star, s, z, d, t] + 
-        theta_C_charge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - theta_C_charge_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)
+        mce_theta_C_charge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (X_C_stor_cumu_L(y, s, z) * theta_C_charge[y, p_star, s, z, d, t] + 
+        theta_C_charge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - theta_C_charge_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8567,8 +8592,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_charge_x_stor_C_p_star[y, s, z, d, t] >= - theta_C_charge_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
-        theta_C_charge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + theta_C_charge[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)
+        mce_theta_C_charge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (- theta_C_charge_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
+        theta_C_charge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + theta_C_charge[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8579,8 +8604,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_charge_x_stor_C_p_star[y, s, z, d, t] <= X_C_stor_cumu_U(y, s, z) * theta_C_charge[y, p_star, s, z, d, t] -
-        theta_C_charge_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + theta_C_charge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]
+        mce_theta_C_charge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (X_C_stor_cumu_U(y, s, z) * theta_C_charge[y, p_star, s, z, d, t] -
+        theta_C_charge_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + theta_C_charge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8591,8 +8616,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_theta_C_charge_x_stor_C_p_star[y, s, z, d, t] <= theta_C_charge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
-        theta_C_charge_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * theta_C_charge[y, p_star, s, z, d, t]
+        mce_theta_C_charge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (theta_C_charge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
+        theta_C_charge_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * theta_C_charge[y, p_star, s, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8604,8 +8629,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_pi_C_charge_x_stor_C_p_star[y, s, z, d, t] >= X_C_stor_cumu_L(y, s, z) * pi_C_charge[y, p_star, s, z, d, t] + 
-        pi_C_charge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - pi_C_charge_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)
+        mce_pi_C_charge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (X_C_stor_cumu_L(y, s, z) * pi_C_charge[y, p_star, s, z, d, t] + 
+        pi_C_charge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - pi_C_charge_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8616,8 +8641,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_pi_C_charge_x_stor_C_p_star[y, s, z, d, t] >= - pi_C_charge_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
-        pi_C_charge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + pi_C_charge[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)
+        mce_pi_C_charge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (- pi_C_charge_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
+        pi_C_charge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + pi_C_charge[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8628,8 +8653,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_pi_C_charge_x_stor_C_p_star[y, s, z, d, t] <= X_C_stor_cumu_U(y, s, z) * pi_C_charge[y, p_star, s, z, d, t] -
-        pi_C_charge_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + pi_C_charge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]
+        mce_pi_C_charge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (X_C_stor_cumu_U(y, s, z) * pi_C_charge[y, p_star, s, z, d, t] -
+        pi_C_charge_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + pi_C_charge_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8640,8 +8665,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_pi_C_charge_x_stor_C_p_star[y, s, z, d, t] <= pi_C_charge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
-        pi_C_charge_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * pi_C_charge[y, p_star, s, z, d, t]
+        mce_pi_C_charge_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (pi_C_charge_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
+        pi_C_charge_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * pi_C_charge[y, p_star, s, z, d, t]) / constraint_scaling
     )
 
     @constraint(
@@ -8653,8 +8678,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_kappa_C_x_stor_C_p_star[y, s, z, d, t] >= X_C_stor_cumu_L(y, s, z) * kappa_C[y, p_star, s, z, d, t] + 
-        kappa_C_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - kappa_C_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)
+        mce_kappa_C_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (X_C_stor_cumu_L(y, s, z) * kappa_C[y, p_star, s, z, d, t] + 
+        kappa_C_L(y, s, z, d, t) * x_stor_C_mce[y, s, z] - kappa_C_L(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8665,8 +8690,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_kappa_C_x_stor_C_p_star[y, s, z, d, t] >= - kappa_C_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
-        kappa_C_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + kappa_C[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)
+        mce_kappa_C_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling >= (- kappa_C_U(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) +
+        kappa_C_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] + kappa_C[y, p_star, s, z, d, t] * X_C_stor_cumu_U(y, s, z)) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8677,8 +8702,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_kappa_C_x_stor_C_p_star[y, s, z, d, t] <= X_C_stor_cumu_U(y, s, z) * kappa_C[y, p_star, s, z, d, t] -
-        kappa_C_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + kappa_C_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]
+        mce_kappa_C_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (X_C_stor_cumu_U(y, s, z) * kappa_C[y, p_star, s, z, d, t] -
+        kappa_C_L(y, s, z, d, t) * X_C_stor_cumu_U(y, s, z) + kappa_C_L(y, s, z, d, t) * x_stor_C_mce[y, s, z]) / constraint_scaling
     )
     @constraint(
         WMDER_IPP,
@@ -8689,8 +8714,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t
         ],
-        mce_kappa_C_x_stor_C_p_star[y, s, z, d, t] <= kappa_C_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
-        kappa_C_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * kappa_C[y, p_star, s, z, d, t]
+        mce_kappa_C_x_stor_C_p_star[y, s, z, d, t] / constraint_scaling <= (kappa_C_U(y, s, z, d, t) * x_stor_C_mce[y, s, z] -
+        kappa_C_U(y, s, z, d, t) * X_C_stor_cumu_L(y, s, z) + X_C_stor_cumu_L(y, s, z) * kappa_C[y, p_star, s, z, d, t]) / constraint_scaling
     )
 
 
@@ -8931,12 +8956,12 @@ function solve_agent_problem_ipp_cap(
     @constraint(
         WMDER_IPP,
         Eq_rps[y in model_data.index_y],
-        sum(
+        (sum(
             model_data.omega(d) * delta_t * (y_E[y, p, rps, z, d, t] + y_C[y, p, rps, z, d, t]) for
             p in ipp.index_p, rps in ipp.index_rps, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         ) -
         ipp.RPS(y) *
-        sum(model_data.omega(d) * delta_t * ipp.Net_Load_my(y, z, d, t) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t) >=
+        sum(model_data.omega(d) * delta_t * ipp.Net_Load_my(y, z, d, t) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t)) / constraint_scaling >=
         0
     )
 

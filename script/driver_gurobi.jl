@@ -17,7 +17,7 @@ const HEMDataRepo = HolisticElectricityModelData
 
 # File locations
 base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
-hem_data_dir = dirname(dirname(Base.find_package("HolisticElectricityModelData")))
+hem_data_dir = "/kfs2/projects/hem/Github/HolisticElectricityModelData.jl"
 test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
 # Create input data
@@ -43,7 +43,7 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERUseCase(),                     # DERUseCase(), NullUseCase()
     NullUseCase(),                    # SupplyChoiceUseCase(), NullUseCase()
 )
@@ -78,9 +78,13 @@ ipp_opts = IPPOptions(
         ),
         "solve_agent_problem_ipp_mppdc" => JuMP.optimizer_with_attributes(
             () -> Gurobi.Optimizer(GUROBI_ENV),
-            "Presolve" => 1,
+            "Aggregate" => 0,
+            # "Presolve" => 0,
             "BarHomogeneous" => 1,
-            # "NumericFocus" => 3,
+            # "FeasibilityTol" => 1e-3,
+            # "Method" => 1
+            "NumericFocus" => 3,
+            "ScaleFlag" => 2,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_mppdc_mccormic_lower" => JuMP.optimizer_with_attributes(

@@ -21,7 +21,7 @@ function run_hem(
     green_developer_options::Union{GreenDeveloperOptions, NullAgentOptions}=NullAgentOptions(),
     customers_options::Union{CustomersOptions, NullAgentOptions}=NullAgentOptions(),
     max_iterations=1,
-    window_length=3,
+    window_length=1,
     force=false,
     jump_model::Any
 )
