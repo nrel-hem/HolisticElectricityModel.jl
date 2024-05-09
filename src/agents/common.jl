@@ -352,39 +352,39 @@ function solve_equilibrium_problem!(
         save_results(agent, options, hem_opts, export_file_path)
     end
 
-    if hem_opts.market_structure isa VerticallyIntegratedUtility
-        x = store.data[Utility]["default"]
-        Welfare_supply =
-            welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
-        y = store.data[CustomerGroup]["default"]
-        Welfare_demand =
-            welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    elseif hem_opts.market_structure isa WholesaleMarket
-        x = store.data[IPPGroup]["default"]
-        Welfare_supply =
-            welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
-        y = store.data[CustomerGroup]["default"]
-        Welfare_demand =
-            welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    end
+    # if hem_opts.market_structure isa VerticallyIntegratedUtility
+    #     x = store.data[Utility]["default"]
+    #     Welfare_supply =
+    #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
+    #     y = store.data[CustomerGroup]["default"]
+    #     Welfare_demand =
+    #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
+    # elseif hem_opts.market_structure isa WholesaleMarket
+    #     x = store.data[IPPGroup]["default"]
+    #     Welfare_supply =
+    #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
+    #     y = store.data[CustomerGroup]["default"]
+    #     Welfare_demand =
+    #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
+    # end
 
-    if hem_opts.supply_choice_use_case isa NullUseCase
-        Welfare_green_developer = [
-            initialize_keyed_array(model_data.index_y_fix),
-            initialize_keyed_array(model_data.index_y_fix),
-            initialize_keyed_array(model_data.index_y_fix),
-            initialize_keyed_array(model_data.index_y_fix),
-            initialize_keyed_array(model_data.index_y_fix),
-            initialize_keyed_array(model_data.index_y_fix),
-            initialize_keyed_array(model_data.index_y_fix),
-        ]
-    else
-        z = store.data[GreenDeveloper]["default"]
-        Welfare_green_developer =
-            welfare_calculation!(z.agent, z.options, model_data, hem_opts, store)
-    end
+    # if hem_opts.supply_choice_use_case isa NullUseCase
+    #     Welfare_green_developer = [
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #     ]
+    # else
+    #     z = store.data[GreenDeveloper]["default"]
+    #     Welfare_green_developer =
+    #         welfare_calculation!(z.agent, z.options, model_data, hem_opts, store)
+    # end
 
-    save_welfare!(Welfare_supply, Welfare_demand, Welfare_green_developer, export_file_path)
+    # save_welfare!(Welfare_supply, Welfare_demand, Welfare_green_developer, export_file_path)
 
     @info "\n$(HEM_TIMER)\n"
 end
