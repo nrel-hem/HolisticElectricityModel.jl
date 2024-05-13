@@ -35,7 +35,7 @@ Constructs a PVAdoptionModel by computing Rate from the other parameters.
 function PVAdoptionModel(Shape, MeanPayback, Bass_p, Bass_q)
     @assert_op length(Shape) == length(MeanPayback)
     vals = deepcopy(Shape.values)
-    for i in 1:length(vals)
+    for i = 1:length(vals)
         vals[i] = Shape[i] / MeanPayback[i]
     end
 
@@ -170,8 +170,13 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         [model_data.index_z],
         description = "number of customers of type h at zone z",
     )
-    demand =
-        read_param("d", input_filename, "Demand", model_data.index_t, [model_data.index_h, model_data.index_z, model_data.index_d])
+    demand = read_param(
+        "d",
+        input_filename,
+        "Demand",
+        model_data.index_t,
+        [model_data.index_h, model_data.index_z, model_data.index_d],
+    )
     demand_my = read_param(
         "d_my",
         input_filename,
@@ -197,8 +202,13 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         index_m,
         [model_data.index_y, model_data.index_h, model_data.index_z],
     )
-    Opti_DG =
-        read_param("Opti_DG", input_filename, "OptimalDER", index_m, [model_data.index_z, model_data.index_h])
+    Opti_DG = read_param(
+        "Opti_DG",
+        input_filename,
+        "OptimalDER",
+        index_m,
+        [model_data.index_z, model_data.index_h],
+    )
     Opti_DG_my = read_param(
         "Opti_DG_my",
         input_filename,
@@ -226,17 +236,40 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     MaxLoad = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
         MaxLoad(z, h, :) .=
-            gamma(z, h) * findmax(Dict((z, d, t) => demand(h, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
+            gamma(z, h) * findmax(
+                Dict(
+                    (z, d, t) => demand(h, z, d, t) for d in model_data.index_d,
+                    t in model_data.index_t
+                ),
+            )[1]
     end
-    MaxLoad_my = make_keyed_array(model_data.index_y, model_data.index_z, model_data.index_h)
+    MaxLoad_my =
+        make_keyed_array(model_data.index_y, model_data.index_z, model_data.index_h)
     for y in model_data.index_y, z in model_data.index_z, h in model_data.index_h
         MaxLoad_my(y, z, h, :) .=
-            gamma(z, h) * findmax(Dict((d, t) => demand_my(y, h, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
+            gamma(z, h) * findmax(
+                Dict(
+                    (d, t) => demand_my(y, h, z, d, t) for d in model_data.index_d,
+                    t in model_data.index_t
+                ),
+            )[1]
     end
 
     pv_adoption_model = PVAdoptionModel(
-        initialize_param("Shape", model_data.index_z, model_data.index_h, index_m, value = 1.7), # Shape
-        initialize_param("MeanPayback", model_data.index_z, model_data.index_h, index_m, value = 8.8), # MeanPayback
+        initialize_param(
+            "Shape",
+            model_data.index_z,
+            model_data.index_h,
+            index_m,
+            value = 1.7,
+        ), # Shape
+        initialize_param(
+            "MeanPayback",
+            model_data.index_z,
+            model_data.index_h,
+            index_m,
+            value = 8.8,
+        ), # MeanPayback
         read_param(
             "Bass_p",
             input_filename,
@@ -257,7 +290,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ParamArray(
             "Constant",
             (model_data.index_h,),
-            [0.0, 0.0, 0.0]; 
+            [0.0, 0.0, 0.0];
             description = "Constant in green power uptake function (regression parameter)",
         ),
         ParamArray(
@@ -269,48 +302,70 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ParamArray(
             "EnergyRate_coefficient",
             (model_data.index_h,),
-            [0.0, 0.0, 0.0]; 
+            [0.0, 0.0, 0.0];
             description = "Weighted mean C&I volumetric (\$/MWh) rate (regression parameter)",
         ),
         ParamArray(
             "WholesaleMarket_coefficient",
             (model_data.index_h,),
-            [0.0, 0.14, 0.14]; 
+            [0.0, 0.14, 0.14];
             description = "% of load served by an ISO (regression parameter)",
         ),
         ParamArray(
             "RetailCompetition_coefficient",
             (model_data.index_h,),
-            [0.0, 0.16, 0.16]; 
+            [0.0, 0.16, 0.16];
             description = "% of C&I customers that are eligible for retail choice (regression parameter)",
         ),
         ParamArray(
             "RPS_coefficient",
             (model_data.index_h,),
-            [0.0, 0.42, 0.42]; 
+            [0.0, 0.42, 0.42];
             description = "RPS percentage requirement in 2019 (regression parameter)",
         ),
         ParamArray(
             "WTP_coefficient",
             (model_data.index_h,),
-            [0.0, 0.0, 0.0]; 
+            [0.0, 0.0, 0.0];
             description = "% of customers willing to pay for renewable energy at the state level (regression parameter)",
         ),
     )
 
     # Customer financing
-    debt_ratio =
-        read_param("debt_ratio", input_filename, "CustomerDebtRatio", model_data.index_h, [model_data.index_z])
-    cost_of_debt =
-        read_param("cost_of_debt", input_filename, "CustomerCOD", model_data.index_h, [model_data.index_z])
-    cost_of_equity =
-        read_param("cost_of_equity", input_filename, "CustomerCOE", model_data.index_h, [model_data.index_z])
-    tax_rate = read_param("tax_rate", input_filename, "CustomerTax", model_data.index_h, [model_data.index_z])
+    debt_ratio = read_param(
+        "debt_ratio",
+        input_filename,
+        "CustomerDebtRatio",
+        model_data.index_h,
+        [model_data.index_z],
+    )
+    cost_of_debt = read_param(
+        "cost_of_debt",
+        input_filename,
+        "CustomerCOD",
+        model_data.index_h,
+        [model_data.index_z],
+    )
+    cost_of_equity = read_param(
+        "cost_of_equity",
+        input_filename,
+        "CustomerCOE",
+        model_data.index_h,
+        [model_data.index_z],
+    )
+    tax_rate = read_param(
+        "tax_rate",
+        input_filename,
+        "CustomerTax",
+        model_data.index_h,
+        [model_data.index_z],
+    )
 
     atwacc = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
-        atwacc(z, h, :) .= debt_ratio(z, h) * cost_of_debt(z, h) * (1 - tax_rate(z, h)) +
-        (1 - debt_ratio(z, h)) * cost_of_equity(z, h)
+        atwacc(z, h, :) .=
+            debt_ratio(z, h) * cost_of_debt(z, h) * (1 - tax_rate(z, h)) +
+            (1 - debt_ratio(z, h)) * cost_of_equity(z, h)
     end
 
     CRF = make_keyed_array(model_data.index_z, model_data.index_h)
@@ -361,7 +416,13 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         Opti_DG,
         Opti_DG_my,
         # DERGen,
-        read_param("CapEx_DG", input_filename, "CapExDER", index_m, [model_data.index_z, model_data.index_h]),
+        read_param(
+            "CapEx_DG",
+            input_filename,
+            "CapExDER",
+            index_m,
+            [model_data.index_z, model_data.index_h],
+        ),
         read_param(
             "CapEx_DG_my",
             input_filename,
@@ -369,7 +430,13 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             index_m,
             [model_data.index_y, model_data.index_z, model_data.index_h],
         ),
-        read_param("FOM_DG", input_filename, "FOMDER", index_m, [model_data.index_z, model_data.index_h]),
+        read_param(
+            "FOM_DG",
+            input_filename,
+            "FOMDER",
+            index_m,
+            [model_data.index_z, model_data.index_h],
+        ),
         read_param(
             "FOM_DG_my",
             input_filename,
@@ -379,28 +446,69 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ),
         rho_DG,
         ParamScalar("delta", 0.05),
-        ParamArray("PeakLoad", Tuple(push!(copy([model_data.index_z]), model_data.index_h)), MaxLoad),
+        ParamArray(
+            "PeakLoad",
+            Tuple(push!(copy([model_data.index_z]), model_data.index_h)),
+            MaxLoad,
+        ),
         ParamArray(
             "PeakLoad_my",
-            Tuple(push!(copy([model_data.index_y, model_data.index_z]), model_data.index_h)),
+            Tuple(
+                push!(copy([model_data.index_y, model_data.index_z]), model_data.index_h),
+            ),
             MaxLoad_my,
         ),
-        initialize_param("x_DG_new", model_data.index_h, model_data.index_z, index_m, value = 0.0),
-        initialize_param("x_DG_new_my", model_data.index_y, model_data.index_h, model_data.index_z, index_m, value = 0.0),
-        initialize_param("x_green_sub", model_data.index_h, model_data.index_z, value = 10.0),
-        initialize_param("x_green_sub_my", model_data.index_y, model_data.index_h, model_data.index_z, value = 100.0),
-        initialize_param("x_green_sub_incremental_my", model_data.index_y, model_data.index_h, model_data.index_z, value = 0.0),
+        initialize_param(
+            "x_DG_new",
+            model_data.index_h,
+            model_data.index_z,
+            index_m,
+            value = 0.0,
+        ),
+        initialize_param(
+            "x_DG_new_my",
+            model_data.index_y,
+            model_data.index_h,
+            model_data.index_z,
+            index_m,
+            value = 0.0,
+        ),
+        initialize_param(
+            "x_green_sub",
+            model_data.index_h,
+            model_data.index_z,
+            value = 10.0,
+        ),
+        initialize_param(
+            "x_green_sub_my",
+            model_data.index_y,
+            model_data.index_h,
+            model_data.index_z,
+            value = 100.0,
+        ),
+        initialize_param(
+            "x_green_sub_incremental_my",
+            model_data.index_y,
+            model_data.index_h,
+            model_data.index_z,
+            value = 0.0,
+        ),
         initialize_param("Payback", model_data.index_z, model_data.index_h, index_m),
         initialize_param("MarketShare", model_data.index_z, model_data.index_h, index_m),
         initialize_param("MaxDG", model_data.index_z, model_data.index_h, index_m),
         initialize_param("F", model_data.index_z, model_data.index_h, index_m),
         initialize_param("year", model_data.index_z, model_data.index_h, index_m),
         initialize_param("A", model_data.index_z, model_data.index_h, index_m),
-        initialize_param("ConPVNetSurplus", model_data.index_z, model_data.index_h, index_m),
+        initialize_param(
+            "ConPVNetSurplus",
+            model_data.index_z,
+            model_data.index_h,
+            index_m,
+        ),
         initialize_param(
             "ConPVNetSurplus_my",
             model_data.index_y,
-            model_data.index_z, 
+            model_data.index_z,
             model_data.index_h,
             index_m,
         ),
@@ -420,8 +528,19 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         green_sub_model,
         pvf,
         # read_param("rooftop", input_filename, "RooftopDER", index_m, [model_data.index_z, model_data.index_h]),
-        initialize_param("MaxDG_my", model_data.index_y, model_data.index_z, model_data.index_h, index_m),
-        read_param("RetailCompetition", input_filename, "RetailCompetition", model_data.index_y),
+        initialize_param(
+            "MaxDG_my",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            index_m,
+        ),
+        read_param(
+            "RetailCompetition",
+            input_filename,
+            "RetailCompetition",
+            model_data.index_y,
+        ),
         read_param("WTP_green_power", input_filename, "WTP", model_data.index_y),
         initialize_param(
             "ConGreenPowerNetSurplus_pre_proportion_my",
@@ -447,12 +566,54 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("F_pv", model_data.index_z, model_data.index_h),
         initialize_param("year_pv", model_data.index_z, model_data.index_h),
         initialize_param("A_pv", model_data.index_z, model_data.index_h),
-        initialize_param("net_load", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
-        initialize_param("net_load_plus", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
-        initialize_param("net_load_minus", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
-        initialize_param("stor_charge", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
-        initialize_param("stor_discharge", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
-        initialize_param("stor_energy", model_data.index_y, model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t),
+        initialize_param(
+            "net_load",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "net_load_plus",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "net_load_minus",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "stor_charge",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "stor_discharge",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            model_data.index_d,
+            model_data.index_t,
+        ),
+        initialize_param(
+            "stor_energy",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            model_data.index_d,
+            model_data.index_t,
+        ),
     )
 end
 
@@ -604,10 +765,10 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
+    hem_opts::HEMOptions{<:MarketStructure,DERUseCase,NullUseCase},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
 )
     regulator = get_agent(Regulator, agent_store)
     utility = get_agent(Utility, agent_store)
@@ -615,7 +776,9 @@ function solve_agent_problem!(
     # the year consumer is making DER investment decision
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t =
+        parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) -
+        parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
@@ -634,7 +797,11 @@ function solve_agent_problem!(
     for z in model_data.index_z, h in model_data.index_h
         customers.PeakLoad(z, h, :) .= customers.PeakLoad_my(reg_year_index, z, h)
     end
-    for h in model_data.index_h, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+    for h in model_data.index_h,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
         customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
         # customers.DERGen(h, t, :) .= customers.DERGen_my(reg_year_index, h, t)
     end
@@ -646,7 +813,7 @@ function solve_agent_problem!(
             customers.x_DG_E(h, z, m, :) .=
                 customers.x_DG_E_my(reg_year_index, h, z, m) + sum(
                     customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
-                    y in model_data.year(first(model_data.index_y_fix)):(reg_year - 1)
+                    y = model_data.year(first(model_data.index_y_fix)):(reg_year-1)
                 )
         else
             customers.x_DG_E(h, z, m, :) .= customers.x_DG_E_my(reg_year_index, h, z, m)
@@ -658,12 +825,13 @@ function solve_agent_problem!(
 
     Payment_before_PVStor = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
-        Payment_before_PVStor(z, h, :) .=
-            sum(
-                model_data.omega(d) * delta_t *
-                regulator.p(z, h, d, t) *
-                customers.d(h, z, d, t) * (1 - utility.loss_dist) for d in model_data.index_d, t in model_data.index_t
-            )
+        Payment_before_PVStor(z, h, :) .= sum(
+            model_data.omega(d) *
+            delta_t *
+            regulator.p(z, h, d, t) *
+            customers.d(h, z, d, t) *
+            (1 - utility.loss_dist) for d in model_data.index_d, t in model_data.index_t
+        )
     end
 
     Payment_after_PVStor = make_keyed_array(model_data.index_z, model_data.index_h)
@@ -672,48 +840,65 @@ function solve_agent_problem!(
         Customer_PV_Storage_Opti = get_new_jump_model(customers_opts.solvers)
 
         # units in MWh
-        @variable(Customer_PV_Storage_Opti, net_load[model_data.index_d, model_data.index_t])
-        @variable(Customer_PV_Storage_Opti, net_load_plus[model_data.index_d, model_data.index_t] >= 0)
-        @variable(Customer_PV_Storage_Opti, net_load_minus[model_data.index_d, model_data.index_t] <= 0)
-        @variable(Customer_PV_Storage_Opti, stor_charge[model_data.index_d, model_data.index_t] >= 0)
-        @variable(Customer_PV_Storage_Opti, stor_discharge[model_data.index_d, model_data.index_t] >= 0)
-        @variable(Customer_PV_Storage_Opti, stor_energy[model_data.index_d, model_data.index_t] >= 0)
+        @variable(
+            Customer_PV_Storage_Opti,
+            net_load[model_data.index_d, model_data.index_t]
+        )
+        @variable(
+            Customer_PV_Storage_Opti,
+            net_load_plus[model_data.index_d, model_data.index_t] >= 0
+        )
+        @variable(
+            Customer_PV_Storage_Opti,
+            net_load_minus[model_data.index_d, model_data.index_t] <= 0
+        )
+        @variable(
+            Customer_PV_Storage_Opti,
+            stor_charge[model_data.index_d, model_data.index_t] >= 0
+        )
+        @variable(
+            Customer_PV_Storage_Opti,
+            stor_discharge[model_data.index_d, model_data.index_t] >= 0
+        )
+        @variable(
+            Customer_PV_Storage_Opti,
+            stor_energy[model_data.index_d, model_data.index_t] >= 0
+        )
 
         objective_function_dist = begin
             sum(
-                model_data.omega(d) * delta_t *
+                model_data.omega(d) *
+                delta_t *
                 regulator.p(z, h, d, t) *
-                net_load_plus[d, t] + 
-                model_data.omega(d) * delta_t *
+                net_load_plus[d, t] +
+                model_data.omega(d) *
+                delta_t *
                 regulator.p_ex(z, h, d, t) *
-                net_load_minus[d, t] for d in model_data.index_d, t in model_data.index_t
+                net_load_minus[d, t] for d in model_data.index_d,
+                t in model_data.index_t
             )
         end
         @objective(Customer_PV_Storage_Opti, Min, objective_function_dist)
 
         # for net load balance constraints, need to convert things to kWh, otherwise customers.d(h, z, d, t) * (1 - utility.loss_dist) and 
-        net_load_balance = 
+        net_load_balance =
             (d, t) -> begin
-                (net_load[d, t] - customers.d(h, z, d, t) * (1 - utility.loss_dist) 
-                            + customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG(z, h, :BTMPV) 
-                            - stor_charge[d, t] + stor_discharge[d, t])
+                (
+                    net_load[d, t] - customers.d(h, z, d, t) * (1 - utility.loss_dist) +
+                    customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG(z, h, :BTMPV) - stor_charge[d, t] +
+                    stor_discharge[d, t]
+                )
             end
 
         @constraint(
             Customer_PV_Storage_Opti,
-            Eq_net_load_balance[
-                d in model_data.index_d,
-                t in model_data.index_t,
-            ],
+            Eq_net_load_balance[d in model_data.index_d, t in model_data.index_t],
             net_load_balance(d, t) == 0.0
         )
 
         @constraint(
             Customer_PV_Storage_Opti,
-            Eq_net_load_plus[
-                d in model_data.index_d,
-                t in model_data.index_t,
-            ],
+            Eq_net_load_plus[d in model_data.index_d, t in model_data.index_t],
             net_load_plus[d, t] >= net_load[d, t]
         )
 
@@ -732,8 +917,15 @@ function solve_agent_problem!(
                 d in model_data.index_d,
                 t in model_data.index_t.elements[2:end],
             ],
-            stor_energy[d, t] == stor_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t +
-                stor_charge[d, t] * delta_t
+            stor_energy[d, t] ==
+            stor_energy[
+                d,
+                model_data.index_t.elements[findall(
+                    x -> x == (model_data.time(t) - delta_t),
+                    model_data.time.values,
+                )][1],
+            ] - stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t +
+            stor_charge[d, t] * delta_t
         )
 
         @constraint(
@@ -742,33 +934,29 @@ function solve_agent_problem!(
                 d in model_data.index_d,
                 t in [model_data.index_t.elements[1]],
             ],
-            stor_energy[d, t] == customers.initial_energy_dist_stor(z, h, d) - stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t + stor_charge[d, t] * delta_t
+            stor_energy[d, t] ==
+            customers.initial_energy_dist_stor(z, h, d) -
+            stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t +
+            stor_charge[d, t] * delta_t
         )
 
         @constraint(
             Customer_PV_Storage_Opti,
-            Eq_stor_energy_upper_bound[
-                d in model_data.index_d,
-                t in model_data.index_t,
-            ],
-            stor_energy[d, t] <= customers.duration_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage) 
+            Eq_stor_energy_upper_bound[d in model_data.index_d, t in model_data.index_t],
+            stor_energy[d, t] <=
+            customers.duration_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage)
         )
 
         @constraint(
             Customer_PV_Storage_Opti,
-            Eq_stor_discharge_upper_bound[
-                d in model_data.index_d,
-                t in model_data.index_t,
-            ],
-            stor_discharge[d, t] <= customers.rte_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage)
+            Eq_stor_discharge_upper_bound[d in model_data.index_d, t in model_data.index_t],
+            stor_discharge[d, t] <=
+            customers.rte_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage)
         )
 
         @constraint(
             Customer_PV_Storage_Opti,
-            Eq_stor_charge_upper_bound[
-                d in model_data.index_d,
-                t in model_data.index_t,
-            ],
+            Eq_stor_charge_upper_bound[d in model_data.index_d, t in model_data.index_t],
             stor_charge[d, t] <= customers.Opti_DG(z, h, :BTMStorage)
         )
 
@@ -778,8 +966,13 @@ function solve_agent_problem!(
                 d in model_data.index_d,
                 t in model_data.index_t.elements[2:end],
             ],
-            stor_discharge[d, t] * delta_t <= 
-            stor_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+            stor_discharge[d, t] * delta_t <= stor_energy[
+                d,
+                model_data.index_t.elements[findall(
+                    x -> x == (model_data.time(t) - delta_t),
+                    model_data.time.values,
+                )][1],
+            ]
         )
 
         @constraint(
@@ -797,8 +990,15 @@ function solve_agent_problem!(
                 d in model_data.index_d,
                 t in model_data.index_t.elements[2:end],
             ],
-            stor_charge[d, t] * delta_t <= customers.duration_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage) -
-            stor_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+            stor_charge[d, t] * delta_t <=
+            customers.duration_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage) -
+            stor_energy[
+                d,
+                model_data.index_t.elements[findall(
+                    x -> x == (model_data.time(t) - delta_t),
+                    model_data.time.values,
+                )][1],
+            ]
         )
 
         @constraint(
@@ -807,7 +1007,8 @@ function solve_agent_problem!(
                 d in model_data.index_d,
                 t in [model_data.index_t.elements[1]],
             ],
-            stor_charge[d, t] * delta_t <= customers.duration_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage) -
+            stor_charge[d, t] * delta_t <=
+            customers.duration_dist_stor(z, h) * customers.Opti_DG(z, h, :BTMStorage) -
             customers.initial_energy_dist_stor(z, h, d)
         )
 
@@ -829,26 +1030,38 @@ function solve_agent_problem!(
 
         for d in model_data.index_d, t in model_data.index_t
             customers.net_load(reg_year_index, z, h, d, t, :) .= value.(net_load[d, t])
-            customers.net_load_plus(reg_year_index, z, h, d, t, :) .= value.(net_load_plus[d, t])
-            customers.net_load_minus(reg_year_index, z, h, d, t, :) .= value.(net_load_minus[d, t])
-            customers.stor_charge(reg_year_index, z, h, d, t, :) .= value.(stor_charge[d, t])
-            customers.stor_discharge(reg_year_index, z, h, d, t, :) .= value.(stor_discharge[d, t])
-            customers.stor_energy(reg_year_index, z, h, d, t, :) .= value.(stor_energy[d, t])
+            customers.net_load_plus(reg_year_index, z, h, d, t, :) .=
+                value.(net_load_plus[d, t])
+            customers.net_load_minus(reg_year_index, z, h, d, t, :) .=
+                value.(net_load_minus[d, t])
+            customers.stor_charge(reg_year_index, z, h, d, t, :) .=
+                value.(stor_charge[d, t])
+            customers.stor_discharge(reg_year_index, z, h, d, t, :) .=
+                value.(stor_discharge[d, t])
+            customers.stor_energy(reg_year_index, z, h, d, t, :) .=
+                value.(stor_energy[d, t])
         end
 
     end
 
     NetProfit = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
-        NetProfit(z, h, :) .= Payment_before_PVStor(z, h) - Payment_after_PVStor(z, h) -
+        NetProfit(z, h, :) .=
+            Payment_before_PVStor(z, h) - Payment_after_PVStor(z, h) -
             # cost of distributed generation 
-            sum(customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m)
+            sum(
+                customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m) for
+                m in customers.index_m
+            )
     end
 
     for z in model_data.index_z, h in model_data.index_h
         if NetProfit(z, h) > 0.0
             customers.Payback_pv_stor(z, h, :) .=
-                sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit(z, h)
+                sum(
+                    customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for
+                    m in customers.index_m
+                ) / NetProfit(z, h)
             # Calculate maximum market share and maximum DG potential (based on WTP curve)
             customers.MarketShare_pv_stor(z, h, :) .=
                 1.0 - Distributions.cdf(
@@ -859,35 +1072,49 @@ function solve_agent_problem!(
                     customers.Payback_pv_stor(z, h),
                 )
             customers.MaxDG_pv(z, h, :) .=
-                customers.MarketShare_pv_stor(z, h) * customers.gamma(z, h) * customers.Opti_DG(z, h, :BTMPV)
+                customers.MarketShare_pv_stor(z, h) *
+                customers.gamma(z, h) *
+                customers.Opti_DG(z, h, :BTMPV)
             # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
-            customers.F_pv(z, h, :) .= min(customers.x_DG_E(h, z, :BTMPV) / customers.MaxDG_pv(z, h), 1.0)
+            customers.F_pv(z, h, :) .=
+                min(customers.x_DG_E(h, z, :BTMPV) / customers.MaxDG_pv(z, h), 1.0)
             # Back out the reference year of DER based on the percentage of existing DER
             customers.year_pv(z, h, :) .=
                 -log(
-                    (1 - customers.F_pv(z, h)) /
-                    (customers.F_pv(z, h) * adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV) + 1),
+                    (1 - customers.F_pv(z, h)) / (
+                        customers.F_pv(z, h) * adopt_model.Bass_q(z, h, :BTMPV) /
+                        adopt_model.Bass_p(z, h, :BTMPV) + 1
+                    ),
                 ) / (adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV))
             # Calculate incremental DG build
             customers.A_pv(z, h, :) .=
                 (
                     1.0 - exp(
-                        -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
-                        (customers.year_pv(z, h) + 1),
+                        -(
+                            adopt_model.Bass_p(z, h, :BTMPV) +
+                            adopt_model.Bass_q(z, h, :BTMPV)
+                        ) * (customers.year_pv(z, h) + 1),
                     )
                 ) / (
                     1.0 +
-                    (adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV)) * exp(
-                        -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
-                        (customers.year_pv(z, h) + 1),
+                    (adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV)) *
+                    exp(
+                        -(
+                            adopt_model.Bass_p(z, h, :BTMPV) +
+                            adopt_model.Bass_q(z, h, :BTMPV)
+                        ) * (customers.year_pv(z, h) + 1),
                     )
                 )
             # calculate dpv adoption, then get storage adoption by 
             # multiplying the ratio of distributed storage to dpv to dpv adoption
-            customers.x_DG_new(h, z, :BTMPV, :) .=
-                max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
+            customers.x_DG_new(h, z, :BTMPV, :) .= max(
+                0.0,
+                customers.A_pv(z, h) * customers.MaxDG_pv(z, h) -
+                customers.x_DG_E(h, z, :BTMPV),
+            )
             customers.x_DG_new(h, z, :BTMStorage, :) .=
-                customers.x_DG_new(h, z, :BTMPV) * customers.Opti_DG(z, h, :BTMStorage) / customers.Opti_DG(z, h, :BTMPV)
+                customers.x_DG_new(h, z, :BTMPV) * customers.Opti_DG(z, h, :BTMStorage) /
+                customers.Opti_DG(z, h, :BTMPV)
         else
             customers.x_DG_new(h, z, :BTMPV, :) .= 0.0
             customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
@@ -899,8 +1126,16 @@ function solve_agent_problem!(
         # customers.MaxDG_my(reg_year_index, z, h, m, :) .= customers.MaxDG(z, h, m)
     end
 
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-        customers.rho_DG(h, :BTMStorage, z, d, t, :) .= (customers.stor_discharge(reg_year_index, z, h, d, t) - customers.stor_charge(reg_year_index, z, h, d, t)) / customers.Opti_DG(z, h, :BTMStorage)
+    for z in model_data.index_z,
+        h in model_data.index_h,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        customers.rho_DG(h, :BTMStorage, z, d, t, :) .=
+            (
+                customers.stor_discharge(reg_year_index, z, h, d, t) -
+                customers.stor_charge(reg_year_index, z, h, d, t)
+            ) / customers.Opti_DG(z, h, :BTMStorage)
     end
 
     # x_DG_aggregate_after = initialize_param("x_DG_aggregate_after", model_data.index_h, customers.index_m)
@@ -911,7 +1146,10 @@ function solve_agent_problem!(
     # @info "Original new DG" x_DG_before
     # @info "New new DG" customers.x_DG_new
 
-    return compute_difference_percentage_maximum_one_norm([(x_DG_before, customers.x_DG_new)])
+    return compute_difference_percentage_maximum_one_norm([(
+        x_DG_before,
+        customers.x_DG_new,
+    )])
 end
 
 
@@ -919,7 +1157,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure,NullUseCase,SupplyChoiceUseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -944,7 +1182,7 @@ function solve_agent_problem!(
         customers.d(h, t, :) .= customers.d_my(reg_year_index, h, t)
     end
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility,NullUseCase,SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -952,15 +1190,19 @@ function solve_agent_problem!(
 
     # calculate green tariff subscription (% MWh)
     GreenSubPerc = KeyedArray(
-        [ 
+        [
             exp(
-            green_sub_model.Constant(h) + 
-            green_sub_model.GreenPowerPrice_coefficient(h) * log(green_developer.ppa_my(reg_year_index, h)) + 
-            green_sub_model.EnergyRate_coefficient(h) * log(regulator.p_my_regression(reg_year_index, h)) + 
-            green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) + 
-            green_sub_model.RetailCompetition_coefficient(h) * log(customers.RetailCompetition(reg_year_index)) + 
-            green_sub_model.RPS_coefficient(h) * log(utility.RPS(reg_year_index)) + 
-            green_sub_model.WTP_coefficient(h) * log(customers.WTP_green_power(reg_year_index))
+                green_sub_model.Constant(h) +
+                green_sub_model.GreenPowerPrice_coefficient(h) *
+                log(green_developer.ppa_my(reg_year_index, h)) +
+                green_sub_model.EnergyRate_coefficient(h) *
+                log(regulator.p_my_regression(reg_year_index, h)) +
+                green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) +
+                green_sub_model.RetailCompetition_coefficient(h) *
+                log(customers.RetailCompetition(reg_year_index)) +
+                green_sub_model.RPS_coefficient(h) * log(utility.RPS(reg_year_index)) +
+                green_sub_model.WTP_coefficient(h) *
+                log(customers.WTP_green_power(reg_year_index)),
             ) for h in model_data.index_h
         ];
         [get_pair(model_data.index_h)]...,
@@ -971,21 +1213,28 @@ function solve_agent_problem!(
     # is GreenSubPerc a percentage of net load? total load? shall we account for distribution loss or not?
     GreenSubMWh = KeyedArray(
         [
-            sum(GreenSubPerc(h) * 
-            (
-                customers.d(h, t) * (1 - utility.loss_dist) * model_data.omega(t) * customers.gamma(h) -
-                sum(
-                    customers.rho_DG(h, m, t) * customers.x_DG_E_my(reg_year_index, h, m) * model_data.omega(t) for
-                    m in customers.index_m
-                ) -
-                sum(
-                    customers.rho_DG(h, m, t) * model_data.omega(t) * sum(
-                        customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(reg_year_index)
-                    ) for m in customers.index_m
-                )
-            ) for t in model_data.index_t)
-            for h in model_data.index_h
+            sum(
+                GreenSubPerc(h) * (
+                    customers.d(h, t) *
+                    (1 - utility.loss_dist) *
+                    model_data.omega(t) *
+                    customers.gamma(h) - sum(
+                        customers.rho_DG(h, m, t) *
+                        customers.x_DG_E_my(reg_year_index, h, m) *
+                        model_data.omega(t) for m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) *
+                        model_data.omega(t) *
+                        sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol =
+                                model_data.year(first(model_data.index_y_fix)):model_data.year(
+                                    reg_year_index,
+                                )
+                        ) for m in customers.index_m
+                    )
+                ) for t in model_data.index_t
+            ) for h in model_data.index_h
         ];
         [get_pair(model_data.index_h)]...,
     )
@@ -995,8 +1244,11 @@ function solve_agent_problem!(
 
     for h in model_data.index_h
         if reg_year > model_data.year(first(model_data.index_y_fix))
-            customers.x_green_sub_my(reg_year_index, h, :) .= max(GreenSubMWh(h), customers.x_green_sub_my(Symbol(Int(reg_year-1)), h))
-            customers.x_green_sub_incremental_my(reg_year_index, h, :) .= customers.x_green_sub_my(reg_year_index, h) - customers.x_green_sub_my(Symbol(Int(reg_year-1)), h)
+            customers.x_green_sub_my(reg_year_index, h, :) .=
+                max(GreenSubMWh(h), customers.x_green_sub_my(Symbol(Int(reg_year - 1)), h))
+            customers.x_green_sub_incremental_my(reg_year_index, h, :) .=
+                customers.x_green_sub_my(reg_year_index, h) -
+                customers.x_green_sub_my(Symbol(Int(reg_year - 1)), h)
         else
             customers.x_green_sub_my(reg_year_index, h, :) .= GreenSubMWh(h)
             customers.x_green_sub_incremental_my(reg_year_index, h, :) .= GreenSubMWh(h)
@@ -1011,7 +1263,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure,DERUseCase,SupplyChoiceUseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -1047,7 +1299,7 @@ function solve_agent_problem!(
             customers.x_DG_E(h, m, :) .=
                 customers.x_DG_E_my(reg_year_index, h, m) + sum(
                     customers.x_DG_new_my(Symbol(Int(y)), h, m) for
-                    y in model_data.year(first(model_data.index_y_fix)):(reg_year - 1)
+                    y = model_data.year(first(model_data.index_y_fix)):(reg_year-1)
                 )
         else
             customers.x_DG_E(h, m, :) .= customers.x_DG_E_my(reg_year_index, h, m)
@@ -1058,8 +1310,8 @@ function solve_agent_problem!(
     # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
     NetProfit = make_keyed_array(model_data.index_h, customers.index_m)
     for h in model_data.index_h, m in customers.index_m
-        NetProfit(h, m, :) .= 
-            # value of distributed generation (offset load)
+        NetProfit(h, m, :) .=
+        # value of distributed generation (offset load)
             sum(
                 model_data.omega(t) *
                 regulator.p(h, t) *
@@ -1079,7 +1331,7 @@ function solve_agent_problem!(
                 ) for t in model_data.index_t
             ) -
             # cost of distributed generation 
-            customers.FOM_DG(h, m) * customers.Opti_DG(h, m) 
+            customers.FOM_DG(h, m) * customers.Opti_DG(h, m)
     end
 
     for h in model_data.index_h, m in customers.index_m
@@ -1142,7 +1394,7 @@ function solve_agent_problem!(
 
     green_sub_model = customers.green_sub_model
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility,DERUseCase,SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1150,15 +1402,19 @@ function solve_agent_problem!(
 
     # calculate green tariff subscription (% MWh)
     GreenSubPerc = KeyedArray(
-        [ 
+        [
             exp(
-            green_sub_model.Constant(h) + 
-            green_sub_model.GreenPowerPrice_coefficient(h) * log(green_developer.ppa_my(reg_year_index, h)) + 
-            green_sub_model.EnergyRate_coefficient(h) * log(regulator.p_my_regression(reg_year_index, h)) + 
-            green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) + 
-            green_sub_model.RetailCompetition_coefficient(h) * log(customers.RetailCompetition(reg_year_index)) + 
-            green_sub_model.RPS_coefficient(h) * log(utility.RPS(reg_year_index)) + 
-            green_sub_model.WTP_coefficient(h) * log(customers.WTP_green_power(reg_year_index))
+                green_sub_model.Constant(h) +
+                green_sub_model.GreenPowerPrice_coefficient(h) *
+                log(green_developer.ppa_my(reg_year_index, h)) +
+                green_sub_model.EnergyRate_coefficient(h) *
+                log(regulator.p_my_regression(reg_year_index, h)) +
+                green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) +
+                green_sub_model.RetailCompetition_coefficient(h) *
+                log(customers.RetailCompetition(reg_year_index)) +
+                green_sub_model.RPS_coefficient(h) * log(utility.RPS(reg_year_index)) +
+                green_sub_model.WTP_coefficient(h) *
+                log(customers.WTP_green_power(reg_year_index)),
             ) for h in model_data.index_h
         ];
         [get_pair(model_data.index_h)]...,
@@ -1169,21 +1425,28 @@ function solve_agent_problem!(
     # shall we use net load here?
     GreenSubMWh = KeyedArray(
         [
-            sum(GreenSubPerc(h) * 
-            (
-                customers.d(h, t) * (1 - utility.loss_dist) * model_data.omega(t) * customers.gamma(h) -
-                sum(
-                    customers.rho_DG(h, m, t) * customers.x_DG_E_my(reg_year_index, h, m) * model_data.omega(t) for
-                    m in customers.index_m
-                ) -
-                sum(
-                    customers.rho_DG(h, m, t) * model_data.omega(t) * sum(
-                        customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(reg_year_index)
-                    ) for m in customers.index_m
-                )
-            ) for t in model_data.index_t)
-            for h in model_data.index_h
+            sum(
+                GreenSubPerc(h) * (
+                    customers.d(h, t) *
+                    (1 - utility.loss_dist) *
+                    model_data.omega(t) *
+                    customers.gamma(h) - sum(
+                        customers.rho_DG(h, m, t) *
+                        customers.x_DG_E_my(reg_year_index, h, m) *
+                        model_data.omega(t) for m in customers.index_m
+                    ) - sum(
+                        customers.rho_DG(h, m, t) *
+                        model_data.omega(t) *
+                        sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                            y_symbol =
+                                model_data.year(first(model_data.index_y_fix)):model_data.year(
+                                    reg_year_index,
+                                )
+                        ) for m in customers.index_m
+                    )
+                ) for t in model_data.index_t
+            ) for h in model_data.index_h
         ];
         [get_pair(model_data.index_h)]...,
     )
@@ -1193,8 +1456,11 @@ function solve_agent_problem!(
 
     for h in model_data.index_h
         if reg_year > model_data.year(first(model_data.index_y_fix))
-            customers.x_green_sub_my(reg_year_index, h, :) .= max(GreenSubMWh(h), customers.x_green_sub_my(Symbol(Int(reg_year-1)), h))
-            customers.x_green_sub_incremental_my(reg_year_index, h, :) .= customers.x_green_sub_my(reg_year_index, h) - customers.x_green_sub_my(Symbol(Int(reg_year-1)), h)
+            customers.x_green_sub_my(reg_year_index, h, :) .=
+                max(GreenSubMWh(h), customers.x_green_sub_my(Symbol(Int(reg_year - 1)), h))
+            customers.x_green_sub_incremental_my(reg_year_index, h, :) .=
+                customers.x_green_sub_my(reg_year_index, h) -
+                customers.x_green_sub_my(Symbol(Int(reg_year - 1)), h)
         else
             customers.x_green_sub_my(reg_year_index, h, :) .= GreenSubMWh(h)
             customers.x_green_sub_incremental_my(reg_year_index, h, :) .= GreenSubMWh(h)
@@ -1202,8 +1468,8 @@ function solve_agent_problem!(
     end
 
     return compute_difference_percentage_one_norm([
-        (x_green_sub_before, GreenSubMWh), 
-        (x_DG_before, customers.x_DG_new)
+        (x_green_sub_before, GreenSubMWh),
+        (x_DG_before, customers.x_DG_new),
     ])
 
 end
@@ -1213,7 +1479,7 @@ end
 function save_results(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
+    hem_opts::HEMOptions{<:MarketStructure,DERUseCase,NullUseCase},
     export_file_path::AbstractString,
 )
 
@@ -1229,7 +1495,7 @@ end
 function save_results(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure,NullUseCase,SupplyChoiceUseCase},
     export_file_path::AbstractString,
 )
 
@@ -1245,7 +1511,7 @@ end
 function save_results(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure,DERUseCase,SupplyChoiceUseCase},
     export_file_path::AbstractString,
 )
 
@@ -1269,7 +1535,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
+    hem_opts::HEMOptions{<:MarketStructure,DERUseCase,NullUseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -1384,7 +1650,7 @@ function welfare_calculation!(
                 ) for t in model_data.index_t
             ) * customers.x_DG_new_my(Symbol(Int(y_star)), h, m) /
             customers.Opti_DG_my(Symbol(Int(y_star)), h, m) for
-            y_star in model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            y_star = model_data.year(first(model_data.index_y_fix)):model_data.year(y)
         )
     end
     # Calculate out-of-pocket energy costs associated with new and existing DER (including previously installed new DER) for a certain year (assume Opti_DG_my is the same across years)         
@@ -1403,8 +1669,8 @@ function welfare_calculation!(
                         customers.rho_DG(h, m, t) *
                         customers.Opti_DG_my(Symbol(Int(y_star)), h, m),
                     ) * customers.x_DG_new_my(Symbol(Int(y_star)), h, m) /
-                    customers.Opti_DG_my(Symbol(Int(y_star)), h, m) for y_star in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                    customers.Opti_DG_my(Symbol(Int(y_star)), h, m) for y_star =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 )
                 #= We may not need this part for existing units, because we did not remove double-counting in "EnergySaving" calculation.
                 # also minus savings from existing DER here (note that surplus associated with existing DER is not available)
@@ -1424,7 +1690,7 @@ function welfare_calculation!(
                 utility.eximport_my(y, t) for t in model_data.index_t
             ) for y in model_data.index_y_fix
         ];
-        [get_pair(model_data.index_y_fix)]...
+        [get_pair(model_data.index_y_fix)]...,
     )
 
     # Finally, calculate Net Consumer Surplus
@@ -1434,7 +1700,7 @@ function welfare_calculation!(
         ConNetSurplus(y, h, m, :) .=
             sum(
                 customers.ConPVNetSurplus_my(Symbol(Int(y_star)), h, m) for
-                y_star in model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                y_star = model_data.year(first(model_data.index_y_fix)):model_data.year(y)
             ) - EnergySaving(y, h, m) - EnergyCost(y, h, m)
     end
     # Sum of Net Consumer Surplus across customer tpye and DER technology
@@ -1444,7 +1710,7 @@ function welfare_calculation!(
                 ConNetSurplus(y, h, m) for h in model_data.index_h, m in customers.index_m
             ) - EnergyCost_eximport(y) for y in model_data.index_y_fix
         ];
-        [get_pair(model_data.index_y_fix)]...
+        [get_pair(model_data.index_y_fix)]...,
     )
 
     ConPVNetSurplus_PerCustomer_my =
@@ -1463,7 +1729,8 @@ function welfare_calculation!(
             (1 - utility.loss_dist) for t in model_data.index_t
         )
     end
-    AverageBill_PerCustomer_my = make_keyed_array(model_data.index_y_fix, model_data.index_h)
+    AverageBill_PerCustomer_my =
+        make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         AverageBill_PerCustomer_my(y, h, :) .=
             AnnualBill_PerCustomer_my(y, h) / sum(
@@ -1492,7 +1759,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure,NullUseCase,SupplyChoiceUseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -1516,21 +1783,28 @@ function welfare_calculation!(
     # note: may need to consider distribution loss and DPV installation?
     max_sub = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
-        max_sub(y, h, :) .= 
-        sum(
+        max_sub(y, h, :) .= sum(
             (
-                customers.d_my(y, h, t) * (1 - utility.loss_dist) * model_data.omega(t) * customers.gamma(h) -
-                sum(
-                    customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) * model_data.omega(t) for
-                    m in customers.index_m
-                ) -
-                sum(
-                    customers.rho_DG(h, m, t) * model_data.omega(t) * sum(
-                        customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                customers.d_my(y, h, t) *
+                (1 - utility.loss_dist) *
+                model_data.omega(t) *
+                customers.gamma(h) - sum(
+                    customers.rho_DG(h, m, t) *
+                    customers.x_DG_E_my(y, h, m) *
+                    model_data.omega(t) for m in customers.index_m
+                ) - sum(
+                    customers.rho_DG(h, m, t) *
+                    model_data.omega(t) *
+                    sum(
+                        customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                        y_symbol =
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(
+                                y,
+                            )
                     ) for m in customers.index_m
                 )
-            ) for t in model_data.index_t)
+            ) for t in model_data.index_t
+        )
     end
 
     price_at_max_sub = make_keyed_array(model_data.index_y_fix, model_data.index_h)
@@ -1538,7 +1812,7 @@ function welfare_calculation!(
         price_at_max_sub(y, h, :) .= 0.0
     end
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility,NullUseCase,SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1546,20 +1820,22 @@ function welfare_calculation!(
 
     GreenSubConstant = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
-        GreenSubConstant(y, h, :) .= 
-            green_sub_model.Constant(h) + 
-            green_sub_model.EnergyRate_coefficient(h) * log(regulator.p_my_regression(y, h)) + 
-            green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) + 
-            green_sub_model.RetailCompetition_coefficient(h) * log(customers.RetailCompetition(y)) + 
-            green_sub_model.RPS_coefficient(h) * log(utility.RPS(y)) + 
+        GreenSubConstant(y, h, :) .=
+            green_sub_model.Constant(h) +
+            green_sub_model.EnergyRate_coefficient(h) *
+            log(regulator.p_my_regression(y, h)) +
+            green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) +
+            green_sub_model.RetailCompetition_coefficient(h) *
+            log(customers.RetailCompetition(y)) +
+            green_sub_model.RPS_coefficient(h) * log(utility.RPS(y)) +
             green_sub_model.WTP_coefficient(h) * log(customers.WTP_green_power(y))
     end
-    
+
     gross_surplus_integral = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         gross_surplus_integral(y, h, :) .= 0.0
     end
-    
+
     net_surplus = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         net_surplus(y, h, :) .= 0.0
@@ -1573,17 +1849,21 @@ function welfare_calculation!(
             # gross_surplus_rectangle(y, h, :) .= price_at_max_sub(y, h) * max_sub(y, h)
             # check to see if price_at_max_sub(y, h) is less than green_developer.ppa_my(y, h)
             gross_surplus_integral(y, h, :) .= QuadGK.quadgk(
-                x ->
-                    exp(GreenSubConstant(y, h) + log(max_sub(y, h)) + 
-                    green_sub_model.GreenPowerPrice_coefficient(h) * log(x)),
+                x -> exp(
+                    GreenSubConstant(y, h) +
+                    log(max_sub(y, h)) +
+                    green_sub_model.GreenPowerPrice_coefficient(h) * log(x),
+                ),
                 green_developer.ppa_my(y, h),
                 100 * green_developer.ppa_my(y, h),
                 rtol = 1e-8,
             )[1]
             net_surplus(y, h, :) .= gross_surplus_integral(y, h)
-            customers.ConGreenPowerNetSurplus_pre_proportion_my(y, h, :) .= net_surplus(y, h)
-            customers.ConGreenPowerNetSurplus_post_proportion_my(y, h, :) .= 
-                net_surplus(y, h) * customers.x_green_sub_incremental_my(y, h) / customers.x_green_sub_my(y, h)
+            customers.ConGreenPowerNetSurplus_pre_proportion_my(y, h, :) .=
+                net_surplus(y, h)
+            customers.ConGreenPowerNetSurplus_post_proportion_my(y, h, :) .=
+                net_surplus(y, h) * customers.x_green_sub_incremental_my(y, h) /
+                customers.x_green_sub_my(y, h)
         else
             customers.ConGreenPowerNetSurplus_pre_proportion_my(y, h, :) .= 0.0
             customers.ConGreenPowerNetSurplus_post_proportion_my(y, h, :) .= 0.0
@@ -1592,9 +1872,10 @@ function welfare_calculation!(
 
     # calculate actual annual consumer surplus associated with green power subscription by accumulating the net CS from previous years
     for y in model_data.index_y_fix, h in model_data.index_h
-        customers.ConGreenPowerNetSurplus_cumu_my(y, h, :) .= 
-            sum(customers.ConGreenPowerNetSurplus_post_proportion_my(Symbol(Int(y_star)), h) for 
-            y_star in model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+        customers.ConGreenPowerNetSurplus_cumu_my(y, h, :) .= sum(
+            customers.ConGreenPowerNetSurplus_post_proportion_my(Symbol(Int(y_star)), h) for
+            y_star = model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+        )
     end
 
     # Calculate energy costs of all other customers, as well as green subscribers' share of T&D cost
@@ -1608,9 +1889,12 @@ function welfare_calculation!(
                 customers.gamma(h) * customers.d_my(y, h, t) * (1 - utility.loss_dist) -
                 # green power subscribers are not paying the retail rates
                 sum(
-                    utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j
+                    utility.rho_C_my(j, t) * sum(
+                        green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol =
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(
+                                y,
+                            )
+                    ) for j in model_data.index_j
                 )
             ) for t in model_data.index_t
         )
@@ -1620,7 +1904,9 @@ function welfare_calculation!(
     EnergyCost_eximport = KeyedArray(
         [
             sum(
-            model_data.omega(t) * regulator.p_eximport_my(y, t) * utility.eximport_my(y, t) for t in model_data.index_t
+                model_data.omega(t) *
+                regulator.p_eximport_my(y, t) *
+                utility.eximport_my(y, t) for t in model_data.index_t
             ) for y in model_data.index_y_fix
         ];
         [get_pair(model_data.index_y_fix)]...,
@@ -1629,12 +1915,15 @@ function welfare_calculation!(
     # Calculate green power subscribers' T&D cost
     Green_sub_TD_charge = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
-        Green_sub_TD_charge(y, h, :) .= 
-            regulator.p_my_td(y, h) * 
-            sum(
-                model_data.omega(t) *utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, t in model_data.index_t
+        Green_sub_TD_charge(y, h, :) .=
+            regulator.p_my_td(y, h) * sum(
+                model_data.omega(t) *
+                utility.rho_C_my(j, t) *
+                sum(
+                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for
+                    y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                ) for j in model_data.index_j, t in model_data.index_t
             )
     end
 
@@ -1642,14 +1931,13 @@ function welfare_calculation!(
     ConNetSurplus = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         ConNetSurplus(y, h, :) .=
-            customers.ConGreenPowerNetSurplus_cumu_my(y, h) - EnergyCost(y, h) - Green_sub_TD_charge(y, h)
+            customers.ConGreenPowerNetSurplus_cumu_my(y, h) - EnergyCost(y, h) -
+            Green_sub_TD_charge(y, h)
     end
     # Sum of Net Consumer Surplus across customer tpye and DER technology
     TotalConNetSurplus = KeyedArray(
         [
-            sum(
-                ConNetSurplus(y, h) for h in model_data.index_h
-            ) - EnergyCost_eximport(y) for y in model_data.index_y_fix
+            sum(ConNetSurplus(y, h) for h in model_data.index_h) - EnergyCost_eximport(y) for y in model_data.index_y_fix
         ];
         [get_pair(model_data.index_y_fix)]...,
     )
@@ -1691,7 +1979,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customers_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure,DERUseCase,SupplyChoiceUseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -1717,7 +2005,8 @@ function welfare_calculation!(
     """
 
     # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
-    NetProfit = make_keyed_array(model_data.index_y_fix, model_data.index_h, customers.index_m)
+    NetProfit =
+        make_keyed_array(model_data.index_y_fix, model_data.index_h, customers.index_m)
     for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
         NetProfit(y, h, m, :) .=
         # value of distributed generation (offset load)
@@ -1783,21 +2072,28 @@ function welfare_calculation!(
     # note: may need to consider distribution loss and DPV installation?
     max_sub = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
-        max_sub(y, h, :) .= 
-        sum(
+        max_sub(y, h, :) .= sum(
             (
-                customers.d_my(y, h, t) * (1 - utility.loss_dist) * model_data.omega(t) * customers.gamma(h) -
-                sum(
-                    customers.rho_DG(h, m, t) * customers.x_DG_E_my(y, h, m) * model_data.omega(t) for
-                    m in customers.index_m
-                ) -
-                sum(
-                    customers.rho_DG(h, m, t) * model_data.omega(t) * sum(
-                        customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                customers.d_my(y, h, t) *
+                (1 - utility.loss_dist) *
+                model_data.omega(t) *
+                customers.gamma(h) - sum(
+                    customers.rho_DG(h, m, t) *
+                    customers.x_DG_E_my(y, h, m) *
+                    model_data.omega(t) for m in customers.index_m
+                ) - sum(
+                    customers.rho_DG(h, m, t) *
+                    model_data.omega(t) *
+                    sum(
+                        customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for
+                        y_symbol =
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(
+                                y,
+                            )
                     ) for m in customers.index_m
                 )
-            ) for t in model_data.index_t)
+            ) for t in model_data.index_t
+        )
     end
 
     price_at_max_sub = make_keyed_array(model_data.index_y_fix, model_data.index_h)
@@ -1805,7 +2101,7 @@ function welfare_calculation!(
         price_at_max_sub(y, h, :) .= 0.0
     end
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility,DERUseCase,SupplyChoiceUseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1813,20 +2109,22 @@ function welfare_calculation!(
 
     GreenSubConstant = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
-        GreenSubConstant(y, h, :) .= 
-            green_sub_model.Constant(h) + 
-            green_sub_model.EnergyRate_coefficient(h) * log(regulator.p_my_regression(y, h)) + 
-            green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) + 
-            green_sub_model.RetailCompetition_coefficient(h) * log(customers.RetailCompetition(y)) + 
-            green_sub_model.RPS_coefficient(h) * log(utility.RPS(y)) + 
+        GreenSubConstant(y, h, :) .=
+            green_sub_model.Constant(h) +
+            green_sub_model.EnergyRate_coefficient(h) *
+            log(regulator.p_my_regression(y, h)) +
+            green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) +
+            green_sub_model.RetailCompetition_coefficient(h) *
+            log(customers.RetailCompetition(y)) +
+            green_sub_model.RPS_coefficient(h) * log(utility.RPS(y)) +
             green_sub_model.WTP_coefficient(h) * log(customers.WTP_green_power(y))
     end
-    
+
     gross_surplus_integral = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         gross_surplus_integral(y, h, :) .= 0.0
     end
-    
+
     net_surplus = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         net_surplus(y, h, :) .= 0.0
@@ -1840,17 +2138,21 @@ function welfare_calculation!(
             # gross_surplus_rectangle(y, h, :) .= price_at_max_sub(y, h) * max_sub(y, h)
             # check to see if price_at_max_sub(y, h) is less than green_developer.ppa_my(y, h)
             gross_surplus_integral(y, h, :) .= QuadGK.quadgk(
-                x ->
-                    exp(GreenSubConstant(y, h) + log(max_sub(y, h)) + 
-                    green_sub_model.GreenPowerPrice_coefficient(h) * log(x)),
+                x -> exp(
+                    GreenSubConstant(y, h) +
+                    log(max_sub(y, h)) +
+                    green_sub_model.GreenPowerPrice_coefficient(h) * log(x),
+                ),
                 green_developer.ppa_my(y, h),
                 100 * green_developer.ppa_my(y, h),
                 rtol = 1e-8,
             )[1]
             net_surplus(y, h, :) .= gross_surplus_integral(y, h)
-            customers.ConGreenPowerNetSurplus_pre_proportion_my(y, h, :) .= net_surplus(y, h)
-            customers.ConGreenPowerNetSurplus_post_proportion_my(y, h, :) .= 
-                net_surplus(y, h) * customers.x_green_sub_incremental_my(y, h) / customers.x_green_sub_my(y, h)
+            customers.ConGreenPowerNetSurplus_pre_proportion_my(y, h, :) .=
+                net_surplus(y, h)
+            customers.ConGreenPowerNetSurplus_post_proportion_my(y, h, :) .=
+                net_surplus(y, h) * customers.x_green_sub_incremental_my(y, h) /
+                customers.x_green_sub_my(y, h)
         else
             customers.ConGreenPowerNetSurplus_pre_proportion_my(y, h, :) .= 0.0
             customers.ConGreenPowerNetSurplus_post_proportion_my(y, h, :) .= 0.0
@@ -1859,9 +2161,10 @@ function welfare_calculation!(
 
     # calculate actual annual consumer surplus associated with green power subscription by accumulating the net CS from previous years
     for y in model_data.index_y_fix, h in model_data.index_h
-        customers.ConGreenPowerNetSurplus_cumu_my(y, h, :) .= 
-            sum(customers.ConGreenPowerNetSurplus_post_proportion_my(Symbol(Int(y_star)), h) for 
-            y_star in model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+        customers.ConGreenPowerNetSurplus_cumu_my(y, h, :) .= sum(
+            customers.ConGreenPowerNetSurplus_post_proportion_my(Symbol(Int(y_star)), h) for
+            y_star = model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+        )
     end
 
     # Calculate energy costs of all other customers, as well as green subscribers' share of T&D cost
@@ -1875,9 +2178,12 @@ function welfare_calculation!(
                 customers.gamma(h) * customers.d_my(y, h, t) * (1 - utility.loss_dist) -
                 # green power subscribers are not paying the retail rates
                 sum(
-                    utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j
+                    utility.rho_C_my(j, t) * sum(
+                        green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol =
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(
+                                y,
+                            )
+                    ) for j in model_data.index_j
                 )
             ) for t in model_data.index_t
         )
@@ -1887,7 +2193,9 @@ function welfare_calculation!(
     EnergyCost_eximport = KeyedArray(
         [
             sum(
-            model_data.omega(t) * regulator.p_eximport_my(y, t) * utility.eximport_my(y, t) for t in model_data.index_t
+                model_data.omega(t) *
+                regulator.p_eximport_my(y, t) *
+                utility.eximport_my(y, t) for t in model_data.index_t
             ) for y in model_data.index_y_fix
         ];
         [get_pair(model_data.index_y_fix)]...,
@@ -1896,12 +2204,15 @@ function welfare_calculation!(
     # Calculate green power subscribers' T&D cost
     Green_sub_TD_charge = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
-        Green_sub_TD_charge(y, h, :) .= 
-            regulator.p_my_td(y, h) * 
-            sum(
-                model_data.omega(t) *utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, t in model_data.index_t
+        Green_sub_TD_charge(y, h, :) .=
+            regulator.p_my_td(y, h) * sum(
+                model_data.omega(t) *
+                utility.rho_C_my(j, t) *
+                sum(
+                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for
+                    y_symbol =
+                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                ) for j in model_data.index_j, t in model_data.index_t
             )
     end
 
@@ -1909,15 +2220,14 @@ function welfare_calculation!(
     ConNetSurplus = make_keyed_array(model_data.index_y_fix, model_data.index_h)
     for y in model_data.index_y_fix, h in model_data.index_h
         ConNetSurplus(y, h, :) .=
-            customers.ConGreenPowerNetSurplus_cumu_my(y, h) - EnergyCost(y, h) - Green_sub_TD_charge(y, h) +
+            customers.ConGreenPowerNetSurplus_cumu_my(y, h) - EnergyCost(y, h) -
+            Green_sub_TD_charge(y, h) +
             sum(customers.ConPVNetSurplus_my(y, h, m) for m in customers.index_m)
     end
     # Sum of Net Consumer Surplus across customer tpye and DER technology
     TotalConNetSurplus = KeyedArray(
         [
-            sum(
-                ConNetSurplus(y, h) for h in model_data.index_h
-            ) - EnergyCost_eximport(y) for y in model_data.index_y_fix
+            sum(ConNetSurplus(y, h) for h in model_data.index_h) - EnergyCost_eximport(y) for y in model_data.index_y_fix
         ];
         [get_pair(model_data.index_y_fix)]...,
     )
