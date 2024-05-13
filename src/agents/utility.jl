@@ -311,7 +311,6 @@ function Utility(
         index_k_existing,
     )
 
-
     ADITOld = make_keyed_array(model_data.index_z, index_k_existing)
     for z in model_data.index_z, k in index_k_existing
         ADITOld(z, k, :) .= CapExOld(z, k) * (CumuTaxDepreOld(k) - CumuAccoutDepreOld(k)) * tax_rate +
@@ -2230,9 +2229,6 @@ function solve_agent_problem!(
     ])
 end
 
-
-
-
 # function save_results(
 #     utility::Utility,
 #     utility_opts::AgentOptions,
@@ -2265,7 +2261,6 @@ end
 #         joinpath(export_file_path, "x_C.csv"),
 #     )
 # end
-
 
 function save_results(
     utility::Utility,
