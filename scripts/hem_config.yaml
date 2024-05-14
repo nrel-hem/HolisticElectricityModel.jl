@@ -1,3 +1,6 @@
+# Note: please be mindful of underscores. Spaces won't be properly parsed.
+# E.g., write "wholesale_market" (with an underscore), not "wholesale market" (with a space).
+
 # Geographical scope
 balancing_areas:
   - "p129"

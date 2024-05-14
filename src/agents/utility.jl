@@ -226,27 +226,27 @@ function Utility(
     input_filename::String,
     model_data::HEMData,
     regulator::Regulator;
-    id = DEFAULT_ID,
+    id=DEFAULT_ID,
 )
     index_k_existing = read_set(
         input_filename,
         "index_k_existing",
         "index_k_existing",
-        prose_name = "existing bulk generation technologies",
+        prose_name="existing bulk generation technologies",
     )
 
     index_k_new = read_set(
         input_filename,
         "index_k_new",
         "index_k_new",
-        prose_name = "potential bulk generation technologies",
+        prose_name="potential bulk generation technologies",
     )
 
     index_rps = read_set(
         input_filename,
         "index_rps",
         "index_rps",
-        prose_name = "RPS-qualified technologies",
+        prose_name="RPS-qualified technologies",
     )
 
     index_stor_existing =
@@ -265,12 +265,12 @@ function Utility(
     min_max = Dimension(
         "min_max",
         Symbol.(["min", "max"]),
-        prose_name = "min_max",
-        description = "minimum and maximum capacity of transmission lines",
+        prose_name="min_max",
+        description="minimum and maximum capacity of transmission lines",
     )
 
     peak_eximport =
-        ParamScalar("Peak_eximport", findmax(eximport)[1], description = "peak export")
+        ParamScalar("Peak_eximport", findmax(eximport)[1], description="peak export")
 
     FOMNew =
         read_param("FOM_new", input_filename, "FOMNew", index_k_new, [model_data.index_z])
@@ -282,11 +282,11 @@ function Utility(
         [model_data.index_z],
     )
     LifetimeNew = read_param("Lifetime_new", input_filename, "LifetimeNew", index_k_new)
-    debt_ratio = ParamScalar("DebtRatio", 0.6, description = "debt ratio")
-    cost_of_debt = ParamScalar("COD", 0.06, description = "cost of debt")
+    debt_ratio = ParamScalar("DebtRatio", 0.6, description="debt ratio")
+    cost_of_debt = ParamScalar("COD", 0.06, description="cost of debt")
     # TODO: need to tie cost of equity to regulator.z (but regulator.z is an array now)
-    cost_of_equity = ParamScalar("COE", 0.112, description = "cost of equity")
-    tax_rate = ParamScalar("Tax", 0.26, description = "tax rate")
+    cost_of_equity = ParamScalar("COE", 0.112, description="cost of equity")
+    tax_rate = ParamScalar("Tax", 0.26, description="tax rate")
     atwacc = debt_ratio * cost_of_debt * (1 - tax_rate) + (1 - debt_ratio) * cost_of_equity
     CRF = Dict(
         k => atwacc * (1 + atwacc)^LifetimeNew(k) / ((1 + atwacc)^LifetimeNew(k) - 1)
@@ -718,7 +718,7 @@ function Utility(
             model_data.index_z,
             model_data.index_d,
             model_data.index_t;
-            description = "existing capacity generation in each time period",
+            description="existing capacity generation in each time period",
         ),
         initialize_param(
             "y_C",
@@ -726,7 +726,7 @@ function Utility(
             model_data.index_z,
             model_data.index_d,
             model_data.index_t;
-            description = "new capacity generation in each time period",
+            description="new capacity generation in each time period",
         ),
         initialize_param("x_R", index_k_existing, model_data.index_z),
         initialize_param("x_C", index_k_new, model_data.index_z),
@@ -752,7 +752,7 @@ function Utility(
         cost_of_debt,
         cost_of_equity,
         tax_rate,
-        ParamScalar("DaysofWC", 45.0, description = "number of days of working capital"),
+        ParamScalar("DaysofWC", 45.0, description="number of days of working capital"),
         read_param(
             "x_E_my",
             input_filename,
@@ -854,7 +854,7 @@ function Utility(
         eximport_my,
         ParamArray("pvf_cap", (model_data.index_y,), pvf_cap),
         ParamArray("pvf_onm", (model_data.index_y,), pvf_onm),
-        ParamScalar("CRF_default", CRF_default, description = "capital recovery factor"),
+        ParamScalar("CRF_default", CRF_default, description="capital recovery factor"),
         ParamArray(
             "Peak_eximport_my",
             Tuple(push!(copy([model_data.index_y]), model_data.index_z)),
@@ -1041,7 +1041,7 @@ function Utility(
         initialize_param("flow_cap_my", model_data.index_y, index_l),
         read_param("RPS", input_filename, "RPS", model_data.index_y),
         initialize_param("rec_my", model_data.index_y),
-        ParamScalar("loss_dist", 0.053, description = "distribution system loss factor"),
+        ParamScalar("loss_dist", 0.053, description="distribution system loss factor"),
         read_param(
             "emission_rate_E_my",
             input_filename,
@@ -1507,8 +1507,8 @@ function solve_agent_problem!(
 
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
     delta_t =
-        parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) -
-        parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+        parse(Int64, chop(string(model_data.index_t.elements[2]), head=1, tail=0)) -
+        parse(Int64, chop(string(model_data.index_t.elements[1]), head=1, tail=0))
 
     x_R_aggregate_before = initialize_param(
         "x_R_aggregate_before",
@@ -3068,7 +3068,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
             fix(
                 x_R[Symbol(Int(y)), k],
                 utility.x_R_feasible(Symbol(Int(y)), k);
-                force = true,
+                force=true,
             )
         end
         for y = model_data.year(first(model_data.index_y)):(model_data.year(year)-1),
@@ -3077,7 +3077,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
             fix(
                 x_C[Symbol(Int(y)), k],
                 utility.x_C_feasible(Symbol(Int(y)), k);
-                force = true,
+                force=true,
             )
         end
     end

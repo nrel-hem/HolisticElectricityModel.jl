@@ -49,6 +49,7 @@ First, [set up an HPC account with a username and password](https://www.nrel.gov
     $ module load julia/1.7.2
     ```
 As a result of the above, when calling `julia` from the command line, version 1.7.2 will automatically be used.
+
 4. Load Gurobi, so the JuMP code in the HEM package can use the Gurobi solver:
     ```bash
     $ module load gurobi
