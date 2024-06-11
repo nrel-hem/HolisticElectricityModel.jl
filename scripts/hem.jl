@@ -1,4 +1,5 @@
 using Revise
+using Combinatorics
 using Gurobi
 using Ipopt
 using JuMP
@@ -16,19 +17,55 @@ hem_data_dir = dirname(dirname(Base.find_package("HolisticElectricityModelData")
 input_path = joinpath(hem_data_dir, "inputs")
 test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
+# Acceptable options config_fields; maps config_fields to lists of acceptable options
+option_dict = Dict{String,Vector{Any}}()
+option_dict["balancing_areas"] = collect(powerset([
+    "p129",
+    "p130",
+    "p131",
+    "p132",
+    "p133",
+    "p134",
+]))
+option_dict["base_year"] = collect(2018:2024)  # unsure if these base years are reasonable
+option_dict["num_future_years"] = collect(1:30)  # unsure if these horizons are reasonable
+option_dict["market_structure"] = ["wholesale_market", "vertically_integrated_utility"]
+option_dict["der_use_case"] = ["der_use_case", "null_use_case"]
+option_dict["supply_choice_use_case"] = ["supply_choice_use_case", "null_use_case"]
+option_dict["num_ipps"] = [1]  # unsure if more IPPs are desired
+option_dict["ipp_algorithm"] = ["lagrange_decomposition", "mppdcmer_transportation_storage", "mpppcmer", "miqp"]
+option_dict["rate_design"] = ["flat_rate", "time_of_use"]
+option_dict["net_metering_policy"] = ["excess_retail_rate", "excess_marginal_cost", "excess_zero"]
+option_dict["solver"] = ["Gurobi", "Xpress"]
+
+function unpack_config_struct(config, config_field, option_dict)
+    # if the config_field isn't supported
+    if !(config_field in config)
+        error("Invalid config field: $config_field.")
+        # elseif the option specified in the yaml for the config_field isn't an acceptable option
+    elseif !(config[config_field] in option_dict[config_field])
+        error("Invalid option $config[config_field] for config_field $config_field.")
+        # all good -- unpack and return
+    else
+        config[config_field]
+    end
+end
+
 # Parse inputs
-config = YAML.load_file(joinpath(base_dir, "scripts", "hem_config.yaml"))
-bal_areas = config["balancing_areas"]
-base_year = config["base_year"]
-num_future_years = config["num_future_years"]
-market_structure = config["market_structure"]
-der_use_case = config["der_use_case"]
-supply_choice_use_case = config["supply_choice_use_case"]
-num_ipps = config["num_ipps"]
-ipp_algorithm = config["ipp_algorithm"]
-rate_design = config["rate_design"]
-net_metering_policy = config["net_metering_policy"]
-solver = config["solver"]
+config_fp = joinpath(base_dir, "scripts", "configs", "default_config.yaml")
+config = YAML.load_file(config_fp)
+
+bal_areas = unpack_config_struct(config, "balancing_areas", option_dict)
+base_year = unpack_config_struct(config, "base_year", option_dict)
+num_future_years = unpack_config_struct(config, "num_future_years", option_dict)
+market_structure = unpack_config_struct(config, "market_structure", option_dict)
+der_use_case = unpack_config_struct(config, "der_use_case", option_dict)
+supply_choice_use_case = unpack_config_struct(config, "supply_choice_use_case", option_dict)
+num_ipps = unpack_config_struct(config, "num_ipps", option_dict)
+ipp_algorithm = unpack_config_struct(config, "ipp_algorithm", option_dict)
+rate_design = unpack_config_struct(config, "rate_design", option_dict)
+net_metering_policy = unpack_config_struct(config, "net_metering_policy", option_dict)
+solver = unpack_config_struct(config, "solver", option_dict)
 
 # Define scenario
 bal_areas_len = length(bal_areas)
@@ -59,24 +96,18 @@ if market_structure == "wholesale_market"
     market_structure = WholesaleMarket()
 elseif market_structure == "vertically_integrated_utility"
     market_structure = VerticallyIntegratedUtility()
-else
-    error("Invalid market structure: $market_structure.")
 end
 # DER use case
 if der_use_case == "der_use_case"
     der_use_case = DERUseCase()
 elseif der_use_case == "null_use_case"
     der_use_case = NullUseCase()
-else
-    error("Invalid DER use case: $der_use_case.")
 end
 # Supply Choice use case
 if supply_choice_use_case == "supply_choice_use_case"
     supply_choice_use_case = SupplyChoiceUseCase()
 elseif supply_choice_use_case == "null_use_case"
     supply_choice_use_case = NullUseCase()
-else
-    error("Invalid Supply Choice use case: $supply_choice_use_case.")
 end
 # IPP algorithm
 if ipp_algorithm == "lagrange_decomposition"
@@ -87,16 +118,12 @@ elseif ipp_algorithm == "mppdcmer"
     ipp_algorithm = MPPDCMER()
 elseif ipp_algorithm == "miqp"
     ipp_algorithm = MIQP()
-else
-    error("Invalid IPP algorithm: $ipp_algorithm.")
 end
 # Rate Design
 if rate_design == "flat_rate"
     rate_design = FlatRate()
 elseif rate_design == "time_of_use"
     rate_design = TOU()
-else
-    error("Invalid Rate Design: $rate_design.")
 end
 # Net Metering Policy
 if net_metering_policy == "excess_retail_rate"
@@ -105,8 +132,6 @@ elseif net_metering_policy == "excess_marginal_cost"
     net_metering_policy = ExcessMarginalCost()
 elseif net_metering_policy == "excess_zero"
     net_metering_policy = ExcessZero()
-else
-    error("Invalid Net Metering Policy: $net_metering_policy.")
 end
 
 
@@ -178,12 +203,12 @@ jump_model = []
 output_dir = run_hem(
     input_dir,
     hem_opts,
-    regulator_options = regulator_opts,
-    ipp_options = ipp_opts,
-    utility_options = utility_opts,
-    green_developer_options = green_developer_opts,
-    customers_options = customers_opts,
-    force = true,
-    jump_model = jump_model,
+    regulator_options=regulator_opts,
+    ipp_options=ipp_opts,
+    utility_options=utility_opts,
+    green_developer_options=green_developer_opts,
+    customers_options=customers_opts,
+    force=true,
+    jump_model=jump_model,
 )
 # ------------------------------------------------------------------------------

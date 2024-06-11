@@ -19,9 +19,6 @@ To support this workflow, one must first set-up the necessary Julia environment,
 HEM may be run locally or in NREL's High-Performance Computing environment, Kestrel (if one has access to do so).
 
 #### Local Set-up
-##### Open-Source Solver
-TODO. Ipopt.
-
 ##### Xpress
 If you have access to the Xpress solver, then you may choose to use it instead of Ipopt.
 1. [Install the Xpress solver](https://github.nrel.gov/dcutler/fico-xpress)
@@ -35,27 +32,19 @@ First, [set up an HPC account with a username and password](https://www.nrel.gov
     $ ssh <username>@kestrel.hpc.nrel.gov
     # Enter your password, and accept the terms and conditions when prompted to do so.
     ```
-2. Navigate to the HEM project directory:
-    ```bash
-    $ cd /kfs2/projects/hem/HolisticElectricityModel.jl
-    ```
-- Note: Logan's directory is set-up for a Quick Start run. We will assume one has navigated to the below subdirectory for the remainder of our Quick Start instructions.
-    ```bash
-    $ cd /kfs2/projects/hem/Github/Graham/HolisticElectricityModel.jl
-    ```
 
-3. Load Julia v1.7.2, so one can call `julia` from the command line:
+2. Load Julia v1.7.2, so one can call `julia` from the command line:
     ```bash
     $ module load julia/1.7.2
     ```
 As a result of the above, when calling `julia` from the command line, version 1.7.2 will automatically be used.
 
-4. Load Gurobi, so the JuMP code in the HEM package can use the Gurobi solver:
+3. Load Gurobi, so the JuMP code in the HEM package can use the Gurobi solver:
     ```bash
     $ module load gurobi
     ```
 
-5. Set-up the Julia project (start Julia by calling `julia` from the command line):
+4. Set-up the Julia project (start Julia by calling `julia` from the command line):
     ```julia
     julia> ]
     pkg> activate .
@@ -70,14 +59,14 @@ As a result of the above, when calling `julia` from the command line, version 1.
     ```
 before retrying the above `instantiate` call.
 
-6. Return to the bash command line (hit `<Backspace>` to exit the package manager; enter `exit()` or hit `<CTRL + d>` from the Julia REPL).
+5. Return to the bash command line (hit `<Backspace>` to exit the package manager; enter `exit()` or hit `<CTRL + d>` from the Julia REPL).
 
-7. Submit a job to run HEM. Below, we grab a debug node for an hour, then run HEM in the following step:
+6. Submit a job to run HEM. Below, we grab a debug node for an hour, then run HEM in the following step:
     ```bash
     $ srun --time=1:00:00 --account=hem --nodes=1 --partition=debug --pty $SHELL
     ```
 
-8. Run HEM using the Gurobi solver (do so from /kfs2/projects/hem/Github/Graham/HolisticElectricityModel.jl):
+7. Run HEM using the Gurobi solver (do so from the top level of the HolisticElectricityModel.jl directory):
     ```bash
     $ julia --project=. scripts/hem.jl
     ```
@@ -88,3 +77,9 @@ before retrying the above `instantiate` call.
 
 #### Adjusting HEM's Parameters
 The above 'Quick Start' guide uses the default HEM configuration. HEM is designed to facilitate comparisons arising from different market structures, time scales, balancing areas, net metering policies, rate designs, etc. As such, users are encouraged to try out a variety of scenarios. To do so, edit the `scripts/hem_config.yaml` configuration file before running `scripts/hem.jl`. See the comments in the configuration file for a list of valid options for each variable.
+
+#### Tests
+Run tests
+    ```bash
+    $ julia --project=. tests/runtests.jl
+    ```
