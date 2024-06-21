@@ -52,7 +52,7 @@ function unpack_config_struct(config, config_field, option_dict)
 end
 
 # Parse inputs
-config_fp = joinpath(base_dir, "scripts", "configs", "default_config.yaml")
+config_fp = joinpath(base_dir, "scripts", "configs", "hem_config.yaml")
 config = YAML.load_file(config_fp)
 
 bal_areas = unpack_config_struct(config, "balancing_areas", option_dict)
