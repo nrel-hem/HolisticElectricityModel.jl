@@ -19,14 +19,14 @@ test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
 # Acceptable options config_fields; maps config_fields to lists of acceptable options
 option_dict = Dict{String,Vector{Any}}()
-option_dict["balancing_areas"] = collect(powerset([
+option_dict["balancing_areas"] = [
     "p129",
     "p130",
     "p131",
     "p132",
     "p133",
     "p134",
-]))
+]
 option_dict["base_year"] = collect(2018:2024)  # unsure if these base years are reasonable
 option_dict["num_future_years"] = collect(1:30)  # unsure if these horizons are reasonable
 option_dict["market_structure"] = ["wholesale_market", "vertically_integrated_utility"]
@@ -40,7 +40,7 @@ option_dict["solver"] = ["Gurobi", "Xpress"]
 
 function unpack_config_struct(config, config_field, option_dict)
     # if the config_field isn't supported
-    if !(config_field in config.keys())
+    if !(config_field in config)
         error("Invalid config field: $config_field.")
         # elseif the option specified in the yaml for the config_field isn't an acceptable option
     elseif !(config[config_field] in option_dict[config_field])
@@ -56,6 +56,7 @@ config_fp = joinpath(base_dir, "scripts", "configs", "hem_config.yaml")
 config = YAML.load_file(config_fp)
 
 bal_areas = unpack_config_struct(config, "balancing_areas", option_dict)
+bal_areas = option_dict["balancing_areas"]
 base_year = unpack_config_struct(config, "base_year", option_dict)
 num_future_years = unpack_config_struct(config, "num_future_years", option_dict)
 market_structure = unpack_config_struct(config, "market_structure", option_dict)
