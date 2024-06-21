@@ -40,7 +40,7 @@ option_dict["solver"] = ["Gurobi", "Xpress"]
 
 function unpack_config_struct(config, config_field, option_dict)
     # if the config_field isn't supported
-    if !(config_field in config)
+    if !(config_field in config.keys())
         error("Invalid config field: $config_field.")
         # elseif the option specified in the yaml for the config_field isn't an acceptable option
     elseif !(config[config_field] in option_dict[config_field])
