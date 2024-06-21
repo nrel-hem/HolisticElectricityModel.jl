@@ -55,7 +55,6 @@ end
 config_fp = joinpath(base_dir, "scripts", "configs", "hem_config.yaml")
 config = YAML.load_file(config_fp)
 
-bal_areas = unpack_config_struct(config, "balancing_areas", option_dict)
 bal_areas = option_dict["balancing_areas"]
 base_year = unpack_config_struct(config, "base_year", option_dict)
 num_future_years = unpack_config_struct(config, "num_future_years", option_dict)
