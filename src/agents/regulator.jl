@@ -30,6 +30,7 @@ mutable struct Regulator <: AbstractRegulator
     id::String
     index_rate_tou::Dimension
     rep_day_time_tou_mapping::DataFrame
+    customer_type_to_sector_mapping::DataFrame
     # Parameters
     "planning reserve (fraction)"
     r::ParamArray
@@ -95,6 +96,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
     )
 
     rep_day_time_tou_mapping = CSV.read(joinpath(input_filename, "rep_day_time_tou_mapping.csv"), DataFrame)
+    # TODO: Read customer_type_to_sector_mapping
 
     distribution_cost = read_param(
         "distribution_cost",
@@ -145,6 +147,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
         id,
         index_rate_tou,
         rep_day_time_tou_mapping,
+        customer_type_to_sector_mapping,
         initialize_param(
             "r",
             model_data.index_z,
@@ -180,7 +183,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
         initialize_param(
             "p",
             model_data.index_z,
-            model_data.index_h,
+            model_data.index_sector,
             model_data.index_d,
             model_data.index_t;
             value = 10.0,
@@ -189,7 +192,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
         initialize_param(
             "p_ex",
             model_data.index_z,
-            model_data.index_h,
+            model_data.index_sector,
             model_data.index_d,
             model_data.index_t;
             value = 0.0,
@@ -206,7 +209,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
         initialize_param(
             "p_green",
             model_data.index_z,
-            model_data.index_h,
+            model_data.index_sector,
             model_data.index_j;
             value = 20.0,
             description = "green tariff rate",
@@ -225,7 +228,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             "p_my",
             model_data.index_y,
             model_data.index_z,
-            model_data.index_h,
+            model_data.index_sector,
             model_data.index_d,
             model_data.index_t;
             value = 10.0,
@@ -235,7 +238,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             "p_ex_my",
             model_data.index_y,
             model_data.index_z,
-            model_data.index_h,
+            model_data.index_sector,
             model_data.index_d,
             model_data.index_t;
             value = 0.0,
@@ -294,21 +297,21 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
         ),
         initialize_param(
             "p_regression",
-            model_data.index_h;
+            model_data.index_sector;
             value = 10.0,
             description = "retail price for regression (no T&D cost)",
         ),
         initialize_param(
             "p_my_regression",
             model_data.index_y,
-            model_data.index_h;
+            model_data.index_sector;
             value = 10.0,
             description = "multi-year retail price for regression (no T&D cost)",
         ),
         initialize_param(
             "p_td",
             model_data.index_z,
-            model_data.index_h;
+            model_data.index_sector;
             value = 0.0,
             description = "T&D component charge",
         ),
@@ -316,7 +319,7 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             "p_my_td",
             model_data.index_y,
             model_data.index_z,
-            model_data.index_h;
+            model_data.index_sector;
             value = 0.0,
             description = "multi-year T&D component charge",
         ),
@@ -3467,6 +3470,7 @@ function solve_agent_problem!(
         fill!(regulator.p, NaN)
         for h in model_data.index_h, t in model_data.index_t
             for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                # TODO: Rates should be per index_sector, not index_h
                 regulator.p(z, h, d, t, :) .=
                     (energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)) /
                     net_demand_wo_green_tech_h_wo_loss(z, h) +

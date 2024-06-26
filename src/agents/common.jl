@@ -13,7 +13,8 @@ mutable struct HEMData
     index_s::Dimension # year index (for new resources depreciation schedule)
     index_d::Dimension # representative day index
     index_t::Dimension # time index (within each representative day)
-    index_h::Dimension # customer types
+    index_sector::Dimension # sector index
+    index_h::Dimension # customer types (agent-level data)
     index_j::Dimension # green tariff technologies
     index_z::Dimension # zone index
 
