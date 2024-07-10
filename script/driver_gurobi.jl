@@ -35,7 +35,7 @@ scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 # need to run in julia: run(output_dir = PROFILES_DIRECTORY, user = "nguo", hostname = HOSTNAME, dbname = DATABASE, port = PORT, pca_ids = nothing) to get residential and commercial profiles
 # also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
 
-input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full"
+input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full_dera_pv"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 # mkpath(input_dir)
 
@@ -43,7 +43,7 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERUseCase(),                     # DERUseCase(), NullUseCase()
     NullUseCase(),                    # SupplyChoiceUseCase(), NullUseCase()
 )
@@ -116,6 +116,13 @@ customers_opts = CustomersOptions(
         # "OUTPUTLOG" => 0,
     ),
 )
+
+dera_opts = DERAOptions(
+    JuMP.optimizer_with_attributes(
+        () -> Gurobi.Optimizer(GUROBI_ENV),
+        # "OUTPUTLOG" => 0,
+    ),
+)
 # ------------------------------------------------------------------------------
 
 jump_model = []
@@ -129,6 +136,7 @@ output_dir = run_hem(
     utility_options=utility_opts,
     green_developer_options=green_developer_opts,
     customers_options=customers_opts,
+    dera_options=dera_opts,
     force=true,
     jump_model=jump_model,
 )

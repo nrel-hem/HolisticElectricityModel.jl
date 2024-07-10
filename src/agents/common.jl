@@ -297,7 +297,7 @@ function solve_equilibrium_problem!(
 
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
-        for w in 1:5 #(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+        for w in 1:1 #(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
             model_data.index_y.elements =
                 model_data.index_y_fix.elements[w:(w + window_length - 1)]
             i = 0

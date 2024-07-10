@@ -89,6 +89,8 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     "Existing DER at year y. This is a cumulative number but without x_DG_new_my built by this module"
     x_DG_E_my::ParamArray
     Opti_DG::ParamArray
+    #TODO: make sure optimal DG sizes are the same for existing and new
+    #TODO; change this assumption later
     Opti_DG_E::ParamArray
     Opti_DG_my::ParamArray
     # "DER generation by a representative customer h and DER technology m"
@@ -611,6 +613,7 @@ function solve_agent_problem!(
 )
     regulator = get_agent(Regulator, agent_store)
     utility = get_agent(Utility, agent_store)
+    der_aggregator = get_agent(DERA, agent_store)
 
     # the year consumer is making DER investment decision
     reg_year = model_data.year(first(model_data.index_y))
@@ -840,7 +843,11 @@ function solve_agent_problem!(
 
     NetProfit = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
-        NetProfit(z, h, :) .= Payment_before_PVStor(z, h) - Payment_after_PVStor(z, h) -
+        NetProfit(z, h, :) .= 
+            # revenue of pv+storage, accounting for revenues from der aggregator (probablity weighted)
+            # assume der_aggregator.aggregation_level = 10%, then 10% of revenues will come from der aggregation incentive, 90% of reveneus comes from cost savings
+            (Payment_before_PVStor(z, h) - Payment_after_PVStor(z, h)) * (1 - der_aggregator.aggregation_level(reg_year_index, z)) + 
+            der_aggregator.incentive_level(reg_year_index, z) * customers.Opti_DG(z, h, :BTMStorage) * der_aggregator.aggregation_level(reg_year_index, z) -
             # cost of distributed generation 
             sum(customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m)
     end
