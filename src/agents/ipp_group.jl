@@ -5983,13 +5983,13 @@ function solve_agent_problem_ipp_cap(
     # battery_upper_bound_adj = 1.015
     # battery_lower_bound_adj = 0.985
 
-    # adjust these bounds may make the problem easier to solve! But it may also hurt the duality gap.
-    eta_upper_bound_adj = 1.01 # 1.001
-    eta_lower_bound_adj = 0.99 # 0.999
-    lambda_upper_bound_adj = 1.001
-    lambda_lower_bound_adj = 0.999
-    battery_upper_bound_adj = 1.001
-    battery_lower_bound_adj = 0.999
+    # TODO: adjust these bounds may make the problem easier to solve! But it may also hurt the duality gap.
+    eta_upper_bound_adj = 1.05 # 1.001
+    eta_lower_bound_adj = 0.95 # 0.999
+    lambda_upper_bound_adj = 1.05
+    lambda_lower_bound_adj = 0.95
+    battery_upper_bound_adj = 1.05
+    battery_lower_bound_adj = 0.95
 
     # eta_upper_bound_adj = 10.0
     # eta_lower_bound_adj = 10.0

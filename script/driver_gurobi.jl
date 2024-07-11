@@ -26,7 +26,7 @@ ba = ["p129", "p130", "p131", "p132", "p133", "p134"]                           
 # ba = ["p130", "p131"]
 ba_len = length(ba)
 base_year = 2020                                 # 2018
-future_years = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030]                      # [2019, 2020]
+future_years = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035]                      # [2019, 2020]
 # future_years = [2021, 2022, 2023, 2024, 2025]
 future_years_len = length(future_years)
 ipp_number = 1                                   # 1
@@ -35,7 +35,7 @@ scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 # need to run in julia: run(output_dir = PROFILES_DIRECTORY, user = "nguo", hostname = HOSTNAME, dbname = DATABASE, port = PORT, pca_ids = nothing) to get residential and commercial profiles
 # also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
 
-input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full"
+input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full_w_EV_2035"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 # mkpath(input_dir)
 
