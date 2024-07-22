@@ -67,9 +67,9 @@ function solve_agent_problem!(
 
         incentive_function_intercept[i] = der_aggregator.dera_stor_incentive_function[i+1, "participation"] - incentive_function_slope[i] * der_aggregator.dera_stor_incentive_function[i+1, "incentive"]
     end
-    incentive_level_by_segment = zeros(incentive_function_dimension - 1)
-    participation_by_segment = zeros(incentive_function_dimension - 1)
-    obj_by_segment = zeros(incentive_function_dimension - 1)
+    incentive_level_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
+    participation_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
+    obj_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
@@ -83,195 +83,186 @@ function solve_agent_problem!(
             total_der_stor_capacity(z, h, :) .= customers.x_DG_E_my(reg_year_index, h, z, :BTMStorage)
         end
     end
+    
+    for z in model_data.index_z
+        for i in 1:incentive_function_dimension - 1
+            # x (incentive) should be $/MW (per year)?
+            DERA_WM = get_new_jump_model(dera_opts.solvers)
+            @variable(DERA_WM, der_aggregator.dera_stor_incentive_function[i, "incentive"] <= incentive <= der_aggregator.dera_stor_incentive_function[i+1, "incentive"])
+            @variable(DERA_WM, dera_charge[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERA_WM, dera_discharge[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERA_WM, dera_energy[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERA_WM, dera_pv_gen[model_data.index_d, model_data.index_t] >= 0)
 
-    for i in 1:incentive_function_dimension - 1
-        # x (incentive) should be $/MW (per year)?
-        DERA_WM = get_new_jump_model(dera_opts.solvers)
-        @variable(DERA_WM, der_aggregator.dera_stor_incentive_function[i, "incentive"] <= x <= der_aggregator.dera_stor_incentive_function[i+1, "incentive"])
-        @variable(DERA_WM, dera_charge[model_data.index_z, model_data.index_d, model_data.index_t] >= 0)
-        @variable(DERA_WM, dera_discharge[model_data.index_z, model_data.index_d, model_data.index_t] >= 0)
-        @variable(DERA_WM, dera_energy[model_data.index_z, model_data.index_d, model_data.index_t] >= 0)
-        @variable(DERA_WM, dera_pv_gen[model_data.index_z, model_data.index_d, model_data.index_t] >= 0)
+            dera_stor_capacity_h =
+                h -> begin
 
-        dera_stor_capacity_h =
-            (z, h) -> begin
+                (incentive_function_intercept[i] + incentive_function_slope[i] * incentive) * total_der_stor_capacity(z, h)
 
-            (incentive_function_intercept[i] + incentive_function_slope[i] * x) * total_der_stor_capacity(z, h)
+            end
+
+            dera_stor_capacity =
+                begin
+
+                sum(dera_stor_capacity_h(h) for h in model_data.index_h)
+
+            end
+
+            # when it comes to the aggregated pv capacity, use aggregated storage capacity, divide by optimal storage size to get the number of households that's participating the dera aggregation,
+            # then multiply by the optimal pv size,
+            # TODO: I'm using optimal storage and pv capacities for existing resources, need to be more flexible to account for changing optimal tech sizes overtime.
+            # right now, assume the optimal sizes are the same for both existing and new techs.
+            dera_pv_capacity_h = 
+                h -> begin
+
+                dera_stor_capacity_h(h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
+
+            end
+
+            dera_pv_capacity =
+                begin
+
+                sum(dera_pv_capacity_h(h) for h in model_data.index_h)
+
+            end
+
+            objective_revenue = begin
+                sum(
+                    model_data.omega(d) * delta_t *
+                    ipp.LMP_my(reg_year_index, z, d, t) *
+                    (dera_discharge[d, t] - dera_charge[d, t] + dera_pv_gen[d, t]) 
+                    for d in model_data.index_d, t in model_data.index_t
+                ) + ipp.capacity_price(reg_year_index) * (dera_stor_capacity .* ipp.capacity_credit_stor_E_my(reg_year_index, z, Symbol("der_aggregator")) + 
+                dera_pv_capacity .* ipp.capacity_credit_E_my(reg_year_index, z, Symbol("dera_pv")))
+            end
+
+            objective_cost = begin
+                incentive * dera_stor_capacity
+            end
+
+            @objective(DERA_WM, Max, objective_revenue - objective_cost)
+
+            # DERA (storage) constraints -- We assume all distributed storage resources have the same initial energy, duration and round-trip-efficiency
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_energy_balance[
+                    d in model_data.index_d,
+                    t in model_data.index_t.elements[2:end],
+                ],
+                dera_energy[d, t] == dera_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - dera_discharge[d, t] / customers.rte_dist_stor(z, :Commercial) * delta_t +
+                    dera_charge[d, t] * delta_t
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_energy_balance_0[
+                    d in model_data.index_d,
+                    t in [model_data.index_t.elements[1]],
+                ],
+                dera_energy[d, t] == customers.initial_energy_dist_stor(z, :Commercial, d) - dera_discharge[d, t] / customers.rte_dist_stor(z, :Commercial) * delta_t + dera_charge[d, t] * delta_t
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_energy_upper_bound[
+                    d in model_data.index_d,
+                    t in model_data.index_t,
+                ],
+                dera_energy[d, t] <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_discharge_upper_bound[
+                    d in model_data.index_d,
+                    t in model_data.index_t,
+                ],
+                dera_discharge[d, t] <= customers.rte_dist_stor(z, :Commercial) * dera_stor_capacity
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_charge_upper_bound[
+                    d in model_data.index_d,
+                    t in model_data.index_t,
+                ],
+                dera_charge[d, t] <= dera_stor_capacity
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_discharge_energy_upper_bound[
+                    d in model_data.index_d,
+                    t in model_data.index_t.elements[2:end],
+                ],
+                dera_discharge[d, t] * delta_t <= 
+                dera_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_discharge_energy_upper_bound_0[
+                    d in model_data.index_d,
+                    t in [model_data.index_t.elements[1]],
+                ],
+                dera_discharge[d, t] * delta_t <= customers.initial_energy_dist_stor(z, :Commercial, d)
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_charge_energy_upper_bound[
+                    d in model_data.index_d,
+                    t in model_data.index_t.elements[2:end],
+                ],
+                dera_charge[d, t] * delta_t <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity -
+                dera_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_charge_energy_upper_bound_0[
+                    d in model_data.index_d,
+                    t in [model_data.index_t.elements[1]],
+                ],
+                dera_charge[d, t] * delta_t <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity -
+                customers.initial_energy_dist_stor(z, :Commercial, d)
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_stor_charge_discharge_upper_bound[
+                    d in model_data.index_d,
+                    t in model_data.index_t.elements,
+                ],
+                dera_charge[d, t] + dera_discharge[d, t] / customers.rte_dist_stor(z, :Commercial) <= 
+                dera_stor_capacity
+            )
+
+            @constraint(
+                DERA_WM,
+                Eq_pv_upper_bound[
+                    d in model_data.index_d,
+                    t in model_data.index_t,
+                ],
+                dera_pv_gen[d, t] <= ipp.rho_E_my(:ipp1, :dera_pv, z, d, t) * dera_pv_capacity
+            )
+
+            # TimerOutputs.@timeit HEM_TIMER "optimize! DER Aggregator dispatch" begin
+                optimize!(DERA_WM)
+            # end
+
+            incentive_level_by_segment[z][i] = value(incentive)
+            participation_by_segment[z][i] = incentive_function_intercept[i] + incentive_function_slope[i] * value(incentive)
+            obj_by_segment[z][i] = objective_value(DERA_WM)
 
         end
-
-        dera_stor_capacity =
-            z -> begin
-
-            sum(dera_stor_capacity_h(z, h) for h in model_data.index_h)
-
-        end
-
-        # when it comes to the aggregated pv capacity, use aggregated storage capacity, divide by optimal storage size to get the number of households that's participating the dera aggregation,
-        # then multiply by the optimal pv size,
-        # TODO: I'm using optimal storage and pv capacities for existing resources, need to be more flexible to account for changing optimal tech sizes overtime.
-        # right now, assume the optimal sizes are the same for both existing and new techs.
-        dera_pv_capacity_h = 
-            (z, h) -> begin
-
-            dera_stor_capacity_h(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
-
-        end
-
-        dera_pv_capacity =
-            z -> begin
-
-            sum(dera_pv_capacity_h(z, h) for h in model_data.index_h)
-
-        end
-
-        objective_revenue = begin
-            sum(
-                model_data.omega(d) * delta_t *
-                ipp.LMP_my(reg_year_index, z, d, t) *
-                (dera_discharge[z, d, t] - dera_charge[z, d, t] + dera_pv_gen[z, d, t]) 
-                for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            ) + ipp.capacity_price(reg_year_index) * (sum(dera_stor_capacity(z) .* ipp.capacity_credit_stor_E_my(reg_year_index, z, Symbol("der_aggregator")) for z in model_data.index_z) + 
-            sum(dera_pv_capacity(z) .* ipp.capacity_credit_E_my(reg_year_index, z, Symbol("dera_pv")) for z in model_data.index_z))
-        end
-
-        objective_cost = begin
-            sum(x * dera_stor_capacity(z) for z in model_data.index_z)
-        end
-
-        @objective(DERA_WM, Max, objective_revenue - objective_cost)
-
-        # DERA (storage) constraints -- We assume all distributed storage resources have the same initial energy, duration and round-trip-efficiency
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_energy_balance[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in model_data.index_t.elements[2:end],
-            ],
-            dera_energy[z, d, t] == dera_energy[z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - dera_discharge[z, d, t] / customers.rte_dist_stor(z, :Commercial) * delta_t +
-                dera_charge[z, d, t] * delta_t
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_energy_balance_0[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in [model_data.index_t.elements[1]],
-            ],
-            dera_energy[z, d, t] == customers.initial_energy_dist_stor(z, :Commercial, d) - dera_discharge[z, d, t] / customers.rte_dist_stor(z, :Commercial) * delta_t + dera_charge[z, d, t] * delta_t
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_energy_upper_bound[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in model_data.index_t,
-            ],
-            dera_energy[z, d, t] <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity(z)
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_discharge_upper_bound[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in model_data.index_t,
-            ],
-            dera_discharge[z, d, t] <= customers.rte_dist_stor(z, :Commercial) * dera_stor_capacity(z)
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_charge_upper_bound[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in model_data.index_t,
-            ],
-            dera_charge[z, d, t] <= dera_stor_capacity(z)
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_discharge_energy_upper_bound[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in model_data.index_t.elements[2:end],
-            ],
-            dera_discharge[z, d, t] * delta_t <= 
-            dera_energy[z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_discharge_energy_upper_bound_0[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in [model_data.index_t.elements[1]],
-            ],
-            dera_discharge[z, d, t] * delta_t <= customers.initial_energy_dist_stor(z, :Commercial, d)
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_charge_energy_upper_bound[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in model_data.index_t.elements[2:end],
-            ],
-            dera_charge[z, d, t] * delta_t <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity(z) -
-            dera_energy[z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_charge_energy_upper_bound_0[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in [model_data.index_t.elements[1]],
-            ],
-            dera_charge[z, d, t] * delta_t <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity(z) -
-            customers.initial_energy_dist_stor(z, :Commercial, d)
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_stor_charge_discharge_upper_bound[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in model_data.index_t.elements,
-            ],
-            dera_charge[z, d, t] + dera_discharge[z, d, t] / customers.rte_dist_stor(z, :Commercial) <= 
-            dera_stor_capacity(z)
-        )
-
-        @constraint(
-            DERA_WM,
-            Eq_pv_upper_bound[
-                z in model_data.index_z,
-                d in model_data.index_d,
-                t in model_data.index_t,
-            ],
-            dera_pv_gen[z, d, t] <= ipp.rho_E_my(:ipp1, :dera_pv, z, d, t) * dera_pv_capacity(z)
-        )
-
-        # TimerOutputs.@timeit HEM_TIMER "optimize! DER Aggregator dispatch" begin
-            optimize!(DERA_WM)
-        # end
-
-        incentive_level_by_segment[i] = value(x)
-        participation_by_segment[i] = incentive_function_intercept[i] + incentive_function_slope[i] * value(x)
-        obj_by_segment[i] = objective_value(DERA_WM)
-
     end
 
-    max_seg_index = findfirst(x -> x == maximum(obj_by_segment), obj_by_segment)
+    max_seg_index = Dict(z => findfirst(x -> x == maximum(obj_by_segment[z]), obj_by_segment[z]) for z in model_data.index_z)
     for z in model_data.index_z
-        der_aggregator.incentive_level(reg_year_index, z, :) .= incentive_level_by_segment[max_seg_index]
-        der_aggregator.aggregation_level(reg_year_index, z, :) .= participation_by_segment[max_seg_index]
+        der_aggregator.incentive_level(reg_year_index, z, :) .= incentive_level_by_segment[z][max_seg_index[z]]
+        der_aggregator.aggregation_level(reg_year_index, z, :) .= participation_by_segment[z][max_seg_index[z]]
     end
 
     dera_agg_stor_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
