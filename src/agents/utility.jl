@@ -1071,7 +1071,7 @@ function solve_agent_problem!(
     w_iter,
     jump_model
 )
-    return 0.0
+    return 0.0, nothing
 end
 
 # function solve_agent_problem!(
@@ -1415,9 +1415,32 @@ function solve_agent_problem!(
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
+    der_aggregator = get_agent(DERA, agent_store)
 
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+
+    if w_iter >= 2
+        reg_year_dera = model_data.year(first(model_data.index_y)) - 1
+    else
+        reg_year_dera = model_data.year(first(model_data.index_y))
+    end    
+    reg_year_index_dera = Symbol(Int(reg_year_dera))
+
+    total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
+    total_der_pv_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        if w_iter >= 2
+            total_der_stor_capacity(z, h, :) .=
+                customers.x_DG_E_my(reg_year_index_dera, h, z, :BTMStorage) + sum(
+                    customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) for
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year_dera
+                )
+        else
+            total_der_stor_capacity(z, h, :) .= customers.x_DG_E_my(reg_year_index_dera, h, z, :BTMStorage)
+        end
+        total_der_pv_capacity(z, h, :) .= total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
+    end
 
     x_R_aggregate_before = initialize_param("x_R_aggregate_before", model_data.index_y, utility.index_k_existing)
     x_C_aggregate_before = initialize_param("x_C_aggregate_before", model_data.index_y, utility.index_k_new)
@@ -1506,6 +1529,12 @@ function solve_agent_problem!(
                     customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
+            ) + 
+            sum(
+                customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) for h in model_data.index_h
+            ) + 
+            sum(
+                customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) for h in model_data.index_h
             )
     end
     fill!(utility.Max_Net_Load_my, NaN)
@@ -1638,6 +1667,13 @@ function solve_agent_problem!(
                     customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
+            ) - 
+            # remove aggregated behind-the-meter storage generation/consumption since they're front-of-the-meter now
+            sum(
+                customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) for h in model_data.index_h
+            ) - 
+            sum(
+                customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) for h in model_data.index_h
             ) +
             # green technology subscription at time t
             sum(
@@ -2207,6 +2243,8 @@ function solve_agent_problem!(
         utility.flow_cap_my(y, l, :) .= value.(flow_cap[y, l])
     end
 
+    viu_obj_value = objective_value(VIUDER_Utility)
+
     # x_R_aggregate_after = initialize_param("x_R_aggregate_after", model_data.index_y, utility.index_k_existing)
     # x_C_aggregate_after = initialize_param("x_C_aggregate_after", model_data.index_y, utility.index_k_new)
     # for y in model_data.index_y, k in utility.index_k_existing
@@ -2227,7 +2265,7 @@ function solve_agent_problem!(
     return compute_difference_percentage_maximum_one_norm([
         (x_R_before, utility.x_R_my),
         (x_C_before, utility.x_C_my),
-    ])
+    ]), viu_obj_value
 end
 
 

@@ -9586,7 +9586,7 @@ function solve_agent_problem!(
     end
 
     # report change in key variables from previous iteration to this one
-    return diff
+    return diff, nothing
 end
 
 function save_results(

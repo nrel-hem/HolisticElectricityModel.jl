@@ -43,7 +43,7 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERUseCase(),                     # DERUseCase(), NullUseCase()
     NullUseCase(),                    # SupplyChoiceUseCase(), NullUseCase()
 )

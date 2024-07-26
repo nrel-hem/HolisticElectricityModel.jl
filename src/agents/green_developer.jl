@@ -135,7 +135,7 @@ function solve_agent_problem!(
     jump_model
 )
 
-    return 0.0
+    return 0.0, nothing
 
 end
 
