@@ -1420,6 +1420,8 @@ function solve_agent_problem!(
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
 
+    # for simulation (each agent solves their problem once for each simulation year), we have to take DERA aggregation results from previous year;
+    # for equilibrium, we can take DERA aggregation results from this year.
     if w_iter >= 2
         reg_year_dera = model_data.year(first(model_data.index_y)) - 1
     else

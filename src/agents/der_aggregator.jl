@@ -22,6 +22,8 @@ mutable struct DERA <: AbstractDERA
     incentive_level::ParamArray
     # aggregation level by year
     aggregation_level::ParamArray
+    # percentage of cost savings as revenues for DERA under VIU
+    rev_perc_cost_saving_viu::ParamArray
 end
 
 function DERA(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
@@ -35,6 +37,7 @@ function DERA(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_
         initialize_param("aggregation_friction", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
         initialize_param("incentive_level", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("aggregation_level", model_data.index_y, model_data.index_z, value = 0.0),
+        initialize_param("rev_perc_cost_saving_viu::ParamArray", model_data.index_y, model_data.index_z, value = 0.1),
     )
 end
 
@@ -77,7 +80,7 @@ function solve_agent_problem!(
             total_der_stor_capacity(z, h, :) .=
                 customers.x_DG_E_my(reg_year_index, h, z, :BTMStorage) + sum(
                     customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) for
-                    y in model_data.year(first(model_data.index_y_fix)):(reg_year - 1)
+                    y in model_data.year(first(model_data.index_y_fix)):(reg_year)
                 )
         else
             total_der_stor_capacity(z, h, :) .= customers.x_DG_E_my(reg_year_index, h, z, :BTMStorage)
@@ -280,7 +283,7 @@ function solve_agent_problem!(
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
-    return 0.0
+    return 0.0, nothing
     
 end
 
@@ -316,13 +319,18 @@ function solve_agent_problem!(
     participation_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
     obj_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
 
+    cem_cost_saving_function_one = copy(der_aggregator.dera_stor_incentive_function)
+    rename!(cem_cost_saving_function_one, :incentive => Symbol("cost_savings"))
+    cem_cost_saving_function_one[!, "cost_savings"] = convert.(Float64, cem_cost_saving_function_one[!, "cost_savings"])
+    cem_cost_saving_function = Dict(z => copy(cem_cost_saving_function_one) for z in model_data.index_z)
+
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
         if w_iter >= 2
             total_der_stor_capacity(z, h, :) .=
                 customers.x_DG_E_my(reg_year_index, h, z, :BTMStorage) + sum(
                     customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) for
-                    y in model_data.year(first(model_data.index_y_fix)):(reg_year - 1)
+                    y in model_data.year(first(model_data.index_y_fix)):(reg_year)
                 )
         else
             total_der_stor_capacity(z, h, :) .= customers.x_DG_E_my(reg_year_index, h, z, :BTMStorage)
@@ -330,8 +338,13 @@ function solve_agent_problem!(
     end
 
     # construct revenue curves for VPP based on cost savings of DER aggregation
+    for z in model_data.index_z
+        # simply assign DERA to a random ipp (ipp1)
+        utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= 0.0
+        utility.x_E_my(z, Symbol("dera_pv"), :) .= 0.0
+    end
 
-    diff_one, viu_obj_value = solve_agent_problem!(
+    diff_one_base, viu_obj_value_base = solve_agent_problem!(
                             utility,
                             utility_opts,
                             model_data,
@@ -341,47 +354,72 @@ function solve_agent_problem!(
                             jump_model
     )
 
+    for z in model_data.index_z
+        if sum(total_der_stor_capacity(z, h) for h in model_data.index_h) != 0.0
+            for i in 1:incentive_function_dimension - 1
+                # set der aggregation level to points on the curve before running CEM
+                der_aggregator.aggregation_level(reg_year_index, z) = der_aggregator.dera_stor_incentive_function[i+1, "participation"]
+                utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) for h in model_data.index_h)
+                utility.x_E_my(z, Symbol("dera_pv"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV) for h in model_data.index_h)
 
+                diff_one, viu_obj_value = solve_agent_problem!(
+                            utility,
+                            utility_opts,
+                            model_data,
+                            hem_opts,
+                            agent_store,
+                            w_iter,
+                            jump_model
+                )
 
+                cem_cost_saving_function[z][i+1, "cost_savings"] = max(0.0, viu_obj_value_base - viu_obj_value)
+            end
+        else
+            cem_cost_saving_function[z][!, "cost_savings"] .= 0.0
+        end
+    end
 
+    cem_cost_saving_function_slope = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
+    cem_cost_saving_function_intercept = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
 
+    for z in model_data.index_z
+        for i in 1:incentive_function_dimension - 1
+            if (cem_cost_saving_function[z][i+1, "cost_savings"] - cem_cost_saving_function[z][i, "cost_savings"]) < 0.0
+                @error "cost saving function is decreasing at some points."
+            else
+                if (cem_cost_saving_function[z][i+1, "participation"] - cem_cost_saving_function[z][i, "participation"]) != 0.0
+                    cem_cost_saving_function_slope[z][i] = (cem_cost_saving_function[z][i+1, "cost_savings"] - cem_cost_saving_function[z][i, "cost_savings"]) / 
+                    (cem_cost_saving_function[z][i+1, "participation"] - cem_cost_saving_function[z][i, "participation"])
+                else
+                    cem_cost_saving_function_slope[z][i] = 0.0
+                end
+                cem_cost_saving_function_intercept[z][i] = cem_cost_saving_function[z][i+1, "cost_savings"] - cem_cost_saving_function_slope[z][i] * cem_cost_saving_function[z][i+1, "participation"]
+            end
+        end
+    end
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
     for z in model_data.index_z
         for i in 1:incentive_function_dimension - 1
             # x (incentive) should be $/MW (per year)?
-            DERA_WM = get_new_jump_model(dera_opts.solvers)
-            @variable(DERA_WM, der_aggregator.dera_stor_incentive_function[i, "incentive"] <= incentive <= der_aggregator.dera_stor_incentive_function[i+1, "incentive"])
-            @variable(DERA_WM, dera_charge[model_data.index_d, model_data.index_t] >= 0)
-            @variable(DERA_WM, dera_discharge[model_data.index_d, model_data.index_t] >= 0)
-            @variable(DERA_WM, dera_energy[model_data.index_d, model_data.index_t] >= 0)
-            @variable(DERA_WM, dera_pv_gen[model_data.index_d, model_data.index_t] >= 0)
+            DERA_VIU = get_new_jump_model(dera_opts.solvers)
+            @variable(DERA_VIU, der_aggregator.dera_stor_incentive_function[i, "incentive"] <= incentive <= der_aggregator.dera_stor_incentive_function[i+1, "incentive"])
+            @variable(DERA_VIU, dera_charge[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERA_VIU, dera_discharge[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERA_VIU, dera_energy[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERA_VIU, dera_pv_gen[model_data.index_d, model_data.index_t] >= 0)
+
+            participation_perc = begin
+                incentive_function_intercept[i] + incentive_function_slope[i] * incentive
+            end
 
             dera_stor_capacity_h =
                 h -> begin
-
-                (incentive_function_intercept[i] + incentive_function_slope[i] * incentive) * total_der_stor_capacity(z, h)
-
+                participation_perc * total_der_stor_capacity(z, h)
             end
 
             dera_stor_capacity =
                 begin
-
                 sum(dera_stor_capacity_h(h) for h in model_data.index_h)
-
             end
 
             # when it comes to the aggregated pv capacity, use aggregated storage capacity, divide by optimal storage size to get the number of households that's participating the dera aggregation,
@@ -390,38 +428,28 @@ function solve_agent_problem!(
             # right now, assume the optimal sizes are the same for both existing and new techs.
             dera_pv_capacity_h = 
                 h -> begin
-
                 dera_stor_capacity_h(h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
-
             end
 
             dera_pv_capacity =
                 begin
-
                 sum(dera_pv_capacity_h(h) for h in model_data.index_h)
-
             end
 
             objective_revenue = begin
-                sum(
-                    model_data.omega(d) * delta_t *
-                    ipp.LMP_my(reg_year_index, z, d, t) *
-                    (dera_discharge[d, t] - dera_charge[d, t] + dera_pv_gen[d, t]) 
-                    for d in model_data.index_d, t in model_data.index_t
-                ) + ipp.capacity_price(reg_year_index) * (dera_stor_capacity .* ipp.capacity_credit_stor_E_my(reg_year_index, z, Symbol("der_aggregator")) + 
-                dera_pv_capacity .* ipp.capacity_credit_E_my(reg_year_index, z, Symbol("dera_pv")))
+                der_aggregator.rev_perc_cost_saving_viu(reg_year_index, z) * (cem_cost_saving_function_intercept[z][i] + cem_cost_saving_function_slope[z][i] * participation_perc)
             end
 
             objective_cost = begin
                 incentive * dera_stor_capacity
             end
 
-            @objective(DERA_WM, Max, objective_revenue - objective_cost)
+            @objective(DERA_VIU, Max, objective_revenue - objective_cost)
 
             # DERA (storage) constraints -- We assume all distributed storage resources have the same initial energy, duration and round-trip-efficiency
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_energy_balance[
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
@@ -431,7 +459,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_energy_balance_0[
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
@@ -440,7 +468,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_energy_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -449,7 +477,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_discharge_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -458,7 +486,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_charge_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -467,7 +495,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_discharge_energy_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
@@ -477,7 +505,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_discharge_energy_upper_bound_0[
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
@@ -486,7 +514,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_charge_energy_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
@@ -496,7 +524,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_charge_energy_upper_bound_0[
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
@@ -506,7 +534,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_stor_charge_discharge_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t.elements,
@@ -516,7 +544,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERA_VIU,
                 Eq_pv_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -525,12 +553,12 @@ function solve_agent_problem!(
             )
 
             # TimerOutputs.@timeit HEM_TIMER "optimize! DER Aggregator dispatch" begin
-                optimize!(DERA_WM)
+                optimize!(DERA_VIU)
             # end
 
             incentive_level_by_segment[z][i] = value(incentive)
             participation_by_segment[z][i] = incentive_function_intercept[i] + incentive_function_slope[i] * value(incentive)
-            obj_by_segment[z][i] = objective_value(DERA_WM)
+            obj_by_segment[z][i] = objective_value(DERA_VIU)
 
         end
     end
@@ -550,12 +578,12 @@ function solve_agent_problem!(
 
     for z in model_data.index_z
         # simply assign DERA to a random ipp (ipp1)
-        ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
-        ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
+        utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
+        utility.x_E_my(z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
     end
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
-    return 0.0
+    return 0.0, nothing
     
 end
