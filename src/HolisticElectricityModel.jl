@@ -35,6 +35,7 @@ export CustomerGroup
 export IPPGroup
 export GreenDeveloper
 export DistributionUtility
+export DERA
 
 # Agent Options
 export RegulatorOptions
@@ -43,6 +44,7 @@ export GreenDeveloperOptions
 export IPPOptions
 export UtilityOptions
 export CustomersOptions
+export DERAOptions
 
 # Policies
 export FlatRate, TOU                                    # tariff structures
@@ -117,6 +119,7 @@ include("agents/customer_group.jl")
 include("agents/ipp_group.jl")
 include("agents/green_developer.jl")
 include("agents/distribution_utility.jl")
+include("agents/der_aggregator.jl")
 include("run_hem.jl")
 
 end # module

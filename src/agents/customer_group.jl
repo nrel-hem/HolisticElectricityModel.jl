@@ -89,6 +89,8 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     "Existing DER at year y. This is a cumulative number but without x_DG_new_my built by this module"
     x_DG_E_my::ParamArray
     Opti_DG::ParamArray
+    #TODO: make sure optimal DG sizes are the same for existing and new
+    #TODO; change this assumption later
     Opti_DG_E::ParamArray
     Opti_DG_my::ParamArray
     # "DER generation by a representative customer h and DER technology m"
@@ -141,7 +143,9 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     duration_dist_stor::ParamArray
 
     Payback_pv_stor::ParamArray
+    Payback_pv_only::ParamArray
     MarketShare_pv_stor::ParamArray
+    MarketShare_pv_only::ParamArray
     MaxDG_pv::ParamArray
     F_pv::ParamArray
     year_pv::ParamArray
@@ -442,7 +446,9 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initial_energy_dist_stor,
         duration_dist_stor,
         initialize_param("Payback_pv_stor", model_data.index_z, model_data.index_h),
+        initialize_param("Payback_pv_only", model_data.index_z, model_data.index_h),
         initialize_param("MarketShare_pv_stor", model_data.index_z, model_data.index_h),
+        initialize_param("MarketShare_pv_only", model_data.index_z, model_data.index_h),
         initialize_param("MaxDG_pv", model_data.index_z, model_data.index_h),
         initialize_param("F_pv", model_data.index_z, model_data.index_h),
         initialize_param("year_pv", model_data.index_z, model_data.index_h),
@@ -607,15 +613,29 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path
 )
+
+    # if BTM_PV_plus_Storage_Only=true, only consider PV+Storage adoption;
+    # if BTM_PV_plus_Storage_Only=false, compare the payback period between PV+Storage and PV-only, adopt the one with shorter payback period;
+    BTM_PV_plus_Storage_Only = true
+
     regulator = get_agent(Regulator, agent_store)
     utility = get_agent(Utility, agent_store)
+    der_aggregator = get_agent(DERA, agent_store)
 
     # the year consumer is making DER investment decision
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+
+    if w_iter >= 2
+        reg_year_dera = model_data.year(first(model_data.index_y)) - 1
+    else
+        reg_year_dera = model_data.year(first(model_data.index_y))
+    end    
+    reg_year_index_dera = Symbol(Int(reg_year_dera))
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
@@ -840,57 +860,262 @@ function solve_agent_problem!(
 
     NetProfit = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
-        NetProfit(z, h, :) .= Payment_before_PVStor(z, h) - Payment_after_PVStor(z, h) -
+        NetProfit(z, h, :) .= 
+            # revenue of pv+storage, accounting for revenues from der aggregator (probablity weighted)
+            # assume der_aggregator.aggregation_level = 10%, then 10% of revenues will come from der aggregation incentive, 90% of reveneus comes from cost savings
+            (Payment_before_PVStor(z, h) - Payment_after_PVStor(z, h)) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z)) + 
+            der_aggregator.incentive_level(reg_year_index_dera, z) * customers.Opti_DG(z, h, :BTMStorage) * der_aggregator.aggregation_level(reg_year_index_dera, z) -
             # cost of distributed generation 
             sum(customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m)
     end
 
+
+    # Calculate payback period of DPV-only
+    # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
+    NetProfit_PV_only = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
-        if NetProfit(z, h) > 0.0
-            customers.Payback_pv_stor(z, h, :) .=
-                sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit(z, h)
-            # Calculate maximum market share and maximum DG potential (based on WTP curve)
-            customers.MarketShare_pv_stor(z, h, :) .=
-                1.0 - Distributions.cdf(
-                    Distributions.Gamma(
-                        adopt_model.Shape(z, h, :BTMPV),
-                        1 / adopt_model.Rate(z, h, :BTMPV),
-                    ),
-                    customers.Payback_pv_stor(z, h),
-                )
-            customers.MaxDG_pv(z, h, :) .=
-                customers.MarketShare_pv_stor(z, h) * customers.gamma(z, h) * customers.Opti_DG(z, h, :BTMPV)
-            # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
-            customers.F_pv(z, h, :) .= min(customers.x_DG_E(h, z, :BTMPV) / customers.MaxDG_pv(z, h), 1.0)
-            # Back out the reference year of DER based on the percentage of existing DER
-            customers.year_pv(z, h, :) .=
-                -log(
-                    (1 - customers.F_pv(z, h)) /
-                    (customers.F_pv(z, h) * adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV) + 1),
-                ) / (adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV))
-            # Calculate incremental DG build
-            customers.A_pv(z, h, :) .=
-                (
-                    1.0 - exp(
-                        -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
-                        (customers.year_pv(z, h) + 1),
+        # value of distributed generation (offset load)
+        NetProfit_PV_only(z, h, :) .=
+            sum(
+                model_data.omega(d) * delta_t *
+                regulator.p(z, h, d, t) *
+                min(
+                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG(z, h, :BTMPV),
+                ) for d in model_data.index_d, t in model_data.index_t
+            ) +
+            # value of distributed generation (excess generation)
+            sum(
+                model_data.omega(d) * delta_t *
+                regulator.p_ex(z, h, d, t) *
+                max(
+                    0,
+                    customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG(z, h, :BTMPV) -
+                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                ) for d in model_data.index_d, t in model_data.index_t
+            ) -
+            # cost of distributed generation 
+            customers.FOM_DG(z, h, :BTMPV) * customers.Opti_DG(z, h, :BTMPV)
+    end
+
+
+
+    for z in model_data.index_z, h in model_data.index_h
+        if BTM_PV_plus_Storage_Only == true
+            if NetProfit(z, h) > 0.0
+                customers.Payback_pv_stor(z, h, :) .=
+                    sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit(z, h)
+                # Calculate maximum market share and maximum DG potential (based on WTP curve)
+                customers.MarketShare_pv_stor(z, h, :) .=
+                    1.0 - Distributions.cdf(
+                        Distributions.Gamma(
+                            adopt_model.Shape(z, h, :BTMPV),
+                            1 / adopt_model.Rate(z, h, :BTMPV),
+                        ),
+                        customers.Payback_pv_stor(z, h),
                     )
-                ) / (
-                    1.0 +
-                    (adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV)) * exp(
-                        -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
-                        (customers.year_pv(z, h) + 1),
+                customers.MaxDG_pv(z, h, :) .=
+                    customers.MarketShare_pv_stor(z, h) * customers.gamma(z, h) * customers.Opti_DG(z, h, :BTMPV)
+                # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
+                customers.F_pv(z, h, :) .= min(customers.x_DG_E(h, z, :BTMPV) / customers.MaxDG_pv(z, h), 1.0)
+                # Back out the reference year of DER based on the percentage of existing DER
+                customers.year_pv(z, h, :) .=
+                    -log(
+                        (1 - customers.F_pv(z, h)) /
+                        (customers.F_pv(z, h) * adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV) + 1),
+                    ) / (adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV))
+                # Calculate incremental DG build
+                customers.A_pv(z, h, :) .=
+                    (
+                        1.0 - exp(
+                            -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                            (customers.year_pv(z, h) + 1),
+                        )
+                    ) / (
+                        1.0 +
+                        (adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV)) * exp(
+                            -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                            (customers.year_pv(z, h) + 1),
+                        )
                     )
-                )
-            # calculate dpv adoption, then get storage adoption by 
-            # multiplying the ratio of distributed storage to dpv to dpv adoption
-            customers.x_DG_new(h, z, :BTMPV, :) .=
-                max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
-            customers.x_DG_new(h, z, :BTMStorage, :) .=
-                customers.x_DG_new(h, z, :BTMPV) * customers.Opti_DG(z, h, :BTMStorage) / customers.Opti_DG(z, h, :BTMPV)
+                # calculate dpv adoption, then get storage adoption by 
+                # multiplying the ratio of distributed storage to dpv to dpv adoption
+                customers.x_DG_new(h, z, :BTMPV, :) .=
+                    max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
+                customers.x_DG_new(h, z, :BTMStorage, :) .=
+                    customers.x_DG_new(h, z, :BTMPV) * customers.Opti_DG(z, h, :BTMStorage) / customers.Opti_DG(z, h, :BTMPV)
+            else
+                customers.x_DG_new(h, z, :BTMPV, :) .= 0.0
+                customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
+            end
         else
-            customers.x_DG_new(h, z, :BTMPV, :) .= 0.0
-            customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
+            if (NetProfit(z, h) > 0.0) && (NetProfit_PV_only(z, h) > 0.0)
+                customers.Payback_pv_stor(z, h, :) .=
+                        sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit(z, h)
+                customers.Payback_pv_only(z, h, :) .= customers.CapEx_DG(z, h, :BTMPV) * customers.Opti_DG(z, h, :BTMPV) / NetProfit_PV_only(z, h)
+                if customers.Payback_pv_stor(z, h) <= customers.Payback_pv_only(z, h)
+                    # Calculate maximum market share and maximum DG potential (based on WTP curve)
+                    customers.MarketShare_pv_stor(z, h, :) .=
+                        1.0 - Distributions.cdf(
+                            Distributions.Gamma(
+                                adopt_model.Shape(z, h, :BTMPV),
+                                1 / adopt_model.Rate(z, h, :BTMPV),
+                            ),
+                            customers.Payback_pv_stor(z, h),
+                        )
+                    customers.MaxDG_pv(z, h, :) .=
+                        customers.MarketShare_pv_stor(z, h) * customers.gamma(z, h) * customers.Opti_DG(z, h, :BTMPV)
+                    # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
+                    customers.F_pv(z, h, :) .= min(customers.x_DG_E(h, z, :BTMPV) / customers.MaxDG_pv(z, h), 1.0)
+                    # Back out the reference year of DER based on the percentage of existing DER
+                    customers.year_pv(z, h, :) .=
+                        -log(
+                            (1 - customers.F_pv(z, h)) /
+                            (customers.F_pv(z, h) * adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV) + 1),
+                        ) / (adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV))
+                    # Calculate incremental DG build
+                    customers.A_pv(z, h, :) .=
+                        (
+                            1.0 - exp(
+                                -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                                (customers.year_pv(z, h) + 1),
+                            )
+                        ) / (
+                            1.0 +
+                            (adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV)) * exp(
+                                -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                                (customers.year_pv(z, h) + 1),
+                            )
+                        )
+                    # calculate dpv adoption, then get storage adoption by 
+                    # multiplying the ratio of distributed storage to dpv to dpv adoption
+                    customers.x_DG_new(h, z, :BTMPV, :) .=
+                        max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
+                    customers.x_DG_new(h, z, :BTMStorage, :) .=
+                        customers.x_DG_new(h, z, :BTMPV) * customers.Opti_DG(z, h, :BTMStorage) / customers.Opti_DG(z, h, :BTMPV)
+                else
+                    # Calculate maximum market share and maximum DG potential (based on WTP curve)
+                    customers.MarketShare_pv_only(z, h, :) .=
+                        1.0 - Distributions.cdf(
+                            Distributions.Gamma(
+                                adopt_model.Shape(z, h, :BTMPV),
+                                1 / adopt_model.Rate(z, h, :BTMPV),
+                            ),
+                            customers.Payback_pv_only(z, h),
+                        )
+                    customers.MaxDG_pv(z, h, :) .=
+                        customers.MarketShare_pv_only(z, h) * customers.gamma(z, h) * customers.Opti_DG(z, h, :BTMPV)
+                    # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
+                    customers.F_pv(z, h, :) .= min(customers.x_DG_E(h, z, :BTMPV) / customers.MaxDG_pv(z, h), 1.0)
+                    # Back out the reference year of DER based on the percentage of existing DER
+                    customers.year_pv(z, h, :) .=
+                        -log(
+                            (1 - customers.F_pv(z, h)) /
+                            (customers.F_pv(z, h) * adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV) + 1),
+                        ) / (adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV))
+                    # Calculate incremental DG build
+                    customers.A_pv(z, h, :) .=
+                        (
+                            1.0 - exp(
+                                -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                                (customers.year_pv(z, h) + 1),
+                            )
+                        ) / (
+                            1.0 +
+                            (adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV)) * exp(
+                                -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                                (customers.year_pv(z, h) + 1),
+                            )
+                        )
+                    # calculate dpv adoption, then get storage adoption by 
+                    # multiplying the ratio of distributed storage to dpv to dpv adoption
+                    customers.x_DG_new(h, z, :BTMPV, :) .=
+                        max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
+                    customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
+                end
+            elseif (NetProfit(z, h) < 0.0) && (NetProfit_PV_only(z, h) > 0.0)
+                # Calculate maximum market share and maximum DG potential (based on WTP curve)
+                customers.MarketShare_pv_only(z, h, :) .=
+                    1.0 - Distributions.cdf(
+                        Distributions.Gamma(
+                            adopt_model.Shape(z, h, :BTMPV),
+                            1 / adopt_model.Rate(z, h, :BTMPV),
+                        ),
+                        customers.Payback_pv_only(z, h),
+                    )
+                customers.MaxDG_pv(z, h, :) .=
+                    customers.MarketShare_pv_only(z, h) * customers.gamma(z, h) * customers.Opti_DG(z, h, :BTMPV)
+                # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
+                customers.F_pv(z, h, :) .= min(customers.x_DG_E(h, z, :BTMPV) / customers.MaxDG_pv(z, h), 1.0)
+                # Back out the reference year of DER based on the percentage of existing DER
+                customers.year_pv(z, h, :) .=
+                    -log(
+                        (1 - customers.F_pv(z, h)) /
+                        (customers.F_pv(z, h) * adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV) + 1),
+                    ) / (adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV))
+                # Calculate incremental DG build
+                customers.A_pv(z, h, :) .=
+                    (
+                        1.0 - exp(
+                            -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                            (customers.year_pv(z, h) + 1),
+                        )
+                    ) / (
+                        1.0 +
+                        (adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV)) * exp(
+                            -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                            (customers.year_pv(z, h) + 1),
+                        )
+                    )
+                # calculate dpv adoption, then get storage adoption by 
+                # multiplying the ratio of distributed storage to dpv to dpv adoption
+                customers.x_DG_new(h, z, :BTMPV, :) .=
+                    max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
+                customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
+            elseif (NetProfit(z, h) > 0.0) && (NetProfit_PV_only(z, h) < 0.0)
+                # Calculate maximum market share and maximum DG potential (based on WTP curve)
+                customers.MarketShare_pv_stor(z, h, :) .=
+                    1.0 - Distributions.cdf(
+                        Distributions.Gamma(
+                            adopt_model.Shape(z, h, :BTMPV),
+                            1 / adopt_model.Rate(z, h, :BTMPV),
+                        ),
+                        customers.Payback_pv_stor(z, h),
+                    )
+                customers.MaxDG_pv(z, h, :) .=
+                    customers.MarketShare_pv_stor(z, h) * customers.gamma(z, h) * customers.Opti_DG(z, h, :BTMPV)
+                # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
+                customers.F_pv(z, h, :) .= min(customers.x_DG_E(h, z, :BTMPV) / customers.MaxDG_pv(z, h), 1.0)
+                # Back out the reference year of DER based on the percentage of existing DER
+                customers.year_pv(z, h, :) .=
+                    -log(
+                        (1 - customers.F_pv(z, h)) /
+                        (customers.F_pv(z, h) * adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV) + 1),
+                    ) / (adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV))
+                # Calculate incremental DG build
+                customers.A_pv(z, h, :) .=
+                    (
+                        1.0 - exp(
+                            -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                            (customers.year_pv(z, h) + 1),
+                        )
+                    ) / (
+                        1.0 +
+                        (adopt_model.Bass_q(z, h, :BTMPV) / adopt_model.Bass_p(z, h, :BTMPV)) * exp(
+                            -(adopt_model.Bass_p(z, h, :BTMPV) + adopt_model.Bass_q(z, h, :BTMPV)) *
+                            (customers.year_pv(z, h) + 1),
+                        )
+                    )
+                # calculate dpv adoption, then get storage adoption by 
+                # multiplying the ratio of distributed storage to dpv to dpv adoption
+                customers.x_DG_new(h, z, :BTMPV, :) .=
+                    max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
+                customers.x_DG_new(h, z, :BTMStorage, :) .=
+                    customers.x_DG_new(h, z, :BTMPV) * customers.Opti_DG(z, h, :BTMStorage) / customers.Opti_DG(z, h, :BTMPV)
+            else
+                customers.x_DG_new(h, z, :BTMPV, :) .= 0.0
+                customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
+            end
         end
     end
 
@@ -911,7 +1136,7 @@ function solve_agent_problem!(
     # @info "Original new DG" x_DG_before
     # @info "New new DG" customers.x_DG_new
 
-    return compute_difference_percentage_maximum_one_norm([(x_DG_before, customers.x_DG_new)])
+    return compute_difference_percentage_maximum_one_norm([(x_DG_before, customers.x_DG_new)]), nothing
 end
 
 

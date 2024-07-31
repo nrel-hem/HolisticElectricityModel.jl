@@ -249,6 +249,21 @@ function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: Abstr
     return agents_and_opts[id].agent
 end
 
+function get_option(::Type{T}, store::AgentStore, id = nothing) where {T <: AbstractAgent}
+    !haskey(store.data, T) && error("No agents of type $T are stored.")
+    agents_and_opts = store.data[T]
+
+    if id === nothing
+        if length(agents_and_opts) > 1
+            error("Passing 'id' is required if more than one agent is stored.")
+        end
+        return first(values(agents_and_opts)).options
+    end
+
+    !haskey(agents_and_opts, id) && error("No agent of type $T id = $id is stored")
+    return agents_and_opts[id].options
+end
+
 function iter_agents_and_options(store::AgentStore)
     return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
 end
@@ -297,7 +312,7 @@ function solve_equilibrium_problem!(
 
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
-        for w in 1:5 #(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+        for w in 1:10 #(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
             model_data.index_y.elements =
                 model_data.index_y_fix.elements[w:(w + window_length - 1)]
             i = 0
@@ -308,14 +323,15 @@ function solve_equilibrium_problem!(
                 for (agent, options) in iter_agents_and_options(store)
                     TimerOutputs.@timeit HEM_TIMER "solve_agent_problem!" begin
                         @info "$(typeof(agent)), iteration $i"
-                        diff_one = solve_agent_problem!(
+                        diff_one, other = solve_agent_problem!(
                             agent,
                             options,
                             model_data,
                             hem_opts,
                             store,
                             w,
-                            jump_model
+                            jump_model,
+                            export_file_path
                         )
                     end
                     @info "$(diff_one)"
