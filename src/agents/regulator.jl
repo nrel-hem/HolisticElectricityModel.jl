@@ -1055,7 +1055,8 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path
 )
 
     for y in model_data.index_y_fix
@@ -1069,6 +1070,7 @@ function solve_agent_problem!(
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
+    der_aggregator = get_agent(DERA, agent_store)
 
     # the year regulator is making a rate case
     reg_year = model_data.year(first(model_data.index_y))
@@ -1589,7 +1591,7 @@ function solve_agent_problem!(
                     sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
                     customers.d(h, z, d, t) * (1 - utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                customers.Opti_DG_E(z, h, :Storage) + sum(
+                customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                     max(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
@@ -1680,7 +1682,7 @@ function solve_agent_problem!(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
                         customers.d(h, z, d, t) * (1 - utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h, :Storage) + sum(
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
@@ -1747,7 +1749,7 @@ function solve_agent_problem!(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
                         customers.d(h, z, d, t) * (1 - utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h, :Storage) + sum(
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
@@ -1982,7 +1984,7 @@ function solve_agent_problem!(
                     sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
                     customers.d(h, z, d, t) * (1 - utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                customers.Opti_DG_E(z, h, :Storage) + sum(
+                customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                     max(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
@@ -2076,7 +2078,7 @@ function solve_agent_problem!(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
                         customers.d(h, z, d, t) * (1 - utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h, :Storage) + sum(
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
@@ -2901,7 +2903,8 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path
 )
 
     for y in model_data.index_y_fix
@@ -3094,7 +3097,7 @@ function solve_agent_problem!(
                     sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
                     customers.d(h, z, d, t) * (1 - utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                customers.Opti_DG_E(z, h, :Storage) + sum(
+                customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                     max(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
@@ -3185,7 +3188,7 @@ function solve_agent_problem!(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
                         customers.d(h, z, d, t) * (1 - utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h, :Storage) + sum(
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
@@ -3269,7 +3272,7 @@ function solve_agent_problem!(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
                         customers.d(h, z, d, t) * (1 - utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h, :Storage) + sum(
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
@@ -3476,7 +3479,7 @@ function solve_agent_problem!(
                     sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
                     customers.d(h, z, d, t) * (1 - utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                customers.Opti_DG_E(z, h, :Storage) + sum(
+                customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                     max(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
@@ -3591,7 +3594,7 @@ function solve_agent_problem!(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
                         customers.d(h, z, d, t) * (1 - utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h, :Storage) + sum(
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
@@ -3673,7 +3676,7 @@ function solve_agent_problem!(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
                         customers.d(h, z, d, t) * (1 - utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h, :Storage) + sum(
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),

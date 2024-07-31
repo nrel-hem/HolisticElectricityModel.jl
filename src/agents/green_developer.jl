@@ -57,6 +57,7 @@ function solve_agent_problem!(
     agent_store::AgentStore,
     w_iter,
     jump_model,
+    export_file_path,
 )
 
     utility = get_agent(Utility, agent_store)
@@ -132,7 +133,8 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path
 )
 
     return 0.0, nothing

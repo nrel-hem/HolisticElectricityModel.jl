@@ -613,12 +613,13 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path
 )
 
     # if BTM_PV_plus_Storage_Only=true, only consider PV+Storage adoption;
     # if BTM_PV_plus_Storage_Only=false, compare the payback period between PV+Storage and PV-only, adopt the one with shorter payback period;
-    BTM_PV_plus_Storage_Only = false
+    BTM_PV_plus_Storage_Only = true
 
     regulator = get_agent(Regulator, agent_store)
     utility = get_agent(Utility, agent_store)
@@ -948,7 +949,7 @@ function solve_agent_problem!(
                 customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
             end
         else
-            if NetProfit(z, h) > 0.0 & NetProfit_PV_only > 0.0
+            if (NetProfit(z, h) > 0.0) && (NetProfit_PV_only(z, h) > 0.0)
                 customers.Payback_pv_stor(z, h, :) .=
                         sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit(z, h)
                 customers.Payback_pv_only(z, h, :) .= customers.CapEx_DG(z, h, :BTMPV) * customers.Opti_DG(z, h, :BTMPV) / NetProfit_PV_only(z, h)
@@ -1032,7 +1033,7 @@ function solve_agent_problem!(
                         max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
                     customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
                 end
-            elseif NetProfit(z, h) < 0.0 & NetProfit_PV_only > 0.0
+            elseif (NetProfit(z, h) < 0.0) && (NetProfit_PV_only(z, h) > 0.0)
                 # Calculate maximum market share and maximum DG potential (based on WTP curve)
                 customers.MarketShare_pv_only(z, h, :) .=
                     1.0 - Distributions.cdf(
@@ -1071,7 +1072,7 @@ function solve_agent_problem!(
                 customers.x_DG_new(h, z, :BTMPV, :) .=
                     max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
                 customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
-            elseif NetProfit(z, h) > 0.0 & NetProfit_PV_only < 0.0
+            elseif (NetProfit(z, h) > 0.0) && (NetProfit_PV_only(z, h) < 0.0)
                 # Calculate maximum market share and maximum DG potential (based on WTP curve)
                 customers.MarketShare_pv_stor(z, h, :) .=
                     1.0 - Distributions.cdf(

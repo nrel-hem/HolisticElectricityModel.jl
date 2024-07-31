@@ -1069,7 +1069,8 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path
 )
     return 0.0, nothing
 end
@@ -1410,7 +1411,8 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path
 )
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
