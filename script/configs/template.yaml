@@ -1,8 +1,13 @@
 # ------------------------------------------------------------------------------
-# Data Selection
+# Solver 
 # ------------------------------------------------------------------------------
 
-data_selection: 
+# CHOOSE ONE
+solver: "Gurobi", "Xpress"
+
+# ------------------------------------------------------------------------------
+# Data Selection
+# ------------------------------------------------------------------------------
 
 # Geography --------------------------------------------------------------------
 # Currently, geography is tied to ReEDS balancing areas (BAs). Valid values are
@@ -13,56 +18,47 @@ data_selection:
 #     Nevada: "p13", "p14"
 #     New England: "p129", "p130", "p131", "p132", "p133", "p134"
 
-  balancing_areas:
-    - "p129"
-    - "p130"
-    - "p131"
-    - "p132"
-    - "p133"
-    - "p134"
+# EDIT
+balancing_areas:
+  - "p129"
+  - "p130"
+  - "p131"
+  - "p132"
+  - "p133"
+  - "p134"
 
 # Time -------------------------------------------------------------------------
 
-  base_year: 2020
-  num_future_years: 10
+base_year: 2020
+num_future_years: 10
 
-# Agent Resolution--------------------------------------------------------------
+# Number of IPPs ---------------------------------------------------------------
 
-  num_ipps: 1
-
-# Run Details ------------------------------------------------------------------
-
-# String used to distinguish the input data folder from others
-  folder_suffix: "20240806"
-
-# Whether the input folder needs to be (re)created
-  skip_parse: false
-
-# ------------------------------------------------------------------------------
-# Simulation Parameters
-# ------------------------------------------------------------------------------
-
-simulation_parameters:
-  
-  solver: "Xpress"
+num_ipps: 1
 
 # ------------------------------------------------------------------------------
 # Holistic Energy Model (HEM) model-wide options
 # ------------------------------------------------------------------------------
 
-market_structure: "vertically_integrated_utility"
-der_use_case: "der_use_case"
-supply_choice_use_case: "null_use_case"
+# CHOOSE ONE
+market_structure: "wholesale_market", "vertically_integrated_utility"
+# CHOOSE ONE
+der_use_case: "der_use_case", "null_use_case"
+# CHOOSE ONE
+supply_choice_use_case: "supply_choice_use_case", "null_use_case"
 
 # ------------------------------------------------------------------------------
 # Independent Power Producer (IPP) options
 # ------------------------------------------------------------------------------
 
-ipp_algorithm: "mppdcmer_transportation_storage"
+# CHOOSE ONE
+ipp_algorithm: "mppdcmer_transportation_storage" # "lagrange_decomposition", "mpppcmer", "miqp"
 
 # ------------------------------------------------------------------------------
 # Regulator options
 # ------------------------------------------------------------------------------
 
-rate_design: "flat_rate"
-net_metering_policy: "excess_retail_rate"
+# CHOOSE ONE
+rate_design: "flat_rate", "time_of_use"
+# CHOOSE ONE
+net_metering_policy: "excess_retail_rate", "excess_marginal_cost", "excess_zero"
