@@ -7,44 +7,36 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
 - Clone this repository
 - Clone the [HolisticElectricityModelData.jl repository](https://github.nrel.gov/HEM/HolisticElectricityModelData.jl)
 
-After this, you have some options:
-- [Computational Environment](#computational-environment): Local or NREL High-Performance Computing (HPC)
-- [Run Style](#run-style): REPL or command line
 
-### Computational Environment
+### Installation
 
-#### Local Set-up
-
-- [Install the Xpress solver](https://github.nrel.gov/dcutler/fico-xpress)
-- Use the driver_xpress.jl file for your model runs
-
-#### NREL HPC - Eagle Set-Up
+#### NREL HPC Instructions
 
 - Go to https://julialang.org/downloads and copy the link to the latest Julia Linux image.
-- ssh to Eagle and download the image.
+- ssh to NREL HPC (currently Kestrel) and download the image.
     ```bash
-    $ ssh ed1.hpc.nrel.gov
+    $ ssh kestrel.hpc.nrel.gov
     $ wget https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-1.8.1-linux-x86_64.tar.gz
     $ tar -xzf julia-1.8.1-linux-x86_64.tar.gz
     ```
 - Add lines analogous to these to your ~/.bashrc file on Eagle:
     ```
     # User specific aliases and functions
-    alias julia="/home/ehale/julia-1.5.2/bin/julia"
+    alias julia="/home/ehale/julia-1.8.1/bin/julia"
     ```
 - Reload the file so that you can run `julia`.
     ```bash
     $ source ~/.bashrc
     ```
-- Once on a login node, make it so the required packages will load by running the first part of the REPL code:
+- Once on a login node, make it so the required packages will load:
     ```bash
     > module load gurobi/9.1.2
-    > julia --project=runner
+    > julia --project=runner/Gurobi
     ```
 
     ```julia
     julia> ]
-    pkg> dev . ../HolisticElectricityModelData.jl
+    pkg> dev --local ../HolisticElectricityModelData.jl
     pkg> instantiate
     pkg> build Gurobi
     ```
@@ -63,83 +55,84 @@ After this, you have some options:
     > julia --project=runner script/driver.jl
     ```
 
+#### NREL Laptop Instructions
 
-### Run Style
+- [Install the Xpress solver](https://github.nrel.gov/MSOC/fico-xpress)
+- Use the driver_xpress.jl file for your model runs
 
-Note that a few solver packages are installed in the `runner` project and not in the main HolisticElectricityModel
-package. The HolisticElectricityModel team used those solvers for test and development. The intention is to allow
-users to install any compatible solver in their own environment.
+#### Other Environments
 
-To set up the `runner` environment before running in either of the manners described below, complete the following
-set-up steps.
+The key consideration for running in non-NREL computational environments is which
+solver will be used for linear programs (LPs) and mixed integer programs (MIPs). 
+The HEM team recommends using a commercial solver; for example, we use either 
+Xpress or Gurobi. If you would prefer to use a different solver, please let us 
+know and/or try implementing on your own. The key steps to supporting another 
+solver are:
 
-First, if you don't have Gurobi installed on your system, set the GUROBI_JL_SKIP_LIB_CHECK environment variable:
+- Add a new environment specification under [runner](https://github.com/nrel-hem/HolisticElectricityModel.jl/tree/main/runner)
+- Create a new `HEMSolver` in [src/solvers.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/src/solvers.jl)
+- Edit `script/hem.jl` accordingly
 
-*Linux/Mac*
-```bash
-$ export GUROBI_JL_SKIP_LIB_CHECK=1
-```
+A nonlinear programming solver is also required, but we've generally found the 
+open source solver Ipopt to be sufficient for our purposes. Thus, Ipopt is 
+installed by default in our runner projects. That said, if you'd like to try 
+other options, feel free to explore and please do reach out if you learn anything 
+interesting or would like to make a contribution.
 
-*Windows*
-```
-> set GUROBI_JL_SKIP_LIB_CHECK=1
-```
+### Julia Environment
 
-Or, if you don't have Xpress installed on your system, set the XPRESS_JL_SKIP_LIB_CHECK environment variable:
+Running HEM requires access to LP and MIP solvers. Because different choices can 
+be made in this regard, we recommend setting up your computational environment 
+based on one of the environments under [runner](https://github.com/nrel-hem/HolisticElectricityModel.jl/tree/main/runner).
 
-*Linux/Mac*
-```bash
-$ export XPRESS_JL_SKIP_LIB_CHECK=1
-```
-
-*Windows*
-```
-> set XPRESS_JL_SKIP_LIB_CHECK=1
-```
-
-Second, install HolisticElectricityModel.jl and HolisticElectricityModelData.jl in the runner project:
-
-```bash
-> julia
-```
-```julia
-julia> ]
-pkg> activate runner
-pkg> dev . ../HolisticElectricityModelData.jl
-```
-
-#### REPL
-
-Open the REPL from the HolisticElectrictyModel.jl directory. Then:
+To set up such an environment from the Julia terminal/REPL (REPL stands for 
+read-eval-print loop):
 
 ```julia
 julia> ]
-pkg> activate runner
+(@v1.10) pkg> activate runner/Xpress # select desired solver at this point
+(Xpress) pkg> dev --local . ../HolisticElectricityModelData.jl
+(Xpress) pkg> instantiate
 # Hit Backspace
-julia> include("script/driver_xpress.jl") # or include("script/driver_gurobi.jl")
+julia> 
 ```
 
-or, if you specify the runner project when you open the REPL:
-
-```bash
-> cd ~/HolisticElectricityModel.jl
-> julia --project=runner
-```
-
-and if the runner environment is already set up then you can simply:
+Using Gurobi is the same as using Xpress, except that there is an extra 
+`build Gurobi` step:
 
 ```julia
-julia> include("script/driver_xpress.jl") # or include("script/driver_gurobi.jl")
+julia> ]
+(@v1.10) pkg> activate runner/Gurobi # select desired solver at this point
+(Gurobi) pkg> dev --local . ../HolisticElectricityModelData.jl
+(Gurobi) pkg> instantiate
+(Gurobi) pkg> build Gurobi
+# Hit Backspace
+julia> 
 ```
 
-#### Command Line
+Alternatively, the Julia environment can be specified on the command line, either
+to open the REPL:
 
+```julia
+> julia --project=runner/Xpress
+# If you want to check that your environment is in working order before proceeding
+julia> ]
+(Xpress) > instantiate
+# Hit Backspace
+julia> 
+```
+
+or to directly run a script:
 ```bash
 > cd ~/HolisticElectricityModel.jl
-> julia --project=runner script/driver_xpress.jl # or script/driver_gurobi.jl
+> julia --project=runner/Gurobi script/hem.jl
 ```
 
-### Tests
+### Performing a Model Run
+
+
+
+### Running Tests
 
 Specify a scenario you want to test by setting `driver_name` as desired at the top of `test/test_driver.jl` and then editing the driver file accordingly. Currently the model outputs available to test against are in the `test/driver_outputs/ba_1_base_2018_future_2_ipps_1` directory created with input parameters:
 
