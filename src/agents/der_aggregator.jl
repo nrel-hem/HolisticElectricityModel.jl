@@ -49,7 +49,7 @@ get_id(x::DERAggregator) = x.id
 
 function solve_agent_problem!(
     der_aggregator::DERAggregator,
-    dera_opts::AgentOptions,
+    dera_opts::DERAggregatorOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
@@ -296,7 +296,7 @@ end
 
 function solve_agent_problem!(
     der_aggregator::DERAggregator,
-    dera_opts::AgentOptions,
+    dera_opts::DERAggregatorOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,

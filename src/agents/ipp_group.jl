@@ -748,7 +748,7 @@ get_id(x::IPPGroup) = x.id
 
 function solve_agent_problem!(
     ipps::IPPGroup,
-    ipp_opts::AgentOptions,
+    ipp_opts::IPPOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
@@ -9562,7 +9562,7 @@ end
 
 function solve_agent_problem!(
     ipp::IPPGroup,
-    ipp_opts::AgentOptions,
+    ipp_opts::IPPOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,

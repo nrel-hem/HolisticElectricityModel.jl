@@ -1064,7 +1064,7 @@ get_id(x::Utility) = x.id
 
 function solve_agent_problem!(
     utility::Utility,
-    utility_opts::AgentOptions,
+    utility_opts::UtilityOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
@@ -1077,7 +1077,7 @@ end
 
 # function solve_agent_problem!(
 #     utility::Utility,
-#     utility_opts::AgentOptions,
+#     utility_opts::UtilityOptions,
 #     model_data::HEMData,
 #     hem_opts::HEMOptions{VerticallyIntegratedUtility},
 #     agent_store::AgentStore,
@@ -1406,7 +1406,7 @@ end
 ############### utility capacity expansion with transmission and storage ###############
 function solve_agent_problem!(
     utility::Utility,
-    utility_opts::AgentOptions,
+    utility_opts::UtilityOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,

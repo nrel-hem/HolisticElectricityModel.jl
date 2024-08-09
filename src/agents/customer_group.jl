@@ -466,7 +466,7 @@ get_id(x::CustomerGroup) = x.id
 
 # function solve_agent_problem!(
 #     customers::CustomerGroup,
-#     customers_opts::AgentOptions,
+#     customers_opts::CustomersOptions,
 #     model_data::HEMData,
 #     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
 #     agent_store::AgentStore,
@@ -608,7 +608,7 @@ get_id(x::CustomerGroup) = x.id
 ############ BTM PV+Storage adoption ############
 function solve_agent_problem!(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customers_opts::CustomersOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
@@ -1142,7 +1142,7 @@ end
 
 function solve_agent_problem!(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customers_opts::CustomersOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,
@@ -1234,7 +1234,7 @@ end
 
 function solve_agent_problem!(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customers_opts::CustomersOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,

@@ -51,7 +51,7 @@ get_id(x::GreenDeveloper) = x.id
 
 function solve_agent_problem!(
     green_developer::GreenDeveloper,
-    green_developer_opts::AgentOptions,
+    green_developer_opts::GreenDeveloperOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, <:Union{NullUseCase,DERUseCase}, SupplyChoiceUseCase},
     agent_store::AgentStore,
@@ -128,7 +128,7 @@ end
 
 function solve_agent_problem!(
     green_developer::GreenDeveloper,
-    green_developer_opts::AgentOptions,
+    green_developer_opts::GreenDeveloperOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
