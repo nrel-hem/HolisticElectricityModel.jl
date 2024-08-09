@@ -2,13 +2,25 @@
 
 const DER_factor = 1.0    # A scaling factor applied to existing DER penetration level
 
-struct CustomersOptions <: AgentOptions
+abstract type PVAdoptionType end
+struct StandalonePVOnly <: PVAdoptionType end
+struct SolarPlusStorageOnly <: PVAdoptionType end
+struct Compete_StandalonePV_SolarPlusStorage <: PVAdoptionType end
+
+abstract type AbstractCustomerOptions <: AgentOptions end
+
+struct CustomerOptions{T <: PVAdoptionType} <: AbstractCustomerOptions
+    pv_adoption_type::T
+
     solvers::HEMSolver
-    # solvers::Union{HEMSolver, Dict{String, <:HEMSolver}}
 end
 
-function CustomersOptions(attributes::MOI.OptimizerWithAttributes)
-    return CustomersOptions(AnySolver(attributes))
+function get_file_prefix(options::CustomerOptions)
+    return join(["$(typeof(options.pv_adoption_type))"],"_")
+end
+
+function CustomerOptions(pv_adoption_type::PVAdoptionType, attributes::MOI.OptimizerWithAttributes)
+    return CustomerOptions(pv_adoption_type, AnySolver(attributes))
 end
 
 mutable struct PVAdoptionModel
@@ -60,16 +72,12 @@ end
 #     )
 # end
 
+# TODO: Make it possible to run SupplyChoice againn by making this an exclusive choice
 # # declare customer decision
 # abstract type ConsumerModel end
 # struct DERAdoption <: ConsumerModel end
 # struct SupplyChoice <: ConsumerModel end
 
-# abstract type AbstractCustomerOptions <: AgentOptions end
-
-# struct CustomerOptions{T <: ConsumerModel} <: AbstractCustomerOptions
-#     customer_model::T
-# end
 
 abstract type AbstractCustomerGroup <: AgentGroup end
 
@@ -466,7 +474,7 @@ get_id(x::CustomerGroup) = x.id
 
 # function solve_agent_problem!(
 #     customers::CustomerGroup,
-#     customers_opts::CustomersOptions,
+#     customer_opts::CustomerOptions,
 #     model_data::HEMData,
 #     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
 #     agent_store::AgentStore,
@@ -608,7 +616,7 @@ get_id(x::CustomerGroup) = x.id
 ############ BTM PV+Storage adoption ############
 function solve_agent_problem!(
     customers::CustomerGroup,
-    customers_opts::CustomersOptions,
+    customer_opts::Union{CustomerOptions{SolarPlusStorageOnly},CustomerOptions{Compete_StandalonePV_SolarPlusStorage}},
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
@@ -616,11 +624,6 @@ function solve_agent_problem!(
     jump_model,
     export_file_path
 )
-
-    # if BTM_PV_plus_Storage_Only=true, only consider PV+Storage adoption;
-    # if BTM_PV_plus_Storage_Only=false, compare the payback period between PV+Storage and PV-only, adopt the one with shorter payback period;
-    BTM_PV_plus_Storage_Only = true
-
     regulator = get_agent(Regulator, agent_store)
     utility = get_agent(Utility, agent_store)
     der_aggregator = get_agent(DERAggregator, agent_store)
@@ -689,7 +692,7 @@ function solve_agent_problem!(
     Payment_after_PVStor = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
 
-        Customer_PV_Storage_Opti = get_new_jump_model(customers_opts.solvers)
+        Customer_PV_Storage_Opti = get_new_jump_model(customer_opts.solvers)
 
         # units in MWh
         @variable(Customer_PV_Storage_Opti, net_load[model_data.index_d, model_data.index_t])
@@ -901,7 +904,7 @@ function solve_agent_problem!(
 
 
     for z in model_data.index_z, h in model_data.index_h
-        if BTM_PV_plus_Storage_Only == true
+        if customer_opts isa CustomerOptions{SolarPlusStorageOnly}
             if NetProfit(z, h) > 0.0
                 customers.Payback_pv_stor(z, h, :) .=
                     sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit(z, h)
@@ -949,6 +952,8 @@ function solve_agent_problem!(
                 customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
             end
         else
+            @assert customer_opts isa CustomerOptions{Compete_StandalonePV_SolarPlusStorage}
+
             if (NetProfit(z, h) > 0.0) && (NetProfit_PV_only(z, h) > 0.0)
                 customers.Payback_pv_stor(z, h, :) .=
                         sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit(z, h)
@@ -1142,7 +1147,7 @@ end
 
 function solve_agent_problem!(
     customers::CustomerGroup,
-    customers_opts::CustomersOptions,
+    customer_opts::CustomerOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,
@@ -1234,7 +1239,7 @@ end
 
 function solve_agent_problem!(
     customers::CustomerGroup,
-    customers_opts::CustomersOptions,
+    customer_opts::CustomerOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,
@@ -1437,7 +1442,7 @@ end
 
 function save_results(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customer_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     export_file_path::AbstractString,
 )
@@ -1453,7 +1458,7 @@ end
 
 function save_results(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customer_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
     export_file_path::AbstractString,
 )
@@ -1469,7 +1474,7 @@ end
 
 function save_results(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customer_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
     export_file_path::AbstractString,
 )
@@ -1492,7 +1497,7 @@ end
 
 function welfare_calculation!(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customer_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
     agent_store::AgentStore,
@@ -1715,7 +1720,7 @@ end
 # TODO: welfare for consumer's green tech subscription
 function welfare_calculation!(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customer_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,
@@ -1914,7 +1919,7 @@ end
 
 function welfare_calculation!(
     customers::CustomerGroup,
-    customers_opts::AgentOptions,
+    customer_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
     agent_store::AgentStore,

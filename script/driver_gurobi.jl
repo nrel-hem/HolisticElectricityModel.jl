@@ -110,7 +110,8 @@ green_developer_opts = GreenDeveloperOptions(
     ),
 )
 
-customers_opts = CustomersOptions(
+customer_opts = CustomerOptions(
+    SolarPlusStorageOnly(),
     JuMP.optimizer_with_attributes(
         () -> Gurobi.Optimizer(GUROBI_ENV),
         # "OUTPUTLOG" => 0,
@@ -135,7 +136,7 @@ output_dir = run_hem(
     ipp_options=ipp_opts,
     utility_options=utility_opts,
     green_developer_options=green_developer_opts,
-    customers_options=customers_opts,
+    customer_options=customer_opts,
     dera_options=dera_opts,
     force=true,
     jump_model=jump_model,
