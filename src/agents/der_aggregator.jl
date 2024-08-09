@@ -1,18 +1,18 @@
-abstract type AbstractDERA <: Agent end
+abstract type AbstractDERAggregator <: Agent end
 
-struct DERAOptions <: AgentOptions
+struct DERAggregatorOptions <: AgentOptions
     solvers::HEMSolver
     # solvers::Union{HEMSolver, Dict{String, <:HEMSolver}}
 end
 
 """
-Construct DERAOptions with an MOI.OptimizerWithAttributes instance.
+Construct DERAggregatorOptions with an MOI.OptimizerWithAttributes instance.
 """
-function DERAOptions(attributes::MOI.OptimizerWithAttributes)
-    return DERAOptions(AnySolver(attributes))
+function DERAggregatorOptions(attributes::MOI.OptimizerWithAttributes)
+    return DERAggregatorOptions(AnySolver(attributes))
 end
 
-mutable struct DERA <: AbstractDERA
+mutable struct DERAggregator <: AbstractDERAggregator
     id::String
     # incentive function for DER aggregation (piece-wise linear function: incentive (x) vs participation (y))
     dera_stor_incentive_function::DataFrame
@@ -22,18 +22,18 @@ mutable struct DERA <: AbstractDERA
     incentive_level::ParamArray
     # aggregation level by year
     aggregation_level::ParamArray
-    # percentage of cost savings as revenues for DERA under VIU
+    # percentage of cost savings as revenues for DERAggregator under VIU
     rev_perc_cost_saving_viu::ParamArray
     dera_stor_my::ParamArray
     dera_pv_my::ParamArray
 end
 
-function DERA(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function DERAggregator(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
 
     # need to have the incentive function for each customer type
     dera_stor_incentive_function = CSV.read(joinpath(input_filename, "dera_stor_incentive_function.csv"), DataFrame)
 
-    return DERA(
+    return DERAggregator(
         id,
         dera_stor_incentive_function,
         initialize_param("aggregation_friction", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
@@ -45,10 +45,10 @@ function DERA(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_
     )
 end
 
-get_id(x::DERA) = x.id
+get_id(x::DERAggregator) = x.id
 
 function solve_agent_problem!(
-    der_aggregator::DERA,
+    der_aggregator::DERAggregator,
     dera_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
@@ -95,12 +95,12 @@ function solve_agent_problem!(
     for z in model_data.index_z
         for i in 1:incentive_function_dimension - 1
             # x (incentive) should be $/MW (per year)?
-            DERA_WM = get_new_jump_model(dera_opts.solvers)
-            @variable(DERA_WM, der_aggregator.dera_stor_incentive_function[i, "incentive"] <= incentive <= der_aggregator.dera_stor_incentive_function[i+1, "incentive"])
-            @variable(DERA_WM, dera_charge[model_data.index_d, model_data.index_t] >= 0)
-            @variable(DERA_WM, dera_discharge[model_data.index_d, model_data.index_t] >= 0)
-            @variable(DERA_WM, dera_energy[model_data.index_d, model_data.index_t] >= 0)
-            @variable(DERA_WM, dera_pv_gen[model_data.index_d, model_data.index_t] >= 0)
+            DERAggregator_WM = get_new_jump_model(dera_opts.solvers)
+            @variable(DERAggregator_WM, der_aggregator.dera_stor_incentive_function[i, "incentive"] <= incentive <= der_aggregator.dera_stor_incentive_function[i+1, "incentive"])
+            @variable(DERAggregator_WM, dera_charge[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERAggregator_WM, dera_discharge[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERAggregator_WM, dera_energy[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERAggregator_WM, dera_pv_gen[model_data.index_d, model_data.index_t] >= 0)
 
             dera_stor_capacity_h =
                 h -> begin
@@ -148,12 +148,12 @@ function solve_agent_problem!(
                 incentive * dera_stor_capacity
             end
 
-            @objective(DERA_WM, Max, objective_revenue - objective_cost)
+            @objective(DERAggregator_WM, Max, objective_revenue - objective_cost)
 
-            # DERA (storage) constraints -- We assume all distributed storage resources have the same initial energy, duration and round-trip-efficiency
+            # DERAggregator (storage) constraints -- We assume all distributed storage resources have the same initial energy, duration and round-trip-efficiency
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_energy_balance[
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
@@ -163,7 +163,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_energy_balance_0[
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
@@ -172,7 +172,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_energy_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -181,7 +181,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_discharge_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -190,7 +190,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_charge_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -199,7 +199,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_discharge_energy_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
@@ -209,7 +209,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_discharge_energy_upper_bound_0[
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
@@ -218,7 +218,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_charge_energy_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
@@ -228,7 +228,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_charge_energy_upper_bound_0[
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
@@ -238,7 +238,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_stor_charge_discharge_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t.elements,
@@ -248,7 +248,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_WM,
+                DERAggregator_WM,
                 Eq_pv_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -257,12 +257,12 @@ function solve_agent_problem!(
             )
 
             # TimerOutputs.@timeit HEM_TIMER "optimize! DER Aggregator dispatch" begin
-                optimize!(DERA_WM)
+                optimize!(DERAggregator_WM)
             # end
 
             incentive_level_by_segment[z][i] = value(incentive)
             participation_by_segment[z][i] = incentive_function_intercept[i] + incentive_function_slope[i] * value(incentive)
-            obj_by_segment[z][i] = objective_value(DERA_WM)
+            obj_by_segment[z][i] = objective_value(DERAggregator_WM)
 
         end
     end
@@ -283,7 +283,7 @@ function solve_agent_problem!(
     end
 
     for z in model_data.index_z
-        # simply assign DERA to a random ipp (ipp1)
+        # simply assign DERAggregator to a random ipp (ipp1)
         ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
         ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
     end
@@ -295,7 +295,7 @@ function solve_agent_problem!(
 end
 
 function solve_agent_problem!(
-    der_aggregator::DERA,
+    der_aggregator::DERAggregator,
     dera_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
@@ -347,7 +347,7 @@ function solve_agent_problem!(
 
     # construct revenue curves for VPP based on cost savings of DER aggregation
     for z in model_data.index_z
-        # simply assign DERA to a random ipp (ipp1)
+        # simply assign DERAggregator to a random ipp (ipp1)
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= 0.0
         utility.x_E_my(z, Symbol("dera_pv"), :) .= 0.0
         der_aggregator.aggregation_level(reg_year_index, z, :) .= 0.0
@@ -413,12 +413,12 @@ function solve_agent_problem!(
     for z in model_data.index_z
         for i in 1:incentive_function_dimension - 1
             # x (incentive) should be $/MW (per year)?
-            DERA_VIU = get_new_jump_model(dera_opts.solvers)
-            @variable(DERA_VIU, der_aggregator.dera_stor_incentive_function[i, "incentive"] <= incentive <= der_aggregator.dera_stor_incentive_function[i+1, "incentive"])
-            @variable(DERA_VIU, dera_charge[model_data.index_d, model_data.index_t] >= 0)
-            @variable(DERA_VIU, dera_discharge[model_data.index_d, model_data.index_t] >= 0)
-            @variable(DERA_VIU, dera_energy[model_data.index_d, model_data.index_t] >= 0)
-            @variable(DERA_VIU, dera_pv_gen[model_data.index_d, model_data.index_t] >= 0)
+            DERAggregator_VIU = get_new_jump_model(dera_opts.solvers)
+            @variable(DERAggregator_VIU, der_aggregator.dera_stor_incentive_function[i, "incentive"] <= incentive <= der_aggregator.dera_stor_incentive_function[i+1, "incentive"])
+            @variable(DERAggregator_VIU, dera_charge[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERAggregator_VIU, dera_discharge[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERAggregator_VIU, dera_energy[model_data.index_d, model_data.index_t] >= 0)
+            @variable(DERAggregator_VIU, dera_pv_gen[model_data.index_d, model_data.index_t] >= 0)
 
             participation_perc = begin
                 incentive_function_intercept[i] + incentive_function_slope[i] * incentive
@@ -456,12 +456,12 @@ function solve_agent_problem!(
                 incentive * dera_stor_capacity
             end
 
-            @objective(DERA_VIU, Max, objective_revenue - objective_cost)
+            @objective(DERAggregator_VIU, Max, objective_revenue - objective_cost)
 
-            # DERA (storage) constraints -- We assume all distributed storage resources have the same initial energy, duration and round-trip-efficiency
+            # DERAggregator (storage) constraints -- We assume all distributed storage resources have the same initial energy, duration and round-trip-efficiency
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_energy_balance[
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
@@ -471,7 +471,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_energy_balance_0[
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
@@ -480,7 +480,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_energy_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -489,7 +489,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_discharge_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -498,7 +498,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_charge_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -507,7 +507,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_discharge_energy_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
@@ -517,7 +517,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_discharge_energy_upper_bound_0[
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
@@ -526,7 +526,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_charge_energy_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
@@ -536,7 +536,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_charge_energy_upper_bound_0[
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
@@ -546,7 +546,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_stor_charge_discharge_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t.elements,
@@ -556,7 +556,7 @@ function solve_agent_problem!(
             )
 
             @constraint(
-                DERA_VIU,
+                DERAggregator_VIU,
                 Eq_pv_upper_bound[
                     d in model_data.index_d,
                     t in model_data.index_t,
@@ -565,12 +565,12 @@ function solve_agent_problem!(
             )
 
             # TimerOutputs.@timeit HEM_TIMER "optimize! DER Aggregator dispatch" begin
-                optimize!(DERA_VIU)
+                optimize!(DERAggregator_VIU)
             # end
 
             incentive_level_by_segment[z][i] = value(incentive)
             participation_by_segment[z][i] = incentive_function_intercept[i] + incentive_function_slope[i] * value(incentive)
-            obj_by_segment[z][i] = objective_value(DERA_VIU)
+            obj_by_segment[z][i] = objective_value(DERAggregator_VIU)
 
         end
     end
@@ -591,7 +591,7 @@ function solve_agent_problem!(
     end
 
     for z in model_data.index_z
-        # simply assign DERA to a random ipp (ipp1)
+        # simply assign DERAggregator to a random ipp (ipp1)
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
         utility.x_E_my(z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
     end
@@ -603,7 +603,7 @@ function solve_agent_problem!(
 end
 
 function save_results(
-    der_aggregator::DERA,
+    der_aggregator::DERAggregator,
     dera_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure},
     export_file_path::AbstractString,

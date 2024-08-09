@@ -35,7 +35,7 @@ export CustomerGroup
 export IPPGroup
 export GreenDeveloper
 export DistributionUtility
-export DERA
+export DERAggregator
 
 # Agent Options
 export RegulatorOptions
@@ -44,7 +44,7 @@ export GreenDeveloperOptions
 export IPPOptions
 export UtilityOptions
 export CustomersOptions
-export DERAOptions
+export DERAggregatorOptions
 
 # Policies
 export FlatRate, TOU                                    # tariff structures

@@ -39,7 +39,7 @@ input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 # mkpath(input_dir)
 
-# HEMDataRepo.parse_inputs(input_path, input_dir, scenario)
+# HEMDataRepo.parse_inputs(input_path, input_dir, scenario, false)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
@@ -117,7 +117,7 @@ customers_opts = CustomersOptions(
     ),
 )
 
-dera_opts = DERAOptions(
+dera_opts = DERAggregatorOptions(
     JuMP.optimizer_with_attributes(
         () -> Gurobi.Optimizer(GUROBI_ENV),
         # "OUTPUTLOG" => 0,

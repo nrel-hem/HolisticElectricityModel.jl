@@ -623,7 +623,7 @@ function solve_agent_problem!(
 
     regulator = get_agent(Regulator, agent_store)
     utility = get_agent(Utility, agent_store)
-    der_aggregator = get_agent(DERA, agent_store)
+    der_aggregator = get_agent(DERAggregator, agent_store)
 
     # the year consumer is making DER investment decision
     reg_year = model_data.year(first(model_data.index_y))
