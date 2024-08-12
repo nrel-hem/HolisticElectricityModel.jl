@@ -1070,7 +1070,7 @@ function solve_agent_problem!(
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
-    der_aggregator = get_agent(DERA, agent_store)
+    der_aggregator = get_agent(DERAggregator, agent_store)
 
     # the year regulator is making a rate case
     reg_year = model_data.year(first(model_data.index_y))
@@ -1090,7 +1090,7 @@ function solve_agent_problem!(
         # customers.DERGen(h, t, :) .= customers.DERGen_my(reg_year_index, h, t)
     end
 
-    # since regulator problem is ahead of DERA probelm, use previous year's aggregation results.
+    # since regulator problem is ahead of DERAggregator probelm, use previous year's aggregation results.
     if w_iter >= 2
         reg_year_dera = model_data.year(first(model_data.index_y)) - 1
     else
@@ -2919,7 +2919,7 @@ function solve_agent_problem!(
     ipp = get_agent(IPPGroup, agent_store)
     utility = get_agent(Utility, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
-    der_aggregator = get_agent(DERA, agent_store)
+    der_aggregator = get_agent(DERAggregator, agent_store)
 
     # the year regulator is making a rate case
     reg_year = model_data.year(first(model_data.index_y))
@@ -2930,7 +2930,7 @@ function solve_agent_problem!(
         # customers.DERGen(h, t, :) .= customers.DERGen_my(reg_year_index, h, t)
     end
 
-    # since regulator problem is ahead of DERA probelm, use previous year's aggregation results.
+    # since regulator problem is ahead of DERAggregator probelm, use previous year's aggregation results.
     if w_iter >= 2
         reg_year_dera = model_data.year(first(model_data.index_y)) - 1
     else

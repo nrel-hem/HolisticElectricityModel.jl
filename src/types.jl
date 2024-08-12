@@ -226,3 +226,56 @@ function initialize_keyed_array(indices...; value=0.0)
     fill!(array.data, value)
     return array
 end
+
+# HERE
+# How can we make it so that ParamArray = 1.0 works (after ParamArray has already been initialized)?
+# Base.convert(ParamArray, x::Number) doesn't work, because that doesn't provide the instance of 
+# ParamArray whose value you are trying to set. I need some function that has the lefthand and righthand
+# sides of x = y so I can define UNKNOWNMETHOD(x::ParamArray, y::Number) = fill!(x.values.data, y) and
+# UNKNOWNMETHOD(x::KeyedArray, y::Number) = fill!(x.data, y)
+
+"""
+Returns a ParamArray with all values set to value.
+"""
+function initialize_param(
+    name::AbstractString,
+    index::Dimension;
+    value = 0.0,
+    prose_name = "",
+    description = "",
+)
+    return ParamArray(
+        name,
+        (index,),
+        initialize_keyed_array(index; value=value),
+        prose_name = prose_name,
+        description = description,
+    )
+end
+
+"""
+Return a ParamArray with all values set to value, and indices formed from
+Iterators.product(indices...).
+"""
+function initialize_param(
+    name::AbstractString,
+    indices...;
+    value = 0.0,
+    prose_name = "",
+    description = "",
+)
+    num_dims = length(indices)
+    param = try
+        ParamArray(
+            name,
+            indices,
+            initialize_keyed_array(indices...; value=value),
+            prose_name = prose_name,
+            description = description,
+        )
+    catch e
+        @info "Failed to initialize parameter $name"
+        rethrow(e)
+    end
+    return param
+end

@@ -1064,7 +1064,7 @@ get_id(x::Utility) = x.id
 
 function solve_agent_problem!(
     utility::Utility,
-    utility_opts::AgentOptions,
+    utility_opts::UtilityOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
@@ -1077,7 +1077,7 @@ end
 
 # function solve_agent_problem!(
 #     utility::Utility,
-#     utility_opts::AgentOptions,
+#     utility_opts::UtilityOptions,
 #     model_data::HEMData,
 #     hem_opts::HEMOptions{VerticallyIntegratedUtility},
 #     agent_store::AgentStore,
@@ -1406,7 +1406,7 @@ end
 ############### utility capacity expansion with transmission and storage ###############
 function solve_agent_problem!(
     utility::Utility,
-    utility_opts::AgentOptions,
+    utility_opts::UtilityOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
@@ -1417,13 +1417,13 @@ function solve_agent_problem!(
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
-    der_aggregator = get_agent(DERA, agent_store)
+    der_aggregator = get_agent(DERAggregator, agent_store)
 
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
 
-    # for simulation (each agent solves their problem once for each simulation year), we have to take DERA aggregation results from previous year;
-    # for equilibrium, we can take DERA aggregation results from this year.
+    # for simulation (each agent solves their problem once for each simulation year), we have to take DERAggregator results from previous year;
+    # for equilibrium, we can take DERAggregator aggregation results from this year.
     if w_iter >= 2
         reg_year_dera = model_data.year(first(model_data.index_y)) - 1
     else

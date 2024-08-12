@@ -35,24 +35,26 @@ export CustomerGroup
 export IPPGroup
 export GreenDeveloper
 export DistributionUtility
-export DERA
+export DERAggregator
 
 # Agent Options
 export RegulatorOptions
-# export CustomerOptions
+export CustomerOptions
 export GreenDeveloperOptions
 export IPPOptions
 export UtilityOptions
-export CustomersOptions
-export DERAOptions
+export DERAggregatorOptions
 
 # Policies
 export FlatRate, TOU                                    # tariff structures
 export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
 export NullUseCase, DERUseCase, SupplyChoiceUseCase
+
+# Modeling Options
 # export DERAdoption, SupplyChoice                        # consumer decisions
-export LagrangeDecomposition, MIQP, MPPDCMER, MPPDCMERTransStorage                      # ipp algorithms
+export StandalonePVOnly, SolarPlusStorageOnly, Compete_StandalonePV_SolarPlusStorage # DER types
+export LagrangeDecomposition, MIQP, MPPDCMER, MPPDCMERTransStorage                   # ipp algorithms
 
 # Solvers
 export solve_equilibrium_problem!
