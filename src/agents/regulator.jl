@@ -3968,6 +3968,11 @@ function solve_agent_problem!(
             der_excess_cost_h(z, h)
     end
 
+    #=
+        energy_cost_allocation_sector = make_keyed_array(model_data.index_z, model_data.index_sector)
+        energy_cost_allocation_sector should be summed over h that belongs to a sector
+    =#
+
     # allocate capacity_purchase_cost and regulator.othercost (T&D costs) by net peak load without green tech generation offset;
     # The reason only net peak load of a customer type h of zone z is considered here is because export, green tech, and storage
     # are all considered in the supply-side of capacity markets.
