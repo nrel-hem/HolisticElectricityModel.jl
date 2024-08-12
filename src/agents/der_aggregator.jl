@@ -24,7 +24,9 @@ mutable struct DERA <: AbstractDERA
     aggregation_level::ParamArray
     # percentage of cost savings as revenues for DERA under VIU
     rev_perc_cost_saving_viu::ParamArray
+    # aggregated distributed storage capacity (MW)
     dera_stor_my::ParamArray
+    # aggregated distributed pv capacity associated with pv+storage (MW)
     dera_pv_my::ParamArray
 end
 
@@ -65,7 +67,7 @@ function solve_agent_problem!(
     ipp = get_agent(IPPGroup, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
 
-    # the x-axis of incentive function is assumed to be distributed storage capacity (even though the technology is PV+storage)
+    # the x-axis of incentive function is assumed to be dollars per distributed storage capacity (even though the technology is PV+storage)
     incentive_function_dimension = size(der_aggregator.dera_stor_incentive_function)[1]
     incentive_function_slope = zeros(incentive_function_dimension - 1)
     incentive_function_intercept = zeros(incentive_function_dimension - 1)
