@@ -883,7 +883,7 @@ function solve_agent_problem!(
     for z in model_data.index_z, h in model_data.index_h
         NetProfit_pv_stor(z, h, :) .= 
             # revenue of pv+storage, accounting for revenues from der aggregator (probablity weighted)
-            # assume der_aggregator.aggregation_level = 10%, then 10% of revenues will come from der aggregation incentive, 90% of reveneus comes from cost savings
+            # assume der_aggregator.aggregation_level = 10%, then 10% of revenues will come from DER aggregation incentive and 90% of revenues will come from electricity bill cost savings
             (Payment_before_PVStor(z, h) - Payment_after_PVStor(z, h)) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z)) + 
             der_aggregator.incentive_level(reg_year_index_dera, z) * customers.Opti_DG(z, h, :BTMStorage) * der_aggregator.aggregation_level(reg_year_index_dera, z) -
             # cost of distributed generation 
