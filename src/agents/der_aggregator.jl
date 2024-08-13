@@ -76,7 +76,7 @@ function solve_agent_problem!(
 
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t = get_delta_t(model_data)
 
     ipp = get_agent(IPPGroup, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
@@ -323,7 +323,7 @@ function solve_agent_problem!(
 
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t = get_delta_t(model_data)
 
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)

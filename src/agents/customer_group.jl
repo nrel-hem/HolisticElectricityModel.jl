@@ -519,7 +519,7 @@ function solve_agent_problem!(
     # the year consumer is making DER investment decision
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t = get_delta_t(model_data)
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
@@ -649,7 +649,7 @@ function solve_agent_problem!(
     # the year consumer is making DER investment decision
     reg_year = model_data.year(first(model_data.index_y))
     reg_year_index = Symbol(Int(reg_year))
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t = get_delta_t(model_data)
 
     reg_year_dera, reg_year_index_dera = get_reg_year_dera(model_data, w_iter)
 

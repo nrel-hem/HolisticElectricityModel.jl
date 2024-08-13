@@ -4985,7 +4985,7 @@ function solve_agent_problem_ipp_cap(
 )
     x_R_before = ParamArray(ipp.x_R_my)
     x_C_before = ParamArray(ipp.x_C_my)
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t = get_delta_t(model_data)
     reg_year_dera, reg_year_index_dera = get_reg_year_dera(model_data, w_iter)
 
     # utility = get_agent(Utility, agent_store)

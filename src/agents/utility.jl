@@ -1420,7 +1420,7 @@ function solve_agent_problem!(
     der_aggregator = get_agent(DERAggregator, agent_store)
 
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t = get_delta_t(model_data)
 
     # for simulation (each agent solves their problem once for each simulation year), we have 
     # to take DERAggregator results from previous year; for equilibrium, we can take 

@@ -122,6 +122,13 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
     )
 end
 
+function get_delta_t(model_data)
+    return (
+        parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - 
+        parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    )
+end
+
 # Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end
 struct VerticallyIntegratedUtility <: MarketStructure end
