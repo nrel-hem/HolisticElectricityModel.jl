@@ -1091,12 +1091,7 @@ function solve_agent_problem!(
     end
 
     # since regulator problem is ahead of DERAggregator probelm, use previous year's aggregation results.
-    if w_iter >= 2
-        reg_year_dera = model_data.year(first(model_data.index_y)) - 1
-    else
-        reg_year_dera = model_data.year(first(model_data.index_y))
-    end    
-    reg_year_index_dera = Symbol(Int(reg_year_dera))
+    reg_year_dera, reg_year_index_dera = get_reg_year_dera(model_data, w_iter)
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     # this total_der_pv_capacity is the approximate capacity of pv portion of pv+storage tech, not all dpv capacity
@@ -2931,12 +2926,7 @@ function solve_agent_problem!(
     end
 
     # since regulator problem is ahead of DERAggregator probelm, use previous year's aggregation results.
-    if w_iter >= 2
-        reg_year_dera = model_data.year(first(model_data.index_y)) - 1
-    else
-        reg_year_dera = model_data.year(first(model_data.index_y))
-    end    
-    reg_year_index_dera = Symbol(Int(reg_year_dera))
+    reg_year_dera, reg_year_index_dera = get_reg_year_dera(model_data, w_iter)
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     # this total_der_pv_capacity is the approximate capacity of pv portion of pv+storage tech, not all dpv capacity

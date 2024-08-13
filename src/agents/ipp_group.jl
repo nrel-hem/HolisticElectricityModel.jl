@@ -4986,13 +4986,7 @@ function solve_agent_problem_ipp_cap(
     x_R_before = ParamArray(ipp.x_R_my)
     x_C_before = ParamArray(ipp.x_C_my)
     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
-    # since bulk power system problem is ahead of DERAggregator problem, use previous year's aggregation results.
-    if w_iter >= 2
-        reg_year_dera = model_data.year(first(model_data.index_y)) - 1
-    else
-        reg_year_dera = model_data.year(first(model_data.index_y))
-    end    
-    reg_year_index_dera = Symbol(Int(reg_year_dera))
+    reg_year_dera, reg_year_index_dera = get_reg_year_dera(model_data, w_iter)
 
     # utility = get_agent(Utility, agent_store)
     regulator = get_agent(Regulator, agent_store)

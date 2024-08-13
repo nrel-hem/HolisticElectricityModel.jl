@@ -1422,14 +1422,10 @@ function solve_agent_problem!(
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
 
-    # for simulation (each agent solves their problem once for each simulation year), we have to take DERAggregator results from previous year;
-    # for equilibrium, we can take DERAggregator aggregation results from this year.
-    if w_iter >= 2
-        reg_year_dera = model_data.year(first(model_data.index_y)) - 1
-    else
-        reg_year_dera = model_data.year(first(model_data.index_y))
-    end    
-    reg_year_index_dera = Symbol(Int(reg_year_dera))
+    # for simulation (each agent solves their problem once for each simulation year), we have 
+    # to take DERAggregator results from previous year; for equilibrium, we can take 
+    # DERAggregator aggregation results from this year.
+    reg_year_dera, reg_year_index_dera = get_reg_year_dera(model_data, w_iter)
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     total_der_pv_capacity = make_keyed_array(model_data.index_z, model_data.index_h)

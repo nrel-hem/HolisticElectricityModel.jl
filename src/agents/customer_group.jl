@@ -651,12 +651,7 @@ function solve_agent_problem!(
     reg_year_index = Symbol(Int(reg_year))
     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
 
-    if w_iter >= 2
-        reg_year_dera = model_data.year(first(model_data.index_y)) - 1
-    else
-        reg_year_dera = model_data.year(first(model_data.index_y))
-    end    
-    reg_year_index_dera = Symbol(Int(reg_year_dera))
+    reg_year_dera, reg_year_index_dera = get_reg_year_dera(model_data, w_iter)
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
