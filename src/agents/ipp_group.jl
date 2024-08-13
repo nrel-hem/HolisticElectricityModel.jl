@@ -6501,6 +6501,7 @@ function solve_agent_problem_ipp_cap(
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                 ) for h in model_data.index_h, m in customers.index_m
             ) + 
+            # remove aggregated behind-the-meter storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) for h in model_data.index_h
             ) + 
@@ -6729,6 +6730,7 @@ function solve_agent_problem_ipp_cap(
                                 model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                             ) for h in model_data.index_h, m in customers.index_m
                         ) + 
+                        # remove aggregated behind-the-meter storage generation/consumption since they're front-of-the-meter now
                         sum(
                             customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) for h in model_data.index_h
                         ) + 
