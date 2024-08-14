@@ -64,8 +64,7 @@ function solve_agent_problem!(
     customers = get_agent(CustomerGroup, agent_store)
 
     # the year green developer is solving PPA investment problem
-    reg_year = model_data.year(first(model_data.index_y))
-    reg_year_index = Symbol(Int(reg_year))
+    reg_year, reg_year_index = get_reg_year(model_data)
 
     Green_Developer_model = get_new_jump_model(green_developer_opts.solvers)
 

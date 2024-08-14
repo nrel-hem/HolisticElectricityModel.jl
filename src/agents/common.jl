@@ -122,12 +122,27 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
     )
 end
 
-function get_delta_t(model_data)
+function get_delta_t(model_data::HEMData)
     return (
         parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - 
         parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
     )
 end
+
+function get_reg_year(model_data::HEMData)
+    reg_year = model_data.year(first(model_data.index_y))
+    return reg_year, Symbol(Int(reg_year))
+end
+
+function get_prev_reg_year(model_data::HEMData, w_iter::Integer)
+    if w_iter >= 2
+        prev_reg_year = model_data.year(first(model_data.index_y)) - 1
+    else
+        prev_reg_year = model_data.year(first(model_data.index_y))
+    end
+    return prev_reg_year, Symbol(Int(prev_reg_year))
+end
+
 
 # Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end

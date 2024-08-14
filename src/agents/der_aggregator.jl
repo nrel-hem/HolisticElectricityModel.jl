@@ -49,20 +49,6 @@ end
 
 get_id(x::DERAggregator) = x.id
 
-# For simulation mode, bulk power system problems are ahead of the DERAggregator 
-# problem, so use previous year's aggregation results
-# 
-# TODO: Formalize differences between equilibrium and simulation modes, and 
-# generalize ordering of agents for both cases
-function get_reg_year_dera(model_data::HEMData, w_iter::Integer)
-    if w_iter >= 2
-        reg_year_dera = model_data.year(first(model_data.index_y)) - 1
-    else
-        reg_year_dera = model_data.year(first(model_data.index_y))
-    end  
-    return reg_year_dera, Symbol(Int(reg_year_dera))
-end
-
 function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::DERAggregatorOptions,
@@ -74,8 +60,7 @@ function solve_agent_problem!(
     export_file_path
 )
 
-    reg_year = model_data.year(first(model_data.index_y))
-    reg_year_index = Symbol(Int(reg_year))
+    reg_year, reg_year_index = get_reg_year(model_data)
     delta_t = get_delta_t(model_data)
 
     ipp = get_agent(IPPGroup, agent_store)
@@ -321,8 +306,7 @@ function solve_agent_problem!(
     export_file_path
 )
 
-    reg_year = model_data.year(first(model_data.index_y))
-    reg_year_index = Symbol(Int(reg_year))
+    reg_year, reg_year_index = get_reg_year(model_data)
     delta_t = get_delta_t(model_data)
 
     utility = get_agent(Utility, agent_store)

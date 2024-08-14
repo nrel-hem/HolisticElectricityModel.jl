@@ -354,8 +354,7 @@ end
 #     green_developer = get_agent(GreenDeveloper, agent_store)
 
 #     # the year regulator is making a rate case
-#     reg_year = model_data.year(first(model_data.index_y))
-#     reg_year_index = Symbol(Int(reg_year))
+#     reg_year, reg_year_index = get_reg_year(model_data)
 #     # retirement up to the rate case year
 #     reg_retirement = KeyedArray(
 #         [
@@ -1073,8 +1072,7 @@ function solve_agent_problem!(
     der_aggregator = get_agent(DERAggregator, agent_store)
 
     # the year regulator is making a rate case
-    reg_year = model_data.year(first(model_data.index_y))
-    reg_year_index = Symbol(Int(reg_year))
+    reg_year, reg_year_index = get_reg_year(model_data)
     # retirement up to the rate case year
     reg_retirement = sum(
         utility.x_R_my(Symbol(Int(y_symbol)), :, :) for
@@ -1091,7 +1089,7 @@ function solve_agent_problem!(
     end
 
     # since regulator problem is ahead of DERAggregator probelm, use previous year's aggregation results.
-    reg_year_dera, reg_year_index_dera = get_reg_year_dera(model_data, w_iter)
+    reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     # this total_der_pv_capacity is the approximate capacity of pv portion of pv+storage tech, not all dpv capacity
@@ -2327,8 +2325,7 @@ end
 #     green_developer = get_agent(GreenDeveloper, agent_store)
 
 #     # the year regulator is making a rate case
-#     reg_year = model_data.year(first(model_data.index_y))
-#     reg_year_index = Symbol(Int(reg_year))
+#     reg_year, reg_year_index = get_reg_year(model_data)
 
 #     net_demand_w_loss = (
 #         # demand
@@ -2917,8 +2914,7 @@ function solve_agent_problem!(
     der_aggregator = get_agent(DERAggregator, agent_store)
 
     # the year regulator is making a rate case
-    reg_year = model_data.year(first(model_data.index_y))
-    reg_year_index = Symbol(Int(reg_year))
+    reg_year, reg_year_index = get_reg_year(model_data)
 
     for h in model_data.index_h, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
@@ -2926,7 +2922,7 @@ function solve_agent_problem!(
     end
 
     # since regulator problem is ahead of DERAggregator probelm, use previous year's aggregation results.
-    reg_year_dera, reg_year_index_dera = get_reg_year_dera(model_data, w_iter)
+    reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     # this total_der_pv_capacity is the approximate capacity of pv portion of pv+storage tech, not all dpv capacity
