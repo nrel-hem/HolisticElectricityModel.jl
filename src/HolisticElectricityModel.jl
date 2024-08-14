@@ -67,6 +67,13 @@ export solve_agent_problem_decomposition_by_year_feasible_obj
 export solve_agent_problem_decomposition_by_year_master
 export run_hem
 
+# Types and Utilities
+export Dimension
+export ParamScalar
+export ParamArray
+export read_set
+export read_param
+
 ################################################################################
 # Imports
 

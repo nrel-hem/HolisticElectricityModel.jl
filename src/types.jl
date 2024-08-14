@@ -194,7 +194,7 @@ AxisKeys.axiskeys(A::ParamArray, d::Int) = AxisKeys.axiskeys(A.values, d)
 # implement KeyedArray callable syntax for ParamArrays
 (P::ParamArray)(args...) = P.values(args...)
 
-#Base.:+(x::ParamArray, y::ParamArray) = x.values + y.values
+Base.:+(x::ParamArray, y::ParamArray) = x.values + y.values
 #Base.:-(x::ParamArray, y::ParamArray) = x.values - y.values
 #Base.:*(x::ParamArray, y::ParamArray) = x.values * y.values
 #Base.:(*)(x::ParamArray, y::ParamArray) = x.values .* y.values

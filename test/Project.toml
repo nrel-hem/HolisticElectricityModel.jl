@@ -1,5 +1,6 @@
 [deps]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+AxisKeys = "94b1ba4f-4ee9-5380-92f1-94cde586c3c5"
 Gurobi = "2e9cd046-0924-5485-92f1-d5272153d98b"
 HolisticElectricityModel = "02f1d289-301b-46a9-893d-51a2c7ce54b6"
 HolisticElectricityModelData = "cbe3faf1-a446-4ba2-bb0b-4327c65cbbd3"

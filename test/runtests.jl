@@ -2,11 +2,14 @@ using Logging
 using Test
 using TestSetExtensions
 using JuMP
+import AxisKeys
+import AxisKeys: KeyedArray, axiskeys
 import InfrastructureSystems
 const IS = InfrastructureSystems
 using HolisticElectricityModel
 const HEM = HolisticElectricityModel
 
+# Code Quality Tests
 import Aqua
 Aqua.test_unbound_args(HolisticElectricityModel)
 Aqua.test_undefined_exports(HolisticElectricityModel)
@@ -17,6 +20,11 @@ Aqua.test_stale_deps(HolisticElectricityModel; ignore=[:JuliaFormatter,:Aqua,:Te
 # EH: This next test is failing and I don't know how to fix. 
 #     I would expect all tests to run and then tell me which ones failed?
 #Aqua.test_deps_compat(HolisticElectricityModel)
+
+const DISABLED_TEST_FILES = [
+    "test_driver.jl",
+    # "test_solver_constructors.jl",
+]
 
 BASE_DIR = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
 DATA_DIR = joinpath(BASE_DIR, "..", "HolisticElectricityModelData.jl")
@@ -29,9 +37,59 @@ LOG_LEVELS = Dict(
     "Error" => Logging.Error,
 )
 
+function get_logging_level(env_name::String, default)
+    level = get(ENV, env_name, default)
+    log_level = get(LOG_LEVELS, level, nothing)
+    if log_level === nothing
+        error("Invalid log level $level: Supported levels: $(values(LOG_LEVELS))")
+    end
+
+    return log_level
+end
+
 function get_logging_level_from_env(env_name::String, default)
     level = get(ENV, env_name, default)
     return IS.get_logging_level(level)
+end
+
+"""
+Includes the given test files, given as a list without their ".jl" extensions.
+If none are given it will scan the directory of the calling file and include all
+the julia files.
+"""
+macro includetests(testarg...)
+    if length(testarg) == 0
+        tests = []
+    elseif length(testarg) == 1
+        tests = testarg[1]
+    else
+        error("@includetests takes zero or one argument")
+    end
+
+    quote
+        tests = $tests
+        rootfile = @__FILE__
+        if length(tests) == 0
+            tests = readdir(dirname(rootfile))
+            tests = filter(
+                f ->
+                    startswith(f, "test_") && endswith(f, ".jl") && f != basename(rootfile),
+                tests,
+            )
+        else
+            tests = map(f -> string(f, ".jl"), tests)
+        end
+        println()
+        if !isempty(DISABLED_TEST_FILES)
+            @warn("Some tests are disabled $DISABLED_TEST_FILES")
+        end
+        for test in tests
+            test ∈ DISABLED_TEST_FILES && continue
+            print(splitext(test)[1], ": ")
+            include(test)
+            println()
+        end
+    end
 end
 
 function run_tests()
