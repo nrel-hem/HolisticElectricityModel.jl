@@ -1292,7 +1292,7 @@ function solve_agent_problem!(
     # @info "Original new DG" x_DG_before
     # @info "New new DG" customers.x_DG_new
 
-    return compute_difference_percentage_maximum_one_norm([(x_DG_before, customers.x_DG_new)]), nothing
+    return compute_difference_percentage_maximum_one_norm([(x_DG_before, customers.x_DG_new)])
 end
 
 

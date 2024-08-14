@@ -220,6 +220,8 @@ mutable struct Utility <: AbstractUtility
     # x_C_my_decomp::ParamArray
     # obj_my::ParamArray
     # obj_my_feasible::ParamArray
+
+    _obj_value::ParamScalar
 end
 
 function Utility(
@@ -1022,7 +1024,7 @@ function Utility(
             model_data.index_d,
             model_data.index_t,
         ),
-        Dict()
+        Dict(),
         # initialize_param("x_R_feasible", model_data.index_y, index_k_existing),
         # initialize_param("x_C_feasible", model_data.index_y, index_k_new),
         # ParamScalar("obj_feasible", 1.0, description = "feasible objective value"),
@@ -1057,6 +1059,7 @@ function Utility(
         # ),
         # initialize_param("obj_my", model_data.index_y),
         # initialize_param("obj_my_feasible", model_data.index_y),
+        ParamScalar("_obj_value", 0.0, description = "objective value--use with caution")
     )
 end
 
@@ -1072,7 +1075,7 @@ function solve_agent_problem!(
     jump_model,
     export_file_path
 )
-    return 0.0, nothing
+    return 0.0
 end
 
 # function solve_agent_problem!(
@@ -2212,7 +2215,7 @@ function solve_agent_problem!(
         utility.flow_cap_my(y, l, :) .= value.(flow_cap[y, l])
     end
 
-    viu_obj_value = objective_value(VIUDER_Utility)
+    utility._obj_value.value = objective_value(VIUDER_Utility)
 
     # x_R_aggregate_after = initialize_param("x_R_aggregate_after", model_data.index_y, utility.index_k_existing)
     # x_C_aggregate_after = initialize_param("x_C_aggregate_after", model_data.index_y, utility.index_k_new)
@@ -2234,7 +2237,7 @@ function solve_agent_problem!(
     return compute_difference_percentage_maximum_one_norm([
         (x_R_before, utility.x_R_my),
         (x_C_before, utility.x_C_my),
-    ]), viu_obj_value
+    ])
 end
 
 

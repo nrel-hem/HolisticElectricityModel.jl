@@ -756,7 +756,7 @@ function solve_agent_problem!(
     jump_model,
     export_file_path
 )
-    return 0.0, nothing
+    return 0.0
 end
 
 # # Lagrange decomposition of the IPP's problem
@@ -9515,7 +9515,7 @@ function solve_agent_problem!(
     end
 
     # report change in key variables from previous iteration to this one
-    return diff, nothing
+    return diff
 end
 
 function save_results(

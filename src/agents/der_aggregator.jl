@@ -291,7 +291,7 @@ function solve_agent_problem!(
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
-    return 0.0, nothing
+    return 0.0
     
 end
 
@@ -353,7 +353,7 @@ function solve_agent_problem!(
         der_aggregator.aggregation_level(reg_year_index, z, :) .= 0.0
     end
 
-    diff_one_base, viu_obj_value_base = solve_agent_problem!(
+    diff_one_base = solve_agent_problem!(
                             utility,
                             utility_opts,
                             model_data,
@@ -363,6 +363,7 @@ function solve_agent_problem!(
                             jump_model,
                             export_file_path
     )
+    viu_obj_value_base = utility._obj_value
 
     for z in model_data.index_z
         if sum(total_der_stor_capacity(z, h) for h in model_data.index_h) != 0.0
@@ -372,7 +373,7 @@ function solve_agent_problem!(
                 utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) for h in model_data.index_h)
                 utility.x_E_my(z, Symbol("dera_pv"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV) for h in model_data.index_h)
 
-                diff_one, viu_obj_value = solve_agent_problem!(
+                diff_one = solve_agent_problem!(
                             utility,
                             utility_opts,
                             model_data,
@@ -382,6 +383,7 @@ function solve_agent_problem!(
                             jump_model,
                             export_file_path
                 )
+                viu_obj_value = utility._obj_value
 
                 cem_cost_saving_function[z][i+1, "cost_savings"] = max(0.0, viu_obj_value_base - viu_obj_value)
             end
@@ -598,7 +600,7 @@ function solve_agent_problem!(
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
-    return 0.0, nothing
+    return 0.0
     
 end
 

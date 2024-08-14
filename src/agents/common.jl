@@ -345,7 +345,7 @@ function solve_equilibrium_problem!(
                 for (agent, options) in iter_agents_and_options(store)
                     TimerOutputs.@timeit HEM_TIMER "solve_agent_problem!" begin
                         @info "$(typeof(agent)), iteration $i"
-                        diff_one, other = solve_agent_problem!(
+                        diff_one = solve_agent_problem!(
                             agent,
                             options,
                             model_data,
@@ -356,6 +356,8 @@ function solve_equilibrium_problem!(
                             export_file_path
                         )
                     end
+                    @assert !isnothing(diff_one) "Nothing returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
+                    @assert !(diff_one isa Tuple) "Tuple returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
                     @info "$(diff_one)"
                     push!(diff_vec, diff_one)
                 end

@@ -136,7 +136,7 @@ function solve_agent_problem!(
     export_file_path
 )
 
-    return 0.0, nothing
+    return 0.0
 
 end
 

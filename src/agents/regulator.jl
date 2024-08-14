@@ -2297,7 +2297,7 @@ function solve_agent_problem!(
 
     return compute_difference_percentage_maximum_one_norm([
         (p_before.values, regulator.p.values),
-    ]), nothing
+    ])
 end
 
 # function solve_agent_problem!(
@@ -4091,7 +4091,7 @@ function solve_agent_problem!(
     # ])
     return compute_difference_percentage_maximum_one_norm([
         (p_before.values, regulator.p.values),
-    ]), nothing
+    ])
 end
 
 function save_results(
