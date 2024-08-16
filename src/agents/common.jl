@@ -131,6 +131,8 @@ abstract type UseCase end
 struct NullUseCase <: UseCase end
 struct DERUseCase <: UseCase end
 struct SupplyChoiceUseCase <: UseCase end
+struct DERAggregation <: UseCase end
+struct NoDERAggregation <: UseCase end
 
 abstract type Options end
 
@@ -138,17 +140,20 @@ get_file_prefix(::Options) = String("")
 
 struct HEMOptions{T <: MarketStructure, 
                   U <: Union{NullUseCase,DERUseCase}, 
-                  V <: Union{NullUseCase,SupplyChoiceUseCase}} <: Options
+                  V <: Union{NullUseCase,SupplyChoiceUseCase},
+                  W <: Union{DERAggregation, NoDERAggregation}} <: Options
     market_structure::T
 
     # use case switches
     der_use_case::U
     supply_choice_use_case::V
+    der_aggregation_use_case::W
 end
 
 function get_file_prefix(options::HEMOptions)
     return join(["$(typeof(options.der_use_case))", 
                  "$(typeof(options.supply_choice_use_case))",
+                 "$(typeof(options.der_aggregation_use_case))",
                  "$(typeof(options.market_structure))"],"_")
 end
 
@@ -312,7 +317,7 @@ function solve_equilibrium_problem!(
 
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
-        for w in 1:10 #(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+        for w in 1:(length(model_data.index_y_fix) - window_length + 1) #(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
             model_data.index_y.elements =
                 model_data.index_y_fix.elements[w:(w + window_length - 1)]
             i = 0
@@ -331,7 +336,8 @@ function solve_equilibrium_problem!(
                             store,
                             w,
                             jump_model,
-                            export_file_path
+                            export_file_path,
+                            true
                         )
                     end
                     @info "$(diff_one)"

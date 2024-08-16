@@ -1056,7 +1056,8 @@ function solve_agent_problem!(
     agent_store::AgentStore,
     w_iter,
     jump_model,
-    export_file_path
+    export_file_path,
+    update_results::Bool
 )
 
     for y in model_data.index_y_fix
@@ -2904,7 +2905,8 @@ function solve_agent_problem!(
     agent_store::AgentStore,
     w_iter,
     jump_model,
-    export_file_path
+    export_file_path,
+    update_results::Bool
 )
 
     for y in model_data.index_y_fix

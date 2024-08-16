@@ -51,6 +51,7 @@ export FlatRate, TOU                                    # tariff structures
 export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
 export NullUseCase, DERUseCase, SupplyChoiceUseCase
+export DERAggregation, NoDERAggregation
 # export DERAdoption, SupplyChoice                        # consumer decisions
 export LagrangeDecomposition, MIQP, MPPDCMER, MPPDCMERTransStorage                      # ipp algorithms
 

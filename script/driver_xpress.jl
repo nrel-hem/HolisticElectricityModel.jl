@@ -39,6 +39,7 @@ hem_opts = HEMOptions(
     WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERUseCase(),                     # DERUseCase(), NullUseCase()
     NullUseCase(),                    # SupplyChoiceUseCase(), NullUseCase()
+    DERAggregation(),                 # DERAggregation(), NoDERAggregation()
 )
 
 regulator_opts = RegulatorOptions(
