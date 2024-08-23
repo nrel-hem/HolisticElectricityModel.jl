@@ -49,10 +49,11 @@ export DERAggregatorOptions
 export FlatRate, TOU                                    # tariff structures
 export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
-export DERAggregation, NoDERAggregation                 # presence of aggregators
 
 # Modeling Options
-export NullUseCase, DERUseCase, SupplyChoiceUseCase     # customer decisions
+export NullUseCase
+export DERAdoption, SupplyChoice                        # types of customer decisions
+export DERAggregation                                   # presence of aggregators
 export StandalonePVOnly, SolarPlusStorageOnly, Compete_StandalonePV_SolarPlusStorage # DER types
 export LagrangeDecomposition, MIQP, MPPDCMER, MPPDCMERTransStorage                   # ipp algorithms
 

@@ -44,9 +44,9 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 # Define the scenario and other run options
 hem_opts = HEMOptions(
     VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
-    DERUseCase(),                     # DERUseCase(), NullUseCase()
-    NullUseCase(),                    # SupplyChoiceUseCase(), NullUseCase()
-    NoDERAggregation(),                 # DERAggregation(), NoDERAggregation()
+    DERAdoption(),                    # DERAdoption(), NullUseCase()
+    NullUseCase(),                    # SupplyChoice(), NullUseCase()
+    NullUseCase(),                    # DERAggregation(), NullUseCase()
 )
 
 regulator_opts = RegulatorOptions(

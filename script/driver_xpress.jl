@@ -37,9 +37,9 @@ HEMDataRepo.parse_inputs(input_path, input_dir, scenario)
 # Define the scenario and other run options
 hem_opts = HEMOptions(
     WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
-    DERUseCase(),                     # DERUseCase(), NullUseCase()
-    NullUseCase(),                    # SupplyChoiceUseCase(), NullUseCase()
-    DERAggregation(),                 # DERAggregation(), NoDERAggregation()
+    DERAdoption(),                    # DERAdoption(), NullUseCase()
+    NullUseCase(),                    # SupplyChoice(), NullUseCase()
+    DERAggregation(),                 # DERAggregation(), NullUseCase()
 )
 
 regulator_opts = RegulatorOptions(

@@ -151,20 +151,18 @@ struct WholesaleMarket <: MarketStructure end
 
 abstract type UseCase end
 struct NullUseCase <: UseCase end
-struct DERUseCase <: UseCase end
-struct SupplyChoiceUseCase <: UseCase end
-# TODO: Separate aggregation type options from customer adoption type options
+struct DERAdoption <: UseCase end
+struct SupplyChoice <: UseCase end
 struct DERAggregation <: UseCase end
-struct NoDERAggregation <: UseCase end
 
 abstract type Options end
 
 get_file_prefix(::Options) = String("")
 
 struct HEMOptions{T <: MarketStructure, 
-                  U <: Union{NullUseCase,DERUseCase}, 
-                  V <: Union{NullUseCase,SupplyChoiceUseCase},
-                  W <: Union{DERAggregation, NoDERAggregation}} <: Options
+                  U <: Union{NullUseCase,DERAdoption},
+                  V <: Union{NullUseCase,SupplyChoice},
+                  W <: Union{NullUseCase,DERAggregation}} <: Options
     market_structure::T
 
     # use case switches
