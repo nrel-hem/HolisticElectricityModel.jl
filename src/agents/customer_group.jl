@@ -803,11 +803,12 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customer_opts::Union{CustomerOptions{SolarPlusStorageOnly},CustomerOptions{Compete_StandalonePV_SolarPlusStorage}},
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
     jump_model,
-    export_file_path
+    export_file_path,
+    update_results::Bool
 )
     regulator = get_agent(Regulator, agent_store)
     utility = get_agent(Utility, agent_store)
@@ -1300,7 +1301,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customer_opts::CustomerOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -1324,7 +1325,7 @@ function solve_agent_problem!(
         customers.d(h, t, :) .= customers.d_my(reg_year_index, h, t)
     end
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1392,7 +1393,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customer_opts::CustomerOptions{StandalonePVOnly},
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -1522,7 +1523,7 @@ function solve_agent_problem!(
 
     green_sub_model = customers.green_sub_model
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1591,8 +1592,13 @@ end
 
 function save_results(
     customers::CustomerGroup,
+<<<<<<< HEAD
     customer_opts::CustomerOptions,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
+=======
+    customers_opts::AgentOptions,
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase, <:UseCase},
+>>>>>>> ng/dera-old
     export_file_path::AbstractString,
 )
 
@@ -1608,8 +1614,13 @@ end
 
 function save_results(
     customers::CustomerGroup,
+<<<<<<< HEAD
     customer_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
+=======
+    customers_opts::AgentOptions,
+    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase, <:UseCase},
+>>>>>>> ng/dera-old
     export_file_path::AbstractString,
 )
 
@@ -1625,8 +1636,13 @@ end
 
 function save_results(
     customers::CustomerGroup,
+<<<<<<< HEAD
     customer_opts::AgentOptions,
     hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
+=======
+    customers_opts::AgentOptions,
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase, <:UseCase},
+>>>>>>> ng/dera-old
     export_file_path::AbstractString,
 )
 
@@ -1651,7 +1667,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customer_opts::CustomerOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase, <:UseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -1871,7 +1887,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customer_opts::CustomerOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoiceUseCase, <:UseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -1917,7 +1933,7 @@ function welfare_calculation!(
         price_at_max_sub(y, h, :) .= 0.0
     end
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoiceUseCase, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -2070,7 +2086,7 @@ function welfare_calculation!(
     customers::CustomerGroup,
     customer_opts::CustomerOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, SupplyChoiceUseCase, <:UseCase},
     agent_store::AgentStore,
 )
     adopt_model = customers.pv_adoption_model
@@ -2184,7 +2200,7 @@ function welfare_calculation!(
         price_at_max_sub(y, h, :) .= 0.0
     end
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase}
+    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERUseCase, SupplyChoiceUseCase, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0

@@ -449,7 +449,7 @@ function solve_agent_problem!(
     distribution_utility::DistributionUtility,
     distribution_utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure,<:UseCase,<:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, <:UseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )

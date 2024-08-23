@@ -1073,7 +1073,8 @@ function solve_agent_problem!(
     agent_store::AgentStore,
     w_iter,
     jump_model,
-    export_file_path
+    export_file_path,
+    update_results::Bool
 )
     return 0.0
 end
@@ -1415,7 +1416,8 @@ function solve_agent_problem!(
     agent_store::AgentStore,
     w_iter,
     jump_model,
-    export_file_path
+    export_file_path,
+    update_results::Bool
 )
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
@@ -2180,39 +2182,42 @@ function solve_agent_problem!(
     end
 
     # record current primary variable values
-    for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        utility.y_E_my(y, k, z, d, t, :) .= value.(y_E[y, k, z, d, t])
-    end
-
-    for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        utility.y_C_my(y, k, z, d, t, :) .= value.(y_C[y, k, z, d, t])
-    end
-
     x_R_before = ParamArray(utility.x_R_my)
     x_C_before = ParamArray(utility.x_C_my)
-    for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z
-        utility.x_R_my(y, k, z, :) .= value.(x_R[y, k, z])
-    end
 
-    for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z
-        utility.x_C_my(y, k, z, :) .= value.(x_C[y, k, z])
-    end
+    if update_results
+        for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            utility.y_E_my(y, k, z, d, t, :) .= value.(y_E[y, k, z, d, t])
+        end
 
-    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        utility.miu_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t])
-        utility.p_energy_cem_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t]) ./ (utility.pvf_onm(y) .* model_data.omega(d) .* delta_t)
-    end
+        for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            utility.y_C_my(y, k, z, d, t, :) .= value.(y_C[y, k, z, d, t])
+        end
 
-    for y in model_data.index_y, z in model_data.index_z
-        utility.p_cap_cem_my(y, z, :) .= dual.(Eq_xi_cap[y, z]) ./ utility.pvf_onm(y)
-    end
+        for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z
+            utility.x_R_my(y, k, z, :) .= value.(x_R[y, k, z])
+        end
 
-    for y in model_data.index_y, l in utility.index_l, d in model_data.index_d, t in model_data.index_t
-        utility.flow_my(y, l, d, t, :) .= value.(flow[y, l, d, t])
-    end
+        for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z
+            utility.x_C_my(y, k, z, :) .= value.(x_C[y, k, z])
+        end
 
-    for y in model_data.index_y, l in utility.index_l
-        utility.flow_cap_my(y, l, :) .= value.(flow_cap[y, l])
+        for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            utility.miu_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t])
+            utility.p_energy_cem_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t]) ./ (utility.pvf_onm(y) .* model_data.omega(d) .* delta_t)
+        end
+
+        for y in model_data.index_y, z in model_data.index_z
+            utility.p_cap_cem_my(y, z, :) .= dual.(Eq_xi_cap[y, z]) ./ utility.pvf_onm(y)
+        end
+
+        for y in model_data.index_y, l in utility.index_l, d in model_data.index_d, t in model_data.index_t
+            utility.flow_my(y, l, d, t, :) .= value.(flow[y, l, d, t])
+        end
+
+        for y in model_data.index_y, l in utility.index_l
+            utility.flow_cap_my(y, l, :) .= value.(flow_cap[y, l])
+        end
     end
 
     utility._obj_value.value = objective_value(VIUDER_Utility)

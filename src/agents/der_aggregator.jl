@@ -53,11 +53,87 @@ function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::DERAggregatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WholesaleMarket, <:UseCase, <:UseCase, NoDERAggregation},
     agent_store::AgentStore,
     w_iter,
     jump_model,
-    export_file_path
+    export_file_path,
+    update_results::Bool
+)
+
+    ipp = get_agent(IPPGroup, agent_store)
+    reg_year = model_data.year(first(model_data.index_y))
+    reg_year_index = Symbol(Int(reg_year))
+
+    for z in model_data.index_z
+        der_aggregator.incentive_level(reg_year_index, z, :) .= 0.0
+        der_aggregator.aggregation_level(reg_year_index, z, :) .= 0.0
+    end
+
+    for z in model_data.index_z, h in model_data.index_h
+        der_aggregator.dera_stor_my(reg_year_index, z, h, :) .= 0.0
+        der_aggregator.dera_pv_my(reg_year_index, z, h, :) .= 0.0
+    end
+
+    for z in model_data.index_z
+        # simply assign DERA to a random ipp (ipp1)
+        ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= 0.0
+        ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= 0.0
+    end
+
+    # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
+
+    return 0.0, nothing
+
+end
+
+function solve_agent_problem!(
+    der_aggregator::DERA,
+    dera_opts::AgentOptions,
+    model_data::HEMData,
+    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase, <:UseCase, NoDERAggregation},
+    agent_store::AgentStore,
+    w_iter,
+    jump_model,
+    export_file_path,
+    update_results::Bool
+)
+
+    utility = get_agent(Utility, agent_store)
+    reg_year = model_data.year(first(model_data.index_y))
+    reg_year_index = Symbol(Int(reg_year))
+    
+    for z in model_data.index_z
+        der_aggregator.incentive_level(reg_year_index, z, :) .= 0.0
+        der_aggregator.aggregation_level(reg_year_index, z, :) .= 0.0
+    end
+
+    for z in model_data.index_z, h in model_data.index_h
+        der_aggregator.dera_stor_my(reg_year_index, z, h, :) .= 0.0
+        der_aggregator.dera_pv_my(reg_year_index, z, h, :) .= 0.0
+    end
+
+    for z in model_data.index_z
+        utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= 0.0
+        utility.x_E_my(z, Symbol("dera_pv"), :) .= 0.0
+    end
+
+    # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
+
+    return 0.0, nothing
+
+end
+
+function solve_agent_problem!(
+    der_aggregator::DERA,
+    dera_opts::AgentOptions,
+    model_data::HEMData,
+    hem_opts::HEMOptions{WholesaleMarket, <:UseCase, <:UseCase, DERAggregation},
+    agent_store::AgentStore,
+    w_iter,
+    jump_model,
+    export_file_path,
+    update_results::Bool
 )
 
     reg_year, reg_year_index = get_reg_year(model_data)
@@ -299,11 +375,12 @@ function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::DERAggregatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase, <:UseCase, DERAggregation},
     agent_store::AgentStore,
     w_iter,
     jump_model,
-    export_file_path
+    export_file_path,
+    update_results::Bool
 )
 
     reg_year, reg_year_index = get_reg_year(model_data)
@@ -361,7 +438,8 @@ function solve_agent_problem!(
                             agent_store,
                             w_iter,
                             jump_model,
-                            export_file_path
+                            export_file_path,
+                            false
     )
     viu_obj_value_base = utility._obj_value
 
@@ -381,7 +459,8 @@ function solve_agent_problem!(
                             agent_store,
                             w_iter,
                             jump_model,
-                            export_file_path
+                            export_file_path,
+                            false
                 )
                 viu_obj_value = utility._obj_value
 
@@ -593,7 +672,10 @@ function solve_agent_problem!(
     end
 
     for z in model_data.index_z
+<<<<<<< HEAD
         # simply assign DERAggregator to a random ipp (ipp1)
+=======
+>>>>>>> ng/dera-old
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
         utility.x_E_my(z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
     end
@@ -625,13 +707,13 @@ function save_results(
     )
     save_param(
         der_aggregator.dera_stor_my.values,
-        [:Year, :Zone],
+        [:Year, :Zone, :CustomerType],
         :aggregation_stor_mw,
         joinpath(export_file_path, "dera_aggregation_stor_mw.csv"),
     )
     save_param(
         der_aggregator.dera_pv_my.values,
-        [:Year, :Zone],
+        [:Year, :Zone, :CustomerType],
         :aggregation_pv_mw,
         joinpath(export_file_path, "dera_aggregation_pv_mw.csv"),
     )

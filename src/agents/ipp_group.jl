@@ -754,7 +754,8 @@ function solve_agent_problem!(
     agent_store::AgentStore,
     w_iter,
     jump_model,
-    export_file_path
+    export_file_path,
+    update_results::Bool
 )
     return 0.0
 end
@@ -6272,7 +6273,8 @@ function solve_agent_problem_ipp_cap(
     # the constraint that makes multi-year look-ahead hard to solve
     for y in model_data.index_y, z in model_data.index_z
         fix(x_R[y, :nuclear, z], 0.0; force = true)
-        fix(x_R[y, :nuclear, z], 0.0; force = true)
+        fix(x_R[y, :dera_pv, z], 0.0; force = true)
+        fix(x_stor_R[y, :der_aggregator, z], 0.0; force = true)
     end
 
     constraint_scaling = 1.0
@@ -9495,7 +9497,8 @@ function solve_agent_problem!(
     agent_store::AgentStore,
     w_iter,
     jump_model,
-    export_file_path
+    export_file_path,
+    update_results::Bool
 )
     diff = 0.0
 
