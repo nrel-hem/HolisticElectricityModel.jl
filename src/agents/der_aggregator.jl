@@ -62,8 +62,7 @@ function solve_agent_problem!(
 )
 
     ipp = get_agent(IPPGroup, agent_store)
-    reg_year = model_data.year(first(model_data.index_y))
-    reg_year_index = Symbol(Int(reg_year))
+    reg_year, reg_year_index = get_reg_year(model_data)
 
     for z in model_data.index_z
         der_aggregator.incentive_level(reg_year_index, z, :) .= 0.0
@@ -83,12 +82,12 @@ function solve_agent_problem!(
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
-    return 0.0, nothing
+    return 0.0
 
 end
 
 function solve_agent_problem!(
-    der_aggregator::DERA,
+    der_aggregator::DERAggregator,
     dera_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase, <:UseCase, NullUseCase},
@@ -100,8 +99,7 @@ function solve_agent_problem!(
 )
 
     utility = get_agent(Utility, agent_store)
-    reg_year = model_data.year(first(model_data.index_y))
-    reg_year_index = Symbol(Int(reg_year))
+    reg_year, reg_year_index = get_reg_year(model_data)
     
     for z in model_data.index_z
         der_aggregator.incentive_level(reg_year_index, z, :) .= 0.0
@@ -120,12 +118,12 @@ function solve_agent_problem!(
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
-    return 0.0, nothing
+    return 0.0
 
 end
 
 function solve_agent_problem!(
-    der_aggregator::DERA,
+    der_aggregator::DERAggregator,
     dera_opts::AgentOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket, <:UseCase, <:UseCase, DERAggregation},
@@ -672,10 +670,6 @@ function solve_agent_problem!(
     end
 
     for z in model_data.index_z
-<<<<<<< HEAD
-        # simply assign DERAggregator to a random ipp (ipp1)
-=======
->>>>>>> ng/dera-old
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
         utility.x_E_my(z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
     end

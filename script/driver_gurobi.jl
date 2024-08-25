@@ -17,7 +17,7 @@ const HEMDataRepo = HolisticElectricityModelData
 
 # File locations
 base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
-hem_data_dir = "/kfs2/projects/hem/Github/HolisticElectricityModelData.jl"
+hem_data_dir = joinpath(base_dir, "..", "HolisticElectricityModelData.jl")
 test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
 # Create input data
