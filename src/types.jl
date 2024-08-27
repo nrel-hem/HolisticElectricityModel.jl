@@ -58,7 +58,9 @@ Base.size,
 Base.axes,
 Base.ndims,
 Base.length,
-Base.iterate
+Base.iterate,
+Base.getindex,
+Base.lastindex
 
 Dimension(x::Dimension) = Dimension(x.name, x.prose_name, x.description, copy(x.elements))
 

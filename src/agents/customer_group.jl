@@ -204,8 +204,17 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     stor_energy::ParamArray
 
     # Outputs
+
+    # Within a run, these variables are populated for all years, projecting that 
+    # existing and new capacity will persist. E.g., for the next year, these variables 
+    # are already populated with all existing capacity and all new capacity built 
+    # through this year.
+
+    "Cumulative DER capacity, total PV and storage regardless of how they are grouped"
     total_der_capacity_my::ParamArray
+    "Cumulative PV only capacity"
     total_pv_only_capacity_my::ParamArray
+    "Cumulative PV plus Storage capacity"
     total_pv_stor_capacity_my::ParamArray
 end
 
@@ -542,122 +551,55 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("total_pv_only_capacity_my",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         initialize_param("total_pv_stor_capacity_my",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
     )
-    reg_year, reg_year_index = get_reg_year(model_data)
-    for z in model_data.index_z, h in model_data.index_h
-        for m in index_m
-            result.total_der_capacity_my(reg_year_index, z, h, m, :) .= x_DG_E_my(reg_year_index, h, z, m)
-            result.total_pv_stor_capacity_my(reg_year_index, z, h, m, :) .= existing_pv_stor_capacity_my(reg_year_index, h, z, m)
+
+    # populate total_*_capacity_my variables for DER with all existing/prescribed capacity for all years
+    for y in model_data.index_y
+        for z in model_data.index_z, h in model_data.index_h
+            for m in index_m
+                result.total_der_capacity_my(y, z, h, m, :) .= x_DG_E_my(y, h, z, m)
+                result.total_pv_stor_capacity_my(y, z, h, m, :) .= existing_pv_stor_capacity_my(y, h, z, m)
+            end
+            result.total_pv_only_capacity_my(y, z, h, :BTMPV, :) .= existing_pv_only_capacity_my(y, h, z, :BTMPV)
         end
-        result.total_pv_only_capacity_my(reg_year_index, z, h, :BTMPV, :) .= existing_pv_only_capacity_my(reg_year_index, h, z, :BTMPV)
     end
+
     return result
 end
 
 """
-Calculates cumulative capacity for this year if this technology was a build option.
+Calculates cumulative capacity for this year and future years if this technology was a build option.
 """
-function get_total_capacity(
+function update_total_capacity!(
     total_capacity_my::ParamArray,
-    existing_capacity_my::ParamArray,
     x_DG_new::ParamArray,
-    w_iter::Integer,
-    reg_year_index::Symbol,
+    model_data::HEMData,
+    reg_year::Integer,
     z::Symbol, h::Symbol, m::Symbol)
 
-    if w_iter == 1
-        return existing_capacity_my(reg_year_index, h, z, m) + x_DG_new(h, z, m)
+    for y in reg_year:model_data.year(last(model_data.index_y_fix))
+        total_capacity_my(Symbol(y), z, h, m, :) .+= x_DG_new(h, z, m)
     end
-
-    prev_reg_year_index = Symbol(parse(Int, String(reg_year_index)) - 1)
-
-    return (
-        # existing capacity for this year
-        existing_capacity_my(reg_year_index, h, z, m) +
-        # cumulative new capacity as of last year
-        (
-            total_capacity_my(prev_reg_year_index, z, h, m)  -
-            existing_capacity_my(prev_reg_year_index, h, z, m)
-        ) +
-        # this year's new capacity
-        x_DG_new(h, z, m)
-    )
 end
 
-"""
-Calculates cumulative capacity for this year if this technology was not a build option.
-"""
-function get_total_capacity(
-    total_capacity_my::ParamArray,
-    existing_capacity_my::ParamArray,
-    w_iter::Integer,
-    reg_year_index::Symbol,
-    z::Symbol, h::Symbol, m::Symbol)
-
-    if w_iter == 1
-        return existing_capacity_my(reg_year_index, h, z, m)
-    end
-
-    prev_reg_year_index = Symbol(parse(Int, String(reg_year_index)) - 1)
-
-    return (
-        # existing capacity for this year
-        existing_capacity_my(reg_year_index, h, z, m) +
-        # cumulative new capacity as of last year
-        (
-            total_capacity_my(prev_reg_year_index, z, h, m)  -
-            existing_capacity_my(prev_reg_year_index, h, z, m)
-        )
-    )
-end
 
 function update_total_capacity_pv_stor_builds!(
     customers::CustomerGroup,
-    w_iter::Integer,
-    reg_year_index::Symbol,
+    model_data::HEMData,
+    reg_year::Integer,
     z::Symbol, h::Symbol,
 )
     for m in (:BTMStorage, :BTMPV)
-        customers.total_pv_stor_capacity_my(reg_year_index, z, h, m, :) .= get_total_capacity(
-            customers.total_pv_stor_capacity_my,
-            customers.existing_pv_stor_capacity_my,
-            customers.x_DG_new,
-            w_iter,
-            reg_year_index,
-            z, h, m
-        )
+        update_total_capacity!(customers.total_pv_stor_capacity_my, customers.x_DG_new, model_data, reg_year, z, h, m)
     end
-    customers.total_pv_only_capacity_my(reg_year_index, z, h, :BTMPV, :) .= get_total_capacity(
-        customers.total_pv_only_capacity_my,
-        customers.existing_pv_only_capacity_my,
-        w_iter,
-        reg_year_index,
-        z, h, :BTMPV
-    )
 end
 
 function update_total_capacity_pv_only_builds!(
     customers::CustomerGroup,
-    w_iter::Integer,
-    reg_year_index::Symbol,
+    model_data::HEMData,
+    reg_year::Integer,
     z::Symbol, h::Symbol,
 )
-    for m in (:BTMStorage, :BTMPV)
-        customers.total_pv_stor_capacity_my(reg_year_index, z, h, m, :) .= get_total_capacity(
-            customers.total_pv_stor_capacity_my,
-            customers.existing_pv_stor_capacity_my,
-            w_iter,
-            reg_year_index,
-            z, h, m
-        )
-    end
-    customers.total_pv_only_capacity_my(reg_year_index, z, h, :BTMPV, :) .= get_total_capacity(
-        customers.total_pv_only_capacity_my,
-        customers.existing_pv_only_capacity_my,
-        customers.x_DG_new,
-        w_iter,
-        reg_year_index,
-        z, h, :BTMPV
-    )
+    update_total_capacity!(customers.total_pv_only_capacity_my, customers.x_DG_new, model_data, reg_year, z, h, :BTMPV)
 end
 
 get_id(x::CustomerGroup) = x.id
@@ -775,15 +717,9 @@ function solve_agent_problem!(
         for m in customers.index_m
             customers.x_DG_new_my(reg_year_index, h, z, m, :) .= customers.x_DG_new(h, z, m)
             customers.MaxDG_my(reg_year_index, z, h, m, :) .= customers.MaxDG(z, h, m)
-            customers.total_der_capacity_my(reg_year_index, z, h, m) .= get_total_capacity(
-                customers.total_der_capacity_my,
-                customers.x_DG_E_my,
-                customers.x_DG_new,
-                w_iter,
-                reg_year_index,
-                z, h, m)
+            update_total_capacity!(customers.total_der_capacity_my, customers.x_DG_new, model_data, reg_year, z, h, m)
         end
-        update_total_capacity_pv_only_builds!(customers, w_iter, reg_year_index, z, h) 
+        update_total_capacity_pv_only_builds!(customers, model_data, reg_year, z, h) 
     end
 
     # x_DG_aggregate_after = initialize_param("x_DG_aggregate_after", model_data.index_h, customers.index_m)
@@ -1115,7 +1051,7 @@ function solve_agent_problem!(
                 customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
             end
 
-            update_total_capacity_pv_stor_builds!(customers, w_iter, reg_year_index, z, h)
+            update_total_capacity_pv_stor_builds!(customers, model_data, reg_year, z, h)
         else
             @assert customer_opts isa CustomerOptions{Compete_StandalonePV_SolarPlusStorage}
 
@@ -1148,7 +1084,7 @@ function solve_agent_problem!(
                     customers.x_DG_new(h, z, :BTMStorage, :) .=
                         customers.x_DG_new(h, z, :BTMPV) * customers.Opti_DG(z, h, :BTMStorage) / customers.Opti_DG(z, h, :BTMPV)
 
-                    update_total_capacity_pv_stor_builds!(customers, w_iter, reg_year_index, z, h)
+                    update_total_capacity_pv_stor_builds!(customers, model_data, reg_year, z, h)
                 else
                     # Standalone PV is most attrative
 
@@ -1173,7 +1109,7 @@ function solve_agent_problem!(
                         max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
                     customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
 
-                    update_total_capacity_pv_only_builds!(customers, w_iter, reg_year_index, z, h)
+                    update_total_capacity_pv_only_builds!(customers, model_data, reg_year, z, h)
                 end
             elseif (NetProfit_pv_stor(z, h) < 0.0) && (NetProfit_PV_only(z, h) > 0.0)
                 # Only Standalone PV is attractive
@@ -1217,7 +1153,7 @@ function solve_agent_problem!(
                     max(0.0, customers.A_pv(z, h) * customers.MaxDG_pv(z, h) - customers.x_DG_E(h, z, :BTMPV))
                 customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
 
-                update_total_capacity_pv_only_builds!(customers, w_iter, reg_year_index, z, h)
+                update_total_capacity_pv_only_builds!(customers, model_data, reg_year, z, h)
 
             elseif (NetProfit_pv_stor(z, h) > 0.0) && (NetProfit_PV_only(z, h) < 0.0)
                 # Only Solar plus Storage is attractive
@@ -1262,27 +1198,20 @@ function solve_agent_problem!(
                 customers.x_DG_new(h, z, :BTMStorage, :) .=
                     customers.x_DG_new(h, z, :BTMPV) * customers.Opti_DG(z, h, :BTMStorage) / customers.Opti_DG(z, h, :BTMPV)
 
-                update_total_capacity_pv_stor_builds!(customers, w_iter, reg_year_index, z, h)
+                update_total_capacity_pv_stor_builds!(customers, model_data, reg_year, z, h)
             else
                 customers.x_DG_new(h, z, :BTMPV, :) .= 0.0
                 customers.x_DG_new(h, z, :BTMStorage, :) .= 0.0
 
                 # which function we call doesn't matter since x_DG_new is 0.0
-                update_total_capacity_pv_stor_builds!(customers, w_iter, reg_year_index, z, h)
+                update_total_capacity_pv_stor_builds!(customers, model_data, reg_year, z, h)
             end
         end
     end
 
     for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
         customers.x_DG_new_my(reg_year_index, h, z, m, :) .= customers.x_DG_new(h, z, m)
-        customers.total_der_capacity_my(reg_year_index, z, h, m, :) .= get_total_capacity(
-            customers.total_der_capacity_my,
-            customers.x_DG_E_my,
-            customers.x_DG_new,
-            w_iter,
-            reg_year_index,
-            z, h, m)
-        # customers.MaxDG_my(reg_year_index, z, h, m, :) .= customers.MaxDG(z, h, m)
+        update_total_capacity!(customers.total_der_capacity_my, customers.x_DG_new, model_data, reg_year, z, h, m)
     end
 
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
