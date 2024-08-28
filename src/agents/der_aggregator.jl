@@ -480,7 +480,7 @@ function solve_agent_problem!(
     for z in model_data.index_z
         for i in 1:incentive_function_dimension - 1
             if (cem_cost_saving_function[z][i+1, "cost_savings"] - cem_cost_saving_function[z][i, "cost_savings"]) < 0.0
-                @error "cost saving function is decreasing at some points."
+                @info "cost saving function is decreasing at some points."
             else
                 if (cem_cost_saving_function[z][i+1, "participation"] - cem_cost_saving_function[z][i, "participation"]) != 0.0
                     cem_cost_saving_function_slope[z][i] = (cem_cost_saving_function[z][i+1, "cost_savings"] - cem_cost_saving_function[z][i, "cost_savings"]) / 
