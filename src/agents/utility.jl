@@ -1433,6 +1433,9 @@ function solve_agent_problem!(
     end    
     reg_year_index_dera = Symbol(Int(reg_year_dera))
 
+    reg_year = model_data.year(first(model_data.index_y))
+    reg_year_index = Symbol(Int(reg_year))
+
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     total_der_pv_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
@@ -1440,10 +1443,10 @@ function solve_agent_problem!(
             total_der_stor_capacity(z, h, :) .=
                 customers.x_DG_E_my(reg_year_index_dera, h, z, :BTMStorage) + sum(
                     customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) for
-                    y in model_data.year(first(model_data.index_y_fix)):reg_year_dera
+                    y in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
         else
-            total_der_stor_capacity(z, h, :) .= customers.x_DG_E_my(reg_year_index_dera, h, z, :BTMStorage)
+            total_der_stor_capacity(z, h, :) .= customers.x_DG_E_my(reg_year_index, h, z, :BTMStorage)
         end
         total_der_pv_capacity(z, h, :) .= total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
     end

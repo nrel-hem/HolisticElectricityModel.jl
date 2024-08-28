@@ -22,7 +22,7 @@ function run_hem(
     customers_options::Union{CustomersOptions, NullAgentOptions}=NullAgentOptions(),
     dera_options::Union{DERAOptions, NullAgentOptions}=NullAgentOptions(),
     max_iterations=1,
-    window_length=1,
+    window_length=3,
     force=false,
     jump_model::Any
 )

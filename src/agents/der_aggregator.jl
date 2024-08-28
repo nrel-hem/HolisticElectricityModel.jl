@@ -388,6 +388,13 @@ function solve_agent_problem!(
     reg_year_index = Symbol(Int(reg_year))
     delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
 
+    if w_iter >= 2
+        reg_year_dera = model_data.year(first(model_data.index_y)) - 1
+    else
+        reg_year_dera = model_data.year(first(model_data.index_y))
+    end    
+    reg_year_index_dera = Symbol(Int(reg_year_dera))
+
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     utility_opts = get_option(Utility, agent_store)
@@ -429,7 +436,7 @@ function solve_agent_problem!(
         # simply assign DERA to a random ipp (ipp1)
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= 0.0
         utility.x_E_my(z, Symbol("dera_pv"), :) .= 0.0
-        der_aggregator.aggregation_level(reg_year_index, z, :) .= 0.0
+        der_aggregator.aggregation_level(reg_year_index_dera, z, :) .= 0.0
     end
 
     diff_one_base, viu_obj_value_base = solve_agent_problem!(
@@ -448,7 +455,7 @@ function solve_agent_problem!(
         if sum(total_der_stor_capacity(z, h) for h in model_data.index_h) != 0.0
             for i in 1:incentive_function_dimension - 1
                 # set der aggregation level to points on the curve before running CEM
-                der_aggregator.aggregation_level(reg_year_index, z, :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"]
+                der_aggregator.aggregation_level(reg_year_index_dera, z, :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"]
                 utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) for h in model_data.index_h)
                 utility.x_E_my(z, Symbol("dera_pv"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV) for h in model_data.index_h)
 

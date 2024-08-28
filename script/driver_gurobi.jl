@@ -35,7 +35,7 @@ scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 # need to run in julia: run(output_dir = PROFILES_DIRECTORY, user = "nguo", hostname = HOSTNAME, dbname = DATABASE, port = PORT, pca_ids = nothing) to get residential and commercial profiles
 # also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
 
-input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full_dera_pv_w_EV_2035_EE"
+input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full_dera_pv_w_EV_2035_EE_test_lookahead_deraold"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 # mkpath(input_dir)
 
