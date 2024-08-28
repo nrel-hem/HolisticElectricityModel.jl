@@ -22,6 +22,8 @@ mutable struct DERAggregator <: AbstractDERAggregator
     incentive_level::ParamArray
     # aggregation level by year
     aggregation_level::ParamArray
+    # aggregation level by year (used for output)
+    aggregation_level_output::ParamArray
     # percentage of cost savings as revenues for DERAggregator under VIU
     rev_perc_cost_saving_viu::ParamArray
     # aggregated distributed storage capacity (MW)
@@ -41,6 +43,7 @@ function DERAggregator(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("aggregation_friction", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
         initialize_param("incentive_level", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("aggregation_level", model_data.index_y, model_data.index_z, value = 0.0),
+        initialize_param("aggregation_level_output", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("rev_perc_cost_saving_viu", model_data.index_y, model_data.index_z, value = 0.1),
         initialize_param("dera_stor_my", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
         initialize_param("dera_pv_my", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
@@ -382,6 +385,7 @@ function solve_agent_problem!(
 )
 
     reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
     delta_t = get_delta_t(model_data)
 
     utility = get_agent(Utility, agent_store)
@@ -425,7 +429,7 @@ function solve_agent_problem!(
         # simply assign DERAggregator to a random ipp (ipp1)
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= 0.0
         utility.x_E_my(z, Symbol("dera_pv"), :) .= 0.0
-        der_aggregator.aggregation_level(reg_year_index, z, :) .= 0.0
+        der_aggregator.aggregation_level(reg_year_index_dera, z, :) .= 0.0
     end
 
     diff_one_base = solve_agent_problem!(
@@ -439,13 +443,13 @@ function solve_agent_problem!(
                             export_file_path,
                             false
     )
-    viu_obj_value_base = utility._obj_value
+    viu_obj_value_base = deepcopy(utility._obj_value)
 
     for z in model_data.index_z
         if sum(total_der_stor_capacity(z, h) for h in model_data.index_h) != 0.0
             for i in 1:incentive_function_dimension - 1
                 # set der aggregation level to points on the curve before running CEM
-                der_aggregator.aggregation_level(reg_year_index, z, :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"]
+                der_aggregator.aggregation_level(reg_year_index_dera, z, :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"]
                 utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) for h in model_data.index_h)
                 utility.x_E_my(z, Symbol("dera_pv"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV) for h in model_data.index_h)
 
@@ -460,7 +464,7 @@ function solve_agent_problem!(
                             export_file_path,
                             false
                 )
-                viu_obj_value = utility._obj_value
+                viu_obj_value = deepcopy(utility._obj_value)
 
                 cem_cost_saving_function[z][i+1, "cost_savings"] = max(0.0, viu_obj_value_base - viu_obj_value)
             end
@@ -658,6 +662,7 @@ function solve_agent_problem!(
     for z in model_data.index_z
         der_aggregator.incentive_level(reg_year_index, z, :) .= incentive_level_by_segment[z][max_seg_index[z]]
         der_aggregator.aggregation_level(reg_year_index, z, :) .= participation_by_segment[z][max_seg_index[z]]
+        der_aggregator.aggregation_level_output(reg_year_index, z, :) .= participation_by_segment[z][max_seg_index[z]]
     end
 
     dera_agg_stor_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
@@ -694,7 +699,7 @@ function save_results(
         joinpath(export_file_path, "dera_incentive.csv"),
     )
     save_param(
-        der_aggregator.aggregation_level.values,
+        der_aggregator.aggregation_level_output.values,
         [:Year, :Zone],
         :aggregation_perc,
         joinpath(export_file_path, "dera_aggregation_perc.csv"),
