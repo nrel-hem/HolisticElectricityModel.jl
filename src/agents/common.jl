@@ -11,14 +11,16 @@ mutable struct HEMData
     index_y::Dimension # year index
     index_y_fix::Dimension # year index
     index_s::Dimension # year index (for new resources depreciation schedule)
-    index_t::Dimension # time index, currently 17 ReEDS timeslices
+    index_d::Dimension # representative day index
+    index_t::Dimension # time index (within each representative day)
     index_h::Dimension # customer types
     index_j::Dimension # green tariff technologies
+    index_z::Dimension # zone index
 
     # Parameters
     omega::ParamArray # number of hours per timeslice
     year::ParamArray
-    hour::ParamArray
+    time::ParamArray
     year_start::ParamScalar
 end
 
@@ -32,7 +34,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "simulation years",
     )
     # "index_y_fix" represents the full simulation horizon (does not change)
-    # "index_y" represents the simulation years in a particular window (gets updated on line 238)
+    # "index_y" represents the simulation years in a particular window (gets updated on line 296)
     # e.g., when we simulate years 2021-2030, "index_y_fix" will be [2021, ..., 2030]
     # if the planning window is 5-year for utility or IPPs, so the first index_y will be
     # [2021, ..., 2025], after solving the first window, index_y will be updated to [2022, ..., 2026] etc.
@@ -53,13 +55,21 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "new resource depreciation years",
     )
 
-    # 17 timeslices (from ReEDS)
+    # representative day and hour (from ReEDS)
+    index_d = read_set(
+        input_filename,
+        "index_d",
+        "index_d",
+        prose_name = "representative day index d",
+        description = "ReEDS representative days",
+    )
+
     index_t = read_set(
         input_filename,
         "index_t",
         "index_t",
         prose_name = "time index t",
-        description = "ReEDS 17 timeslices representation",
+        description = "ReEDS representative hour within each representative day",
     )
 
     # customer group types
@@ -80,26 +90,59 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "green tariff technologies",
     )
 
+    # zones
+    index_z = read_set(
+        input_filename,
+        "index_z",
+        "index_z",
+        prose_name = "zones index z",
+        description = "ReEDS BA modeled",
+    )
+
     return HEMData(
         ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
         index_y,
         index_y_fix,
         index_s,
+        index_d,
         index_t,
         index_h,
         index_j,
+        index_z,
         read_param(
             "omega",
             input_filename,
             "Omega",
-            index_t,
-            description = "number of hours per timeslice",
+            index_d,
+            description = "number of days per representative day",
         ),
         read_param("year", input_filename, "Year", index_y, description = "Year"),
-        read_param("hour", input_filename, "Hour", index_t, description = "Hour"),
-        ParamScalar("year_start", 2018, description = "simulation start year"),
+        read_param("time", input_filename, "Time", index_t, description = "Time"),
+        ParamScalar("year_start", 2020, description = "simulation start year"),
     )
 end
+
+function get_delta_t(model_data::HEMData)
+    return (
+        parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - 
+        parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    )
+end
+
+function get_reg_year(model_data::HEMData)
+    reg_year = model_data.year(first(model_data.index_y))
+    return reg_year, Symbol(Int(reg_year))
+end
+
+function get_prev_reg_year(model_data::HEMData, w_iter::Integer)
+    if w_iter >= 2
+        prev_reg_year = model_data.year(first(model_data.index_y)) - 1
+    else
+        prev_reg_year = model_data.year(first(model_data.index_y))
+    end
+    return prev_reg_year, Symbol(Int(prev_reg_year))
+end
+
 
 # Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end
@@ -108,26 +151,30 @@ struct WholesaleMarket <: MarketStructure end
 
 abstract type UseCase end
 struct NullUseCase <: UseCase end
-struct DERUseCase <: UseCase end
-struct SupplyChoiceUseCase <: UseCase end
+struct DERAdoption <: UseCase end
+struct SupplyChoice <: UseCase end
+struct DERAggregation <: UseCase end
 
 abstract type Options end
 
 get_file_prefix(::Options) = String("")
 
 struct HEMOptions{T <: MarketStructure, 
-                  U <: Union{NullUseCase,DERUseCase}, 
-                  V <: Union{NullUseCase,SupplyChoiceUseCase}} <: Options
+                  U <: Union{NullUseCase,DERAdoption},
+                  V <: Union{NullUseCase,SupplyChoice},
+                  W <: Union{NullUseCase,DERAggregation}} <: Options
     market_structure::T
 
     # use case switches
     der_use_case::U
     supply_choice_use_case::V
+    der_aggregation_use_case::W
 end
 
 function get_file_prefix(options::HEMOptions)
     return join(["$(typeof(options.der_use_case))", 
                  "$(typeof(options.supply_choice_use_case))",
+                 "$(typeof(options.der_aggregation_use_case))",
                  "$(typeof(options.market_structure))"],"_")
 end
 
@@ -228,6 +275,21 @@ function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: Abstr
     return agents_and_opts[id].agent
 end
 
+function get_option(::Type{T}, store::AgentStore, id = nothing) where {T <: AbstractAgent}
+    !haskey(store.data, T) && error("No agents of type $T are stored.")
+    agents_and_opts = store.data[T]
+
+    if id === nothing
+        if length(agents_and_opts) > 1
+            error("Passing 'id' is required if more than one agent is stored.")
+        end
+        return first(values(agents_and_opts)).options
+    end
+
+    !haskey(agents_and_opts, id) && error("No agent of type $T id = $id is stored")
+    return agents_and_opts[id].options
+end
+
 function iter_agents_and_options(store::AgentStore)
     return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
 end
@@ -269,16 +331,18 @@ function solve_equilibrium_problem!(
     export_file_path::AbstractString,
     max_iter::Int64,
     window_length::Int64,
+    jump_model::Any,
 )
     store = AgentStore(agents_and_opts)
     TimerOutputs.reset_timer!(HEM_TIMER)
 
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
-        for w in 1:(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+        for w in 1:(length(model_data.index_y_fix) - window_length + 1) # loop over windows
             model_data.index_y.elements =
                 model_data.index_y_fix.elements[w:(w + window_length - 1)]
             i = 0
+            diff_iter = []
             for i in 1:max_iter
                 diff_vec = []
 
@@ -292,12 +356,20 @@ function solve_equilibrium_problem!(
                             hem_opts,
                             store,
                             w,
+                            jump_model,
+                            export_file_path,
+                            true
                         )
                     end
+                    @assert !isnothing(diff_one) "Nothing returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
+                    @assert !(diff_one isa Tuple) "Tuple returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
+                    @info "$(diff_one)"
                     push!(diff_vec, diff_one)
                 end
                 diff = maximum(diff_vec)
                 @info "Iteration $i value: $diff"
+                push!(diff_iter, diff)
+                @info "Iteration $i value vector: $diff_iter"
 
                 if diff < model_data.epsilon
                     break
@@ -318,38 +390,38 @@ function solve_equilibrium_problem!(
         save_results(agent, options, hem_opts, export_file_path)
     end
 
-    if hem_opts.market_structure isa VerticallyIntegratedUtility
-        x = store.data[Utility]["default"]
-        Welfare_supply =
-            welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
-        y = store.data[CustomerGroup]["default"]
-        Welfare_demand =
-            welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    elseif hem_opts.market_structure isa WholesaleMarket
-        x = store.data[IPPGroup]["default"]
-        Welfare_supply =
-            welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
-        y = store.data[CustomerGroup]["default"]
-        Welfare_demand =
-            welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    end
+    # if hem_opts.market_structure isa VerticallyIntegratedUtility
+    #     x = store.data[Utility]["default"]
+    #     Welfare_supply =
+    #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
+    #     y = store.data[CustomerGroup]["default"]
+    #     Welfare_demand =
+    #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
+    # elseif hem_opts.market_structure isa WholesaleMarket
+    #     x = store.data[IPPGroup]["default"]
+    #     Welfare_supply =
+    #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
+    #     y = store.data[CustomerGroup]["default"]
+    #     Welfare_demand =
+    #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
+    # end
 
-    if hem_opts.supply_choice_use_case isa NullUseCase
-        Welfare_green_developer = [
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix), 
-            initialize_keyed_array(model_data.index_y_fix)]
-    else
-        z = store.data[GreenDeveloper]["default"]
-        Welfare_green_developer =
-            welfare_calculation!(z.agent, z.options, model_data, hem_opts, store)
-    end
+    # if hem_opts.supply_choice_use_case isa NullUseCase
+    #     Welfare_green_developer = [
+    #         initialize_keyed_array(model_data.index_y_fix), 
+    #         initialize_keyed_array(model_data.index_y_fix), 
+    #         initialize_keyed_array(model_data.index_y_fix), 
+    #         initialize_keyed_array(model_data.index_y_fix), 
+    #         initialize_keyed_array(model_data.index_y_fix), 
+    #         initialize_keyed_array(model_data.index_y_fix), 
+    #         initialize_keyed_array(model_data.index_y_fix)]
+    # else
+    #     z = store.data[GreenDeveloper]["default"]
+    #     Welfare_green_developer =
+    #         welfare_calculation!(z.agent, z.options, model_data, hem_opts, store)
+    # end
 
-    save_welfare!(Welfare_supply, Welfare_demand, Welfare_green_developer, export_file_path)
+    # save_welfare!(Welfare_supply, Welfare_demand, Welfare_green_developer, export_file_path)
 
     @info "\n$(HEM_TIMER)\n"
 end

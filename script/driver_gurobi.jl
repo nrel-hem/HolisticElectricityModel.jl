@@ -1,3 +1,4 @@
+using Revise
 using HolisticElectricityModel
 import HolisticElectricityModelData
 using JuMP
@@ -16,33 +17,36 @@ const HEMDataRepo = HolisticElectricityModelData
 
 # File locations
 base_dir = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
-hem_data_dir = dirname(dirname(Base.find_package("HolisticElectricityModelData")))
+hem_data_dir = joinpath(base_dir, "..", "HolisticElectricityModelData.jl")
 test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
 # Create input data
 input_path = joinpath(hem_data_dir, "inputs")
 ba = ["p129", "p130", "p131", "p132", "p133", "p134"]                                     # p13
+# ba = ["p130", "p131"]
 ba_len = length(ba)
 base_year = 2020                                 # 2018
-future_years = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030]                      # [2019, 2020]
+future_years = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035]                      # [2019, 2020]
+# future_years = [2021, 2022, 2023, 2024, 2025]
 future_years_len = length(future_years)
 ipp_number = 1                                   # 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
-# need to run in julia: run(#ba, PROFILES_DIRECTORY, "nguo", HOSTNAME, DATABASE, PORT) to get residential and commercial profiles
+# need to run in julia: run(output_dir = PROFILES_DIRECTORY, user = "nguo", hostname = HOSTNAME, dbname = DATABASE, port = PORT, pca_ids = nothing) to get residential and commercial profiles
 # also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
 
-input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"
+input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full_dera_pv_w_EV_2035_EE"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
-mkpath(input_dir)
+# mkpath(input_dir)
 
-HEMDataRepo.parse_inputs(input_path, input_dir, scenario)
+# HEMDataRepo.parse_inputs(input_path, input_dir, scenario, false)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
-    DERUseCase(),                     # DERUseCase(), NullUseCase()
-    NullUseCase(),                    # SupplyChoiceUseCase(), NullUseCase()
+    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    DERAdoption(),                    # DERAdoption(), NullUseCase()
+    NullUseCase(),                    # SupplyChoice(), NullUseCase()
+    NullUseCase(),                    # DERAggregation(), NullUseCase()
 )
 
 regulator_opts = RegulatorOptions(
@@ -51,7 +55,7 @@ regulator_opts = RegulatorOptions(
 )
 
 ipp_opts = IPPOptions(
-    MPPDCMER(),          # LagrangeDecomposition(), MIQP(), MPPDCMER()
+    MPPDCMERTransStorage(),          # LagrangeDecomposition(), MIQP(), MPPDCMER()
     Dict(
         "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
             Ipopt.Optimizer,
@@ -75,12 +79,19 @@ ipp_opts = IPPOptions(
         ),
         "solve_agent_problem_ipp_mppdc" => JuMP.optimizer_with_attributes(
             () -> Gurobi.Optimizer(GUROBI_ENV),
-            "Presolve" => 1,
+            "Aggregate" => 0,
+            # "Presolve" => 0,
+            "BarHomogeneous" => 1,
+            # "FeasibilityTol" => 1e-3,
+            # "Method" => 1
+            "NumericFocus" => 3,
+            "ScaleFlag" => 2,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_mppdc_mccormic_lower" => JuMP.optimizer_with_attributes(
             () -> Gurobi.Optimizer(GUROBI_ENV),
             "Presolve" => 1,
+            "BarHomogeneous" => 1,
             # "OUTPUTLOG" => 0,
         )
     )
@@ -99,7 +110,24 @@ green_developer_opts = GreenDeveloperOptions(
         # "OUTPUTLOG" => 0,
     ),
 )
+
+customer_opts = CustomerOptions(
+    SolarPlusStorageOnly(),
+    JuMP.optimizer_with_attributes(
+        () -> Gurobi.Optimizer(GUROBI_ENV),
+        # "OUTPUTLOG" => 0,
+    ),
+)
+
+dera_opts = DERAggregatorOptions(
+    JuMP.optimizer_with_attributes(
+        () -> Gurobi.Optimizer(GUROBI_ENV),
+        # "OUTPUTLOG" => 0,
+    ),
+)
 # ------------------------------------------------------------------------------
+
+jump_model = []
 
 # Run HEM ----------------------------------------------------------------------
 output_dir = run_hem(
@@ -109,6 +137,9 @@ output_dir = run_hem(
     ipp_options=ipp_opts,
     utility_options=utility_opts,
     green_developer_options=green_developer_opts,
+    customer_options=customer_opts,
+    dera_options=dera_opts,
     force=true,
+    jump_model=jump_model,
 )
 # ------------------------------------------------------------------------------

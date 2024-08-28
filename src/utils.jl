@@ -223,6 +223,19 @@ function compute_difference_percentage_one_norm(before_after_pairs)
     return result
 end
 
+function compute_difference_percentage_maximum_one_norm(before_after_pairs)
+    result_vec = []
+    for (before, after) in before_after_pairs
+        for i in Iterators.product(AxisKeys.axiskeys(before)...)
+            result_one = 
+                before(i...) == 0.0 ? abs(after(i...) - before(i...)) : abs(after(i...) - before(i...)) / before(i...)
+            push!(result_vec, result_one)
+        end
+    end
+    result = maximum(result_vec)
+    return result
+end
+
 """
 Sets the log level to, e.g., Logging.Debug, Logging.Warn. Currently only 
 implemented for ConsoleLogger.
@@ -282,52 +295,6 @@ function configure_logging(;
         tracker = nothing,
         set_global = true,
     )
-end
-
-"""
-Returns a ParamArray with all values set to value.
-"""
-function initialize_param(
-    name::AbstractString,
-    index::Dimension;
-    value = 0.0,
-    prose_name = "",
-    description = "",
-)
-    return ParamArray(
-        name,
-        (index,),
-        initialize_keyed_array(index; value=value),
-        prose_name = prose_name,
-        description = description,
-    )
-end
-
-"""
-Return a ParamArray with all values set to value, and indices formed from
-Iterators.product(indices...).
-"""
-function initialize_param(
-    name::AbstractString,
-    indices...;
-    value = 0.0,
-    prose_name = "",
-    description = "",
-)
-    num_dims = length(indices)
-    param = try
-        ParamArray(
-            name,
-            indices,
-            initialize_keyed_array(indices...; value=value),
-            prose_name = prose_name,
-            description = description,
-        )
-    catch e
-        @info "Failed to initialize parameter $name"
-        rethrow(e)
-    end
-    return param
 end
 
 function read_dataframe(filename::AbstractString)
