@@ -2218,6 +2218,28 @@ function solve_agent_problem!(
         for y in model_data.index_y, l in utility.index_l
             utility.flow_cap_my(y, l, :) .= value.(flow_cap[y, l])
         end
+
+        for y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t
+    
+            utility.charge_E_my(y, s, z, d, t, :) .= value.(charge_E[y, s, z, d, t])
+            utility.discharge_E_my(y, s, z, d, t, :) .= value.(discharge_E[y, s, z, d, t])
+            utility.energy_E_my(y, s, z, d, t, :) .= value.(energy_E[y, s, z, d, t])
+        end
+        
+        for y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t
+    
+            utility.charge_C_my(y, s, z, d, t, :) .= value.(charge_C[y, s, z, d, t])
+            utility.discharge_C_my(y, s, z, d, t, :) .= value.(discharge_C[y, s, z, d, t])
+            utility.energy_C_my(y, s, z, d, t, :) .= value.(energy_C[y, s, z, d, t])
+        end
     end
 
     utility._obj_value.value = objective_value(VIUDER_Utility)
