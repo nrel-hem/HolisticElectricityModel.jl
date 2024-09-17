@@ -1533,6 +1533,24 @@ function save_results(
         :Capacity_MW,
         joinpath(export_file_path, "x_DG.csv"),
     )
+    save_param(
+        customers.stor_charge.values,
+        [:Year, :Zone, :CustomerType, :Day, :Hour],
+        :MW,
+        joinpath(export_file_path, "BTM_stor_charge.csv"),
+    )
+    save_param(
+        customers.stor_discharge.values,
+        [:Year, :Zone, :CustomerType, :Day, :Hour],
+        :MW,
+        joinpath(export_file_path, "BTM_stor_discharge.csv"),
+    )
+    save_param(
+        customers.rho_DG_my.values,
+        [:Year, :CustomerType, :DERtech, :Zone, :Day, :Hour],
+        :MW,
+        joinpath(export_file_path, "rho_DG_my.csv"),
+    )
 end
 
 
