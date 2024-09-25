@@ -195,10 +195,11 @@ AxisKeys.axiskeys(A::ParamArray, d::Int) = AxisKeys.axiskeys(A.values, d)
 (P::ParamArray)(args...) = P.values(args...)
 
 Base.:+(x::ParamArray, y::ParamArray) = x.values + y.values
-#Base.:-(x::ParamArray, y::ParamArray) = x.values - y.values
+Base.:-(x::ParamArray, y::ParamArray) = x.values - y.values
 #Base.:*(x::ParamArray, y::ParamArray) = x.values * y.values
-#Base.:(*)(x::ParamArray, y::ParamArray) = x.values .* y.values
-#Base.:(*)(x::Matrix, y::ParamArray) = x .* y.values
+Base.:(*)(x::ParamArray, y::ParamArray) = x.values .* y.values
+Base.:(*)(x::KeyedArray, y::ParamArray) = x .* y.values
+Base.:(*)(x::ParamArray, y::KeyedArray) = x.values .* y
 
 # TODO PERF: turn off fill_nan when we are confident in the code.
 """

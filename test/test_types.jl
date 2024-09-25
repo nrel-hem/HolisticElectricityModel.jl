@@ -2,10 +2,11 @@
 Tests that the values stored in two KeyedArrays are equal when accessed 
 individually using their named indices.
 """
-function values_equal(A::KeyedArray, B::KeyedArray)
+function values_equal(A::KeyedArray, B::KeyedArray; kwargs...)
     for inds in Base.Iterators.product(axiskeys(A)...)
-        if !isapprox(A(inds...), B(inds...))
-            @info "With inds=$(inds), $(A(inds...)) != $(B(inds...))"
+        if !isapprox(A(inds...), B(inds...); kwargs...)
+            v1 = A(inds...); v2 = B(inds...)
+            @error "With inds=$(inds), $(v1) != $(v2), abs(A(inds...) - B(inds...)) = $(abs(v1 - v2)), relative error = $(abs(v1 - v2) / max(abs(v1), abs(v2)))"
             return false
         end
     end
@@ -158,5 +159,35 @@ end
 
     result = d + d_alt
     @test result isa KeyedArray
-    @test values_equal(d.values .* 2.0, result)
+    @test values_equal(d.values .* 2.0, result; rtol=1.0e-6)
+
+    result = d - d_alt
+    @test result isa KeyedArray
+    @test values_equal(d.values .* 0.0, result; atol=1.0e-9)
+
+    omega = read_param(
+        "omega",
+        input_dir,
+        "Omega",
+        index_d,
+        description = "number of days per representative day",
+    )
+
+    gamma = read_param(
+        "gamma",
+        input_dir,
+        "Gamma",
+        index_h,
+        [index_z],
+        description = "number of customers of type h at zone z",
+    )
+
+    # HERE -- Figure out math in the console with simpler example
+    result = gamma .* (omega .* d)
+    @test result isa KeyedArray
+    result_by_index = make_keyed_array([index_h, index_z, index_d, index_t])
+    for h in index_h, z in index_z, d in index_d, t in index_t
+        result_by_index(h, z, d, t) .= gamma(z, h) * omega(d) * d(h, z, d, t)
+    end
+    @test values_equal(result_by_index, result; rtol=1.0e-6)
 end
