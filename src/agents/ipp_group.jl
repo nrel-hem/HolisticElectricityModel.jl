@@ -5093,7 +5093,7 @@ function solve_agent_problem_ipp_cap(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_supplydemandbalance_lower[y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t],
-        supply_demand_balance_lower(y, z, d, t) >= 0
+        supply_demand_balance_lower(y, z, d, t) == 0
     )
 
     @constraint(
@@ -5489,7 +5489,7 @@ function solve_agent_problem_ipp_cap(
     # f = open("lower_level_dual.txt","w"); print(f, dual_model); close(f)
 
     ############ lower-level dual problem ############
-    @variable(MPPDCMER_lower_dual, miu_lower[model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t] >= 0)
+    @variable(MPPDCMER_lower_dual, miu_lower[model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t])
     @variable(
         MPPDCMER_lower_dual,
         eta_lower[model_data.index_y, ipp.index_p, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
@@ -5986,12 +5986,12 @@ function solve_agent_problem_ipp_cap(
     # battery_lower_bound_adj = 0.985
 
     # adjust these bounds may make the problem easier to solve! But it may also hurt the duality gap.
-    eta_upper_bound_adj = 1.05 # 1.001
-    eta_lower_bound_adj = 0.95 # 0.999
-    lambda_upper_bound_adj = 1.05
-    lambda_lower_bound_adj = 0.95
-    battery_upper_bound_adj = 1.05
-    battery_lower_bound_adj = 0.95
+    eta_upper_bound_adj = 1.1 # 1.1
+    eta_lower_bound_adj = 0.9 # 0.8
+    lambda_upper_bound_adj = 1.1
+    lambda_lower_bound_adj = 0.9
+    battery_upper_bound_adj = 1.1
+    battery_lower_bound_adj = 0.9
 
     # eta_upper_bound_adj = 10.0
     # eta_lower_bound_adj = 10.0
@@ -6189,7 +6189,7 @@ function solve_agent_problem_ipp_cap(
         WMDER_IPP,
         y_C[model_data.index_y, ipp.index_p, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
-    @variable(WMDER_IPP, miu[model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t] >= 0)
+    @variable(WMDER_IPP, miu[model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t])
     @variable(
         WMDER_IPP,
         eta[model_data.index_y, ipp.index_p, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
@@ -7166,7 +7166,7 @@ function solve_agent_problem_ipp_cap(
     @constraint(
         WMDER_IPP,
         Eq_primal_feasible_supplydemandbalance[y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t],
-        supply_demand_balance(y, z, d, t) >= 0
+        supply_demand_balance(y, z, d, t) == 0
     )
 
     @constraint(
@@ -8969,6 +8969,8 @@ function solve_agent_problem_ipp_cap(
 
     jump_model[end] = WMDER_IPP
 
+    iteration_year = first(model_data.index_y)
+    @info("iteration year is $(iteration_year)")
     @info("MPPDC upper level")
     TimerOutputs.@timeit HEM_TIMER "optimize! MPPDC with transmission and storage" begin
         optimize!(WMDER_IPP)
