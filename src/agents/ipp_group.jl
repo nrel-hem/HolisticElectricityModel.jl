@@ -748,12 +748,14 @@ get_id(x::IPPGroup) = x.id
 
 function solve_agent_problem!(
     ipps::IPPGroup,
-    ipp_opts::AgentOptions,
+    ipp_opts::IPPOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path,
+    update_results::Bool
 )
     return 0.0
 end
@@ -4984,11 +4986,14 @@ function solve_agent_problem_ipp_cap(
 )
     x_R_before = ParamArray(ipp.x_R_my)
     x_C_before = ParamArray(ipp.x_C_my)
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t = get_delta_t(model_data)
+    # the aggregator problem hasn't solved yet, so use last year's participation rates
+    reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
 
     # utility = get_agent(Utility, agent_store)
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
+    der_aggregator = get_agent(DERAggregator, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
 
     WMDER_IPP = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc"])
@@ -5065,18 +5070,17 @@ function solve_agent_problem_ipp_cap(
             sum(charge_E_bounds[y, p, s, z, d, t] for s in ipp.index_stor_existing, p in ipp.index_p) -
             sum(charge_C_bounds[y, p, s, z, d, t] for s in ipp.index_stor_new, p in ipp.index_p) -
             # demand at time t
-            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - ipp.eximport_my(y, z, d, t) +
-            # existing DG generation at time t
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) -
+            ipp.eximport_my(y, z, d, t) +
+            # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) +
-            # new DG generation at time t
+            ) - 
+            # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
-                customers.rho_DG(h, m, z, d, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                ) for h in model_data.index_h, m in customers.index_m
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             ) +
             # green technology subscription at time t
             sum(
@@ -5567,17 +5571,15 @@ function solve_agent_problem_ipp_cap(
                     sum(
                         customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h
                     ) + ipp.eximport_my(y, z, d, t) -
-                    # existing DG generation at time t
+                    # total DG generation at time t
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
-                    ) -
-                    # new DG generation at time t
+                    ) +
+                    # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * sum(
-                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                        ) for h in model_data.index_h, m in customers.index_m
+                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * 
+                        customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                     ) -
                     # green technology subscription at time t
                     sum(
@@ -5984,12 +5986,12 @@ function solve_agent_problem_ipp_cap(
     # battery_lower_bound_adj = 0.985
 
     # adjust these bounds may make the problem easier to solve! But it may also hurt the duality gap.
-    eta_upper_bound_adj = 1.01 # 1.001
-    eta_lower_bound_adj = 0.99 # 0.999
-    lambda_upper_bound_adj = 1.001
-    lambda_lower_bound_adj = 0.999
-    battery_upper_bound_adj = 1.001
-    battery_lower_bound_adj = 0.999
+    eta_upper_bound_adj = 1.05 # 1.001
+    eta_lower_bound_adj = 0.95 # 0.999
+    lambda_upper_bound_adj = 1.05
+    lambda_lower_bound_adj = 0.95
+    battery_upper_bound_adj = 1.05
+    battery_lower_bound_adj = 0.95
 
     # eta_upper_bound_adj = 10.0
     # eta_lower_bound_adj = 10.0
@@ -6271,7 +6273,8 @@ function solve_agent_problem_ipp_cap(
     # the constraint that makes multi-year look-ahead hard to solve
     for y in model_data.index_y, z in model_data.index_z
         fix(x_R[y, :nuclear, z], 0.0; force = true)
-        fix(x_R[y, :nuclear, z], 0.0; force = true)
+        fix(x_R[y, :dera_pv, z], 0.0; force = true)
+        fix(x_stor_R[y, :der_aggregator, z], 0.0; force = true)
     end
 
     constraint_scaling = 1.0
@@ -6453,15 +6456,15 @@ function solve_agent_problem_ipp_cap(
     for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         ipp.Net_Load_my(y, z, d, t, :) .=
             sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - 
+            # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) - 
+            ) +
+            # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
-                customers.rho_DG(h, m, z, d, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                ) for h in model_data.index_h, m in customers.index_m
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             )
     end
     fill!(ipp.Max_Net_Load_my, NaN)
@@ -6676,14 +6679,17 @@ function solve_agent_problem_ipp_cap(
                         sum(
                             customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for
                             h in model_data.index_h
-                        ) + ipp.eximport_my(y, z, d, t) - sum(
-                            customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                        ) + 
+                        ipp.eximport_my(y, z, d, t) -
+                        # total DG generation at time t
+                        sum(
+                            customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                             h in model_data.index_h, m in customers.index_m
-                        ) - sum(
-                            customers.rho_DG(h, m, z, d, t) * sum(
-                                customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                            ) for h in model_data.index_h, m in customers.index_m
+                        ) +
+                        # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
+                        sum(
+                            customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * 
+                            customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                         ) -
                         # green technology subscription at time t
                         sum(
@@ -7139,17 +7145,15 @@ function solve_agent_problem_ipp_cap(
             sum(charge_C[y, p, s, z, d, t] for s in ipp.index_stor_new, p in ipp.index_p) -
             # demand at time t
             sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - ipp.eximport_my(y, z, d, t) +
-            # existing DG generation at time t
+            # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) +
-            # new DG generation at time t
+            ) -
+            # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
-                customers.rho_DG(h, m, z, d, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                ) for h in model_data.index_h, m in customers.index_m
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             ) +
             # green technology subscription at time t
             sum(
@@ -7901,17 +7905,15 @@ function solve_agent_problem_ipp_cap(
                     sum(
                         customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h
                     ) + ipp.eximport_my(y, z, d, t) -
-                    # existing DG generation at time t
+                    # total DG generation at time t
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
-                    ) -
-                    # new DG generation at time t
+                    ) + 
+                    # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * sum(
-                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                        ) for h in model_data.index_h, m in customers.index_m
+                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                        customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                     ) -
                     # green technology subscription at time t
                     sum(
@@ -9299,17 +9301,15 @@ function solve_agent_problem_ipp_cap(
                     sum(
                         customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h
                     ) + ipp.eximport_my(y, z, d, t) -
-                    # existing DG generation at time t
+                    # total DG generation at time t
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
-                    ) -
-                    # new DG generation at time t
+                    ) + 
+                    # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * sum(
-                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                        ) for h in model_data.index_h, m in customers.index_m
+                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                        customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                     ) -
                     # green technology subscription at time t
                     sum(
@@ -9491,12 +9491,14 @@ end
 
 function solve_agent_problem!(
     ipp::IPPGroup,
-    ipp_opts::AgentOptions,
+    ipp_opts::IPPOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path,
+    update_results::Bool
 )
     diff = 0.0
 

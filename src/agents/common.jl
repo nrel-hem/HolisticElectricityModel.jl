@@ -122,6 +122,28 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
     )
 end
 
+function get_delta_t(model_data::HEMData)
+    return (
+        parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - 
+        parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    )
+end
+
+function get_reg_year(model_data::HEMData)
+    reg_year = model_data.year(first(model_data.index_y))
+    return reg_year, Symbol(Int(reg_year))
+end
+
+function get_prev_reg_year(model_data::HEMData, w_iter::Integer)
+    if w_iter >= 2
+        prev_reg_year = model_data.year(first(model_data.index_y)) - 1
+    else
+        prev_reg_year = model_data.year(first(model_data.index_y))
+    end
+    return prev_reg_year, Symbol(Int(prev_reg_year))
+end
+
+
 # Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end
 struct VerticallyIntegratedUtility <: MarketStructure end
@@ -129,26 +151,30 @@ struct WholesaleMarket <: MarketStructure end
 
 abstract type UseCase end
 struct NullUseCase <: UseCase end
-struct DERUseCase <: UseCase end
-struct SupplyChoiceUseCase <: UseCase end
+struct DERAdoption <: UseCase end
+struct SupplyChoice <: UseCase end
+struct DERAggregation <: UseCase end
 
 abstract type Options end
 
 get_file_prefix(::Options) = String("")
 
 struct HEMOptions{T <: MarketStructure, 
-                  U <: Union{NullUseCase,DERUseCase}, 
-                  V <: Union{NullUseCase,SupplyChoiceUseCase}} <: Options
+                  U <: Union{NullUseCase,DERAdoption},
+                  V <: Union{NullUseCase,SupplyChoice},
+                  W <: Union{NullUseCase,DERAggregation}} <: Options
     market_structure::T
 
     # use case switches
     der_use_case::U
     supply_choice_use_case::V
+    der_aggregation_use_case::W
 end
 
 function get_file_prefix(options::HEMOptions)
     return join(["$(typeof(options.der_use_case))", 
                  "$(typeof(options.supply_choice_use_case))",
+                 "$(typeof(options.der_aggregation_use_case))",
                  "$(typeof(options.market_structure))"],"_")
 end
 
@@ -249,6 +275,21 @@ function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: Abstr
     return agents_and_opts[id].agent
 end
 
+function get_option(::Type{T}, store::AgentStore, id = nothing) where {T <: AbstractAgent}
+    !haskey(store.data, T) && error("No agents of type $T are stored.")
+    agents_and_opts = store.data[T]
+
+    if id === nothing
+        if length(agents_and_opts) > 1
+            error("Passing 'id' is required if more than one agent is stored.")
+        end
+        return first(values(agents_and_opts)).options
+    end
+
+    !haskey(agents_and_opts, id) && error("No agent of type $T id = $id is stored")
+    return agents_and_opts[id].options
+end
+
 function iter_agents_and_options(store::AgentStore)
     return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
 end
@@ -297,7 +338,7 @@ function solve_equilibrium_problem!(
 
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
-        for w in 1:5 #(length(model_data.index_y_fix) - window_length + 1)  # loop over windows
+        for w in 1:(length(model_data.index_y_fix) - window_length + 1) # loop over windows
             model_data.index_y.elements =
                 model_data.index_y_fix.elements[w:(w + window_length - 1)]
             i = 0
@@ -315,9 +356,13 @@ function solve_equilibrium_problem!(
                             hem_opts,
                             store,
                             w,
-                            jump_model
+                            jump_model,
+                            export_file_path,
+                            true
                         )
                     end
+                    @assert !isnothing(diff_one) "Nothing returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
+                    @assert !(diff_one isa Tuple) "Tuple returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
                     @info "$(diff_one)"
                     push!(diff_vec, diff_one)
                 end

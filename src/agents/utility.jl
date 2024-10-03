@@ -220,6 +220,8 @@ mutable struct Utility <: AbstractUtility
     # x_C_my_decomp::ParamArray
     # obj_my::ParamArray
     # obj_my_feasible::ParamArray
+
+    _obj_value::ParamScalar
 end
 
 function Utility(
@@ -1021,7 +1023,7 @@ function Utility(
             model_data.index_d,
             model_data.index_t,
         ),
-        Dict()
+        Dict(),
         # initialize_param("x_R_feasible", model_data.index_y, index_k_existing),
         # initialize_param("x_C_feasible", model_data.index_y, index_k_new),
         # ParamScalar("obj_feasible", 1.0, description = "feasible objective value"),
@@ -1056,6 +1058,7 @@ function Utility(
         # ),
         # initialize_param("obj_my", model_data.index_y),
         # initialize_param("obj_my_feasible", model_data.index_y),
+        ParamScalar("_obj_value", 0.0, description = "objective value--use with caution")
     )
 end
 
@@ -1063,19 +1066,21 @@ get_id(x::Utility) = x.id
 
 function solve_agent_problem!(
     utility::Utility,
-    utility_opts::AgentOptions,
+    utility_opts::UtilityOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path,
+    update_results::Bool
 )
     return 0.0
 end
 
 # function solve_agent_problem!(
 #     utility::Utility,
-#     utility_opts::AgentOptions,
+#     utility_opts::UtilityOptions,
 #     model_data::HEMData,
 #     hem_opts::HEMOptions{VerticallyIntegratedUtility},
 #     agent_store::AgentStore,
@@ -1404,19 +1409,25 @@ end
 ############### utility capacity expansion with transmission and storage ###############
 function solve_agent_problem!(
     utility::Utility,
-    utility_opts::AgentOptions,
+    utility_opts::UtilityOptions,
     model_data::HEMData,
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path,
+    update_results::Bool
 )
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     green_developer = get_agent(GreenDeveloper, agent_store)
+    der_aggregator = get_agent(DERAggregator, agent_store)
 
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
-    delta_t = parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
+    delta_t = get_delta_t(model_data)
+
+    # the aggregator problem hasn't solved yet, so use last year's participation rates
+    reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
 
     x_R_aggregate_before = initialize_param("x_R_aggregate_before", model_data.index_y, utility.index_k_existing)
     x_C_aggregate_before = initialize_param("x_C_aggregate_before", model_data.index_y, utility.index_k_new)
@@ -1497,14 +1508,15 @@ function solve_agent_problem!(
     for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         utility.Net_Load_my(y, z, d, t, :) .=
             sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - 
+            # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) - sum(
-                customers.rho_DG(h, m, z, d, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                ) for h in model_data.index_h, m in customers.index_m
+            ) +
+            # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
+            sum(
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             )
     end
     fill!(utility.Max_Net_Load_my, NaN)
@@ -1626,17 +1638,15 @@ function solve_agent_problem!(
             sum(charge_C[y, s, z, d, t] for s in utility.index_stor_new) -
             # demand at time t
             sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - utility.eximport_my(y, z, d, t) +
-            # existing DG generation at time t
+            # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(y, h, z, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) +
-            # new DG generation at time t
+            ) -
+            # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
-                customers.rho_DG(h, m, z, d, t) * sum(
-                    customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                ) for h in model_data.index_h, m in customers.index_m
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             ) +
             # green technology subscription at time t
             sum(
@@ -2171,40 +2181,67 @@ function solve_agent_problem!(
     end
 
     # record current primary variable values
-    for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        utility.y_E_my(y, k, z, d, t, :) .= value.(y_E[y, k, z, d, t])
-    end
-
-    for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        utility.y_C_my(y, k, z, d, t, :) .= value.(y_C[y, k, z, d, t])
-    end
-
     x_R_before = ParamArray(utility.x_R_my)
     x_C_before = ParamArray(utility.x_C_my)
-    for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z
-        utility.x_R_my(y, k, z, :) .= value.(x_R[y, k, z])
+
+    if update_results
+        for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            utility.y_E_my(y, k, z, d, t, :) .= value.(y_E[y, k, z, d, t])
+        end
+
+        for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            utility.y_C_my(y, k, z, d, t, :) .= value.(y_C[y, k, z, d, t])
+        end
+
+        for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z
+            utility.x_R_my(y, k, z, :) .= value.(x_R[y, k, z])
+        end
+
+        for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z
+            utility.x_C_my(y, k, z, :) .= value.(x_C[y, k, z])
+        end
+
+        for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            utility.miu_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t])
+            utility.p_energy_cem_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t]) ./ (utility.pvf_onm(y) .* model_data.omega(d) .* delta_t)
+        end
+
+        for y in model_data.index_y, z in model_data.index_z
+            utility.p_cap_cem_my(y, z, :) .= dual.(Eq_xi_cap[y, z]) ./ utility.pvf_onm(y)
+        end
+
+        for y in model_data.index_y, l in utility.index_l, d in model_data.index_d, t in model_data.index_t
+            utility.flow_my(y, l, d, t, :) .= value.(flow[y, l, d, t])
+        end
+
+        for y in model_data.index_y, l in utility.index_l
+            utility.flow_cap_my(y, l, :) .= value.(flow_cap[y, l])
+        end
+
+        for y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t
+    
+            utility.charge_E_my(y, s, z, d, t, :) .= value.(charge_E[y, s, z, d, t])
+            utility.discharge_E_my(y, s, z, d, t, :) .= value.(discharge_E[y, s, z, d, t])
+            utility.energy_E_my(y, s, z, d, t, :) .= value.(energy_E[y, s, z, d, t])
+        end
+        
+        for y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t
+    
+            utility.charge_C_my(y, s, z, d, t, :) .= value.(charge_C[y, s, z, d, t])
+            utility.discharge_C_my(y, s, z, d, t, :) .= value.(discharge_C[y, s, z, d, t])
+            utility.energy_C_my(y, s, z, d, t, :) .= value.(energy_C[y, s, z, d, t])
+        end
     end
 
-    for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z
-        utility.x_C_my(y, k, z, :) .= value.(x_C[y, k, z])
-    end
-
-    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        utility.miu_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t])
-        utility.p_energy_cem_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t]) ./ (utility.pvf_onm(y) .* model_data.omega(d) .* delta_t)
-    end
-
-    for y in model_data.index_y, z in model_data.index_z
-        utility.p_cap_cem_my(y, z, :) .= dual.(Eq_xi_cap[y, z]) ./ utility.pvf_onm(y)
-    end
-
-    for y in model_data.index_y, l in utility.index_l, d in model_data.index_d, t in model_data.index_t
-        utility.flow_my(y, l, d, t, :) .= value.(flow[y, l, d, t])
-    end
-
-    for y in model_data.index_y, l in utility.index_l
-        utility.flow_cap_my(y, l, :) .= value.(flow_cap[y, l])
-    end
+    utility._obj_value.value = objective_value(VIUDER_Utility)
 
     # x_R_aggregate_after = initialize_param("x_R_aggregate_after", model_data.index_y, utility.index_k_existing)
     # x_C_aggregate_after = initialize_param("x_C_aggregate_after", model_data.index_y, utility.index_k_new)
