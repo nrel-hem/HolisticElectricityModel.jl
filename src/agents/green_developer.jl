@@ -51,20 +51,21 @@ get_id(x::GreenDeveloper) = x.id
 
 function solve_agent_problem!(
     green_developer::GreenDeveloper,
-    green_developer_opts::AgentOptions,
+    green_developer_opts::GreenDeveloperOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, <:Union{NullUseCase,DERUseCase}, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, SupplyChoice, <:UseCase},
     agent_store::AgentStore,
     w_iter,
     jump_model,
+    export_file_path,
+    update_results::Bool
 )
 
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
 
     # the year green developer is solving PPA investment problem
-    reg_year = model_data.year(first(model_data.index_y))
-    reg_year_index = Symbol(Int(reg_year))
+    reg_year, reg_year_index = get_reg_year(model_data)
 
     Green_Developer_model = get_new_jump_model(green_developer_opts.solvers)
 
@@ -127,12 +128,14 @@ end
 
 function solve_agent_problem!(
     green_developer::GreenDeveloper,
-    green_developer_opts::AgentOptions,
+    green_developer_opts::GreenDeveloperOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERUseCase, NullUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERAdoption, NullUseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
-    jump_model
+    jump_model,
+    export_file_path,
+    update_results::Bool
 )
 
     return 0.0
@@ -142,7 +145,7 @@ end
 function save_results(
     green_developer::GreenDeveloper,
     green_developer_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, <:Union{NullUseCase,DERUseCase}, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, SupplyChoice, <:UseCase},
     export_file_path::AbstractString,
 )
 
@@ -167,7 +170,7 @@ function welfare_calculation!(
     green_developer::GreenDeveloper,
     green_developer_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, <:Union{NullUseCase,DERUseCase}, SupplyChoiceUseCase},
+    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, SupplyChoice, <:UseCase},
     agent_store::AgentStore,
 )
     utility = get_agent(Utility, agent_store)

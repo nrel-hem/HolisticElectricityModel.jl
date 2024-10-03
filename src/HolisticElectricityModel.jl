@@ -35,22 +35,27 @@ export CustomerGroup
 export IPPGroup
 export GreenDeveloper
 export DistributionUtility
+export DERAggregator
 
 # Agent Options
 export RegulatorOptions
-# export CustomerOptions
+export CustomerOptions
 export GreenDeveloperOptions
 export IPPOptions
 export UtilityOptions
-export CustomersOptions
+export DERAggregatorOptions
 
 # Policies
 export FlatRate, TOU                                    # tariff structures
 export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
 export VerticallyIntegratedUtility, WholesaleMarket     # regulatory structures
-export NullUseCase, DERUseCase, SupplyChoiceUseCase
-# export DERAdoption, SupplyChoice                        # consumer decisions
-export LagrangeDecomposition, MIQP, MPPDCMER, MPPDCMERTransStorage                      # ipp algorithms
+
+# Modeling Options
+export NullUseCase
+export DERAdoption, SupplyChoice                        # types of customer decisions
+export DERAggregation                                   # presence of aggregators
+export StandalonePVOnly, SolarPlusStorageOnly, Compete_StandalonePV_SolarPlusStorage # DER types
+export LagrangeDecomposition, MIQP, MPPDCMER, MPPDCMERTransStorage                   # ipp algorithms
 
 # Solvers
 export solve_equilibrium_problem!
@@ -117,6 +122,7 @@ include("agents/customer_group.jl")
 include("agents/ipp_group.jl")
 include("agents/green_developer.jl")
 include("agents/distribution_utility.jl")
+include("agents/der_aggregator.jl")
 include("run_hem.jl")
 
 end # module

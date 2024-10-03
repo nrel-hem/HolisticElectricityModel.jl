@@ -449,15 +449,14 @@ function solve_agent_problem!(
     distribution_utility::DistributionUtility,
     distribution_utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure,<:UseCase,<:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, <:UseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
 
     regulator = get_agent(Regulator, agent_store)
 
-    reg_year = model_data.year(first(model_data.index_y))
-    reg_year_index = Symbol(Int(reg_year))
+    reg_year, reg_year_index = get_reg_year(model_data)
 
     distribution_cost_before = regulator.distribution_cost
 
