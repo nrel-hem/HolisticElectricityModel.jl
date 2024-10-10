@@ -8955,11 +8955,18 @@ function solve_agent_problem_ipp_cap(
     )
 
     # RPS constraint
+    index_rps_existing = deepcopy(ipp.index_rps)
+    push!(index_rps_existing.elements, Symbol("dera_pv"))
+
     @constraint(
         WMDER_IPP,
         Eq_rps[y in model_data.index_y],
         (sum(
-            model_data.omega(d) * delta_t * (y_E[y, p, rps, z, d, t] + y_C[y, p, rps, z, d, t]) for
+            model_data.omega(d) * delta_t * y_E[y, p, rps, z, d, t] for
+            p in ipp.index_p, rps in index_rps_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        ) + 
+        sum(
+            model_data.omega(d) * delta_t * y_C[y, p, rps, z, d, t] for
             p in ipp.index_p, rps in ipp.index_rps, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         ) -
         ipp.RPS(y) *
