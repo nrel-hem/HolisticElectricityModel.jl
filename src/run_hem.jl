@@ -27,6 +27,7 @@ function run_hem(
     jump_model::Any
 )
     model_data = HEMData(input_dir)
+
     regulator = Regulator(input_dir, model_data)
     utility = Utility(input_dir, model_data, regulator)
     customers = CustomerGroup(input_dir, model_data)
@@ -34,6 +35,7 @@ function run_hem(
     green_developer = GreenDeveloper(input_dir, model_data)
     dera = DERAggregator(input_dir, model_data)
     # distribution_utility = DistributionUtility(input_dir, model_data)
+
     # the sequence of simulation matters a lot! (e.g., the year DER aggregation is picked is dependent on this)
     agents_and_opts = [
         AgentAndOptions(utility, utility_options),

@@ -4,8 +4,8 @@ using Test
 
 using HolisticElectricityModel
 
-driver_name = "driver_gurobi.jl"
-#driver_name = "driver_xpress.jl"
+#driver_name = "driver_gurobi.jl"
+driver_name = "driver_xpress.jl"
 
 BASE_DIR = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
 
@@ -16,8 +16,7 @@ BASE_DIR = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel"
     scenario_dir = basename(dirname(output_dir))
     results_dir = basename(output_dir)
 
-    # expected_results_dir = joinpath(BASE_DIR, "test", "driver_outputs", scenario_dir, results_dir)
-    expected_results_dir = joinpath("/scratch/ehale/hem/ba_6_base_2020_future_15_ipps_1_enhanced_test_full_dera_pv_w_EV_2035_EE", results_dir)
+    expected_results_dir = joinpath(BASE_DIR, "test", "driver_outputs", scenario_dir, results_dir)
     data = DataFrame(filename=String[], column=String[], n=Integer[], N=Integer[], orig_filepath=String[], new_filepath=String[])
     for exp_file in readdir(expected_results_dir, join = true)
         !(splitext(exp_file)[2] == ".csv") && continue
