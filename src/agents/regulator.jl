@@ -1059,12 +1059,6 @@ function solve_agent_problem!(
     update_results::Bool
 )
 
-    for y in model_data.index_y_fix
-        for z in model_data.index_z
-            regulator.othercost(z, y, :) .= regulator.distribution_cost(z, y) + regulator.administration_cost(z, y) + regulator.transmission_cost(z, y) + regulator.interconnection_cost(z, y) + regulator.system_cost(z, y)
-        end
-    end
-
     delta_t = get_delta_t(model_data)
 
     utility = get_agent(Utility, agent_store)
@@ -1091,6 +1085,10 @@ function solve_agent_problem!(
 
     # since regulator problem is ahead of DERAggregator probelm, use previous year's aggregation results.
     reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
+
+    for z in model_data.index_z
+        regulator.othercost(z, reg_year_index, :) .= regulator.distribution_cost(z, reg_year_index) + regulator.administration_cost(z, reg_year_index) + regulator.transmission_cost(z, reg_year_index) + regulator.interconnection_cost(z, reg_year_index) + regulator.system_cost(z, reg_year_index) + der_aggregator.revenue(reg_year_index_dera, z)
+    end
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     # this total_der_pv_capacity is the approximate capacity of pv portion of pv+storage tech, not all dpv capacity
