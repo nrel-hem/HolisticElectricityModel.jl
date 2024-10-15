@@ -66,7 +66,7 @@ ipp_opts = IPPOptions(
         ),
         "solve_agent_problem_ipp_cap" => JuMP.optimizer_with_attributes(
             () -> Xpress.Optimizer(),
-            "Presolve" => 1,
+            # "Presolve" => 1,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_mppdc" => JuMP.optimizer_with_attributes(
@@ -82,7 +82,7 @@ ipp_opts = IPPOptions(
         ),
         "solve_agent_problem_ipp_mppdc_mccormic_lower" => JuMP.optimizer_with_attributes(
             () -> Xpress.Optimizer(),
-            "Presolve" => 1,
+            # "Presolve" => 1,
             # "BarHomogeneous" => 1,
             # "OUTPUTLOG" => 0,
         )
