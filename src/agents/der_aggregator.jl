@@ -20,6 +20,8 @@ mutable struct DERAggregator <: AbstractDERAggregator
     aggregation_friction::ParamArray
     # incentive level by year
     incentive_level::ParamArray
+    # DER aggregator revenue by year (under VIU)
+    revenue::ParamArray
     # aggregation level by year
     aggregation_level::ParamArray
     # aggregation level by year (used for output)
@@ -42,6 +44,7 @@ function DERAggregator(input_filename::AbstractString, model_data::HEMData; id =
         dera_stor_incentive_function,
         initialize_param("aggregation_friction", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
         initialize_param("incentive_level", model_data.index_y, model_data.index_z, value = 0.0),
+        initialize_param("revenue", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("aggregation_level", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("aggregation_level_output", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("rev_perc_cost_saving_viu", model_data.index_y, model_data.index_z, value = 0.1),
@@ -405,6 +408,7 @@ function solve_agent_problem!(
     incentive_level_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
     participation_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
     obj_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
+    obj_revenue_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
 
     cem_cost_saving_function_one = copy(der_aggregator.dera_stor_incentive_function)
     rename!(cem_cost_saving_function_one, :incentive => Symbol("cost_savings"))
@@ -654,6 +658,7 @@ function solve_agent_problem!(
             incentive_level_by_segment[z][i] = value(incentive)
             participation_by_segment[z][i] = incentive_function_intercept[i] + incentive_function_slope[i] * value(incentive)
             obj_by_segment[z][i] = objective_value(DERAggregator_VIU)
+            obj_revenue_by_segment[z][i] = der_aggregator.rev_perc_cost_saving_viu(reg_year_index, z) * (cem_cost_saving_function_intercept[z][i] + cem_cost_saving_function_slope[z][i] * (incentive_function_intercept[i] + incentive_function_slope[i] * value(incentive)))
 
         end
     end
@@ -663,6 +668,7 @@ function solve_agent_problem!(
         der_aggregator.incentive_level(reg_year_index, z, :) .= incentive_level_by_segment[z][max_seg_index[z]]
         der_aggregator.aggregation_level(reg_year_index, z, :) .= participation_by_segment[z][max_seg_index[z]]
         der_aggregator.aggregation_level_output(reg_year_index, z, :) .= participation_by_segment[z][max_seg_index[z]]
+        der_aggregator.revenue(reg_year_index, z, :) .= obj_revenue_by_segment[z][max_seg_index[z]]
     end
 
     dera_agg_stor_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
