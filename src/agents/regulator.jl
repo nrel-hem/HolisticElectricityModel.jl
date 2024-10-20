@@ -2228,7 +2228,7 @@ function solve_agent_problem!(
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+        for z in model_data.index_z, h in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
             regulator.p(z, h, d, t, :) .=
                 (energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)) /
                 net_demand_h_wo_loss(z, h) +
@@ -4019,8 +4019,8 @@ function solve_agent_problem!(
     # TODO: the demonimator need to be further thought through (in the case without green-tech, it's the same)
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
-        for h in model_data.index_h, t in model_data.index_t
-            for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+        for h in model_data.index_sector, t in model_data.index_t
+            for z in model_data.index_z, h in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
                 regulator.p(z, h, d, t, :) .=
                     (energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)) /
                     net_demand_wo_green_tech_h_wo_loss(z, h) +
