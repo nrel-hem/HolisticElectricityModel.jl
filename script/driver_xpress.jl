@@ -31,21 +31,23 @@ scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
 input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
+# input_dir = joinpath(test_data_dir, input_dir_name)
 # mkpath(input_dir)
 
 # HEMDataRepo.parse_inputs(input_path, input_dir, scenario)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERAdoption(),                    # DERAdoption(), NullUseCase()
     NullUseCase(),                    # SupplyChoice(), NullUseCase()
-    DERAggregation(),                    # DERAggregation(), NullUseCase()
+    DERAggregation(),                 # DERAggregation(), NullUseCase()
 )
 
 regulator_opts = RegulatorOptions(
     TOU(),                            # FlatRate(), TOU()
-    ExcessRetailRate(),               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    ExcessRetailRate();               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    planning_reserve_margin=0.129     # Value for New England from ReEDS-2.0/inputs/reserves/prm_annual.csv
 )
 
 ipp_opts = IPPOptions(
