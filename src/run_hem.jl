@@ -28,7 +28,7 @@ function run_hem(
 )
     model_data = HEMData(input_dir)
 
-    regulator = Regulator(input_dir, model_data)
+    regulator = Regulator(input_dir, model_data, regulator_options)
     utility = Utility(input_dir, model_data, regulator)
     customers = CustomerGroup(input_dir, model_data)
     ipp = IPPGroup(input_dir, model_data)
