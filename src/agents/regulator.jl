@@ -17,6 +17,15 @@ abstract type AbstractRegulatorOptions <: AgentOptions end
 struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegulatorOptions
     rate_design::T
     net_metering_policy::U
+
+    planning_reserve_margin::AbstractFloat
+    allowed_return_on_investment::AbstractFloat
+end
+
+function RegulatorOptions(rate_design::RateDesign, net_metering_policy::NetMeteringPolicy; 
+    planning_reserve_margin::AbstractFloat = 0.12, allowed_return_on_investment::AbstractFloat = 0.112)
+
+    return RegulatorOptions(rate_design, net_metering_policy, planning_reserve_margin, allowed_return_on_investment)
 end
 
 function get_file_prefix(options::RegulatorOptions)
@@ -85,7 +94,7 @@ mutable struct Regulator <: AbstractRegulator
     p_my_td::ParamArray
 end
 
-function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
+function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorOptions; id = DEFAULT_ID)
 
     index_rate_tou = read_set(
         input_filename,
@@ -149,14 +158,14 @@ function Regulator(input_filename::String, model_data::HEMData; id = DEFAULT_ID)
             "r",
             model_data.index_z,
             model_data.index_y;
-            value = 0.12,
+            value = opts.planning_reserve_margin,
             description = "planning reserve (fraction)",
         ),
         initialize_param(
             "z",
             model_data.index_z,
             model_data.index_y;
-            value = 0.112,
+            value = opts.allowed_return_on_investment,
             description = "allowed return on investment (fraction)",
         ),
         distribution_cost,
