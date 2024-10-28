@@ -37,9 +37,9 @@ scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
 input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full_dera_pv_w_EV_2035_EE"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
-# mkpath(input_dir)
+mkpath(input_dir)
 
-# HEMDataRepo.parse_inputs(input_path, input_dir, scenario, false)
+HEMDataRepo.parse_inputs(input_path, input_dir, scenario, false)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
