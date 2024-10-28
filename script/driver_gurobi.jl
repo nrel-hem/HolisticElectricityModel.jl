@@ -51,7 +51,8 @@ hem_opts = HEMOptions(
 
 regulator_opts = RegulatorOptions(
     FlatRate(),                       # FlatRate(), TOU()
-    ExcessRetailRate(),               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    ExcessRetailRate();               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    planning_reserve_margin=0.129     # Value for New England from ReEDS-2.0/inputs/reserves/prm_annual.csv
 )
 
 ipp_opts = IPPOptions(
