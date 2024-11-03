@@ -22,12 +22,10 @@ test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
 # Create input data
 input_path = joinpath(hem_data_dir, "inputs")
-ba = ["p134", "p131", "p133", "p132", "p130", "p129"]                                     # p13
-# ba = ["p130", "p131"]
+ba = ["p129", "p130", "p131", "p132", "p133", "p134"]                                     # p13
 ba_len = length(ba)
 base_year = 2020                                 # 2018
 future_years = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030]                      # [2019, 2020]
-# future_years = [2021, 2022, 2023, 2024, 2025]
 future_years_len = length(future_years)
 ipp_number = 1                                   # 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)

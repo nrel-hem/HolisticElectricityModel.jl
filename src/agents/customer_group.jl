@@ -345,47 +345,47 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ParamArray(
             "Constant",
             (model_data.index_h,),
-            [0.0, 0.0, 0.0]; 
+            vcat(fill(0.0, 66)),
             description = "Constant in green power uptake function (regression parameter)",
         ),
         ParamArray(
             "GreenPowerPrice_coefficient",
             (model_data.index_h,),
-            [0.0, -0.55, -0.55];
+            vcat(fill(0.0, 64), [-0.55, -0.55]),
             description = "Sum of PPA and REC prices (regression parameter)",
         ),
         ParamArray(
             "EnergyRate_coefficient",
             (model_data.index_h,),
-            [0.0, 0.0, 0.0]; 
+            vcat(fill(0.0, 64), [0.0, 0.0]),
             description = "Weighted mean C&I volumetric (\$/MWh) rate (regression parameter)",
         ),
         ParamArray(
             "WholesaleMarket_coefficient",
             (model_data.index_h,),
-            [0.0, 0.14, 0.14]; 
+            vcat(fill(0.0, 64), [0.14, 0.14]),
             description = "% of load served by an ISO (regression parameter)",
         ),
         ParamArray(
             "RetailCompetition_coefficient",
             (model_data.index_h,),
-            [0.0, 0.16, 0.16]; 
+            vcat(fill(0.0, 64), [0.16, 0.16]),
             description = "% of C&I customers that are eligible for retail choice (regression parameter)",
         ),
         ParamArray(
             "RPS_coefficient",
             (model_data.index_h,),
-            [0.0, 0.42, 0.42]; 
+            vcat(fill(0.0, 64), [0.42, 0.42]),
             description = "RPS percentage requirement in 2019 (regression parameter)",
         ),
         ParamArray(
             "WTP_coefficient",
             (model_data.index_h,),
-            [0.0, 0.0, 0.0]; 
+            vcat(fill(0.0, 64), [0.0, 0.0]),
             description = "% of customers willing to pay for renewable energy at the state level (regression parameter)",
         ),
     )
-
+    
     # Customer financing
     debt_ratio =
         read_param("debt_ratio", input_filename, "CustomerDebtRatio", model_data.index_h, [model_data.index_z])
@@ -471,12 +471,17 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("rho_DG_my", model_data.index_y, model_data.index_h, index_m, model_data.index_z, model_data.index_d, model_data.index_t,
                          description = "Store each year's DER dispatch. Only populated for actively dispatched DER (e.g., :BTMStorage)."),
         ParamScalar("delta", 0.05),
+               
+        # Call ParamArray with the PeakLoad parameter
         ParamArray("PeakLoad", Tuple(push!(copy([model_data.index_z]), model_data.index_h)), MaxLoad),
+        
+        # Call ParamArray with the PeakLoad_my parameter
         ParamArray(
             "PeakLoad_my",
             Tuple(push!(copy([model_data.index_y, model_data.index_z]), model_data.index_h)),
             MaxLoad_my,
         ),
+        
         initialize_param("x_DG_new", model_data.index_h, model_data.index_z, index_m, value = 0.0),
         initialize_param("x_DG_new_my", model_data.index_y, model_data.index_h, model_data.index_z, index_m, value = 0.0),
         initialize_param("x_green_sub", model_data.index_h, model_data.index_z, value = 10.0),
@@ -489,6 +494,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("year", model_data.index_z, model_data.index_h, index_m),
         initialize_param("A", model_data.index_z, model_data.index_h, index_m),
         initialize_param("ConPVNetSurplus", model_data.index_z, model_data.index_h, index_m),
+        
         initialize_param(
             "ConPVNetSurplus_my",
             model_data.index_y,
