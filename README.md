@@ -2,10 +2,33 @@
 
 The Holistic Electricity Model (HEM) is a computational framework for analyzing electricity systems in their entirety, from the points of view of all key stakeholders.
 
+## Pre-requisites
+
+### Julia
+
+- Go to https://julialang.org/downloads and copy the link to the latest Julia Linux image.
+- Download the image.
+    ```bash
+    $ ssh ed1.hpc.nrel.gov
+    $ wget https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-1.8.1-linux-x86_64.tar.gz
+    $ tar -xzf julia-1.8.1-linux-x86_64.tar.gz
+    ```
+- Add lines analogous to these to your ~/.bashrc file:
+    ```
+    # User specific aliases and functions
+    alias julia="/home/<user_name>/julia-1.5.2/bin/julia"
+    ```
+- Reload the file so that you can run `julia`.
+    ```bash
+    $ source ~/.bashrc
+    ```
+
+
 ## Start-Up Instructions
 
 - Clone this repository
-- Clone the [HolisticElectricityModelData.jl repository](https://github.nrel.gov/HEM/HolisticElectricityModelData.jl)
+- Clone the [HolisticElectricityModelData.jl repository](https://github.nrel.gov/HEM/HolisticElectricityModelData.jl) and follw the instructions in the README to get the latest input data files.
+- Within the HolisticElectrictyModelData.jl directory, the `parse_inputs()` function needs to be executed to populate the `runs/` directory with the parsed input data for running a test case. This can be done by running `src/input_data_parsing_enhanced.jl` (after uncommenting the line that calls the `parse_inputs()` function). Another option is to run the `scripts/check_input_parse.jl` script (after commenting all the code after the call to `parse_inputs()`).
 
 After this, you have some options:
 - [Computational Environment](#computational-environment): Local or NREL High-Performance Computing (HPC)
@@ -15,36 +38,32 @@ After this, you have some options:
 
 #### Local Set-up
 
-- [Install the Xpress solver](https://github.nrel.gov/dcutler/fico-xpress)
+- [Install the Xpress solver](https://github.nrel.gov/MSOC/fico-xpress)
+- Install the required project dependencies.
+    ```cd HolisticElectricityModel.jl
+    julia --project
+    julia> ]
+    pkg> dev ../HolisticElectricityModelData.jl
+    pkg> instantiate
+    pkg> build Xpress
+    ```
 - Use the driver_xpress.jl file for your model runs
-
-#### NREL HPC - Eagle Set-Up
-
-- Go to https://julialang.org/downloads and copy the link to the latest Julia Linux image.
-- ssh to Eagle and download the image.
     ```bash
-    $ ssh ed1.hpc.nrel.gov
-    $ wget https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-1.8.1-linux-x86_64.tar.gz
-    $ tar -xzf julia-1.8.1-linux-x86_64.tar.gz
-    ```
-- Add lines analogous to these to your ~/.bashrc file on Eagle:
-    ```
-    # User specific aliases and functions
-    alias julia="/home/ehale/julia-1.5.2/bin/julia"
-    ```
-- Reload the file so that you can run `julia`.
-    ```bash
-    $ source ~/.bashrc
-    ```
+    > julia --project script/driver_xpress.jl
+    ``` 
+
+#### NREL HPC - Kestrel Set-Up
+
+- Run the prereuisite steps to install Julia if it is not installed.
 - Once on a login node, make it so the required packages will load by running the first part of the REPL code:
     ```bash
     > module load gurobi/9.1.2
-    > julia --project=runner
+    > julia --project
     ```
 
     ```julia
     julia> ]
-    pkg> dev . ../HolisticElectricityModelData.jl
+    pkg> dev ../HolisticElectricityModelData.jl
     pkg> instantiate
     pkg> build Gurobi
     ```
@@ -56,11 +75,11 @@ After this, you have some options:
   
     For example, to run in interactive mode on a debug node:
     ```bash
-    > salloc -N 1 -t 60 --account=mpafess --partition=debug
+    > salloc -N 1 -t 60 --account=hem --partition=debug
     # ... Wait for a compute node
     > cd HolisticElectricityModel.jl
     > module load gurobi/9.1.2
-    > julia --project=runner script/driver.jl
+    > julia --project script/driver.jl
     ```
 
 

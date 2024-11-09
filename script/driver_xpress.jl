@@ -34,7 +34,7 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 # input_dir = joinpath(test_data_dir, input_dir_name)
 # mkpath(input_dir)
 
-HEMDataRepo.parse_inputs(input_path, input_dir, scenario)
+# HEMDataRepo.parse_inputs(input_path, input_dir, scenario)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
