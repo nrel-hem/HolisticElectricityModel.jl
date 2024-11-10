@@ -302,17 +302,29 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         MaxLoad_my(y, z, h, :) .=
             gamma(z, h) * findmax(Dict((d, t) => demand_my(y, h, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
+    
     existing_pv_stor_capacity_my = initialize_param(
         "existing_pv_stor_capacity_my",
         model_data.index_y, model_data.index_h, model_data.index_z, index_m,
         description="Portion of existing DER at year y (x_DG_E_my) assigned to be Solar plus Storage"
     )
+    
     for y in model_data.index_y, h in model_data.index_h, z in model_data.index_z
-        existing_pv_stor_capacity_my(y, h, z, :BTMStorage, :) .= x_DG_E_my(y, h, z, :BTMStorage)
-        existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= x_DG_E_my(y, h, z, :BTMStorage) * (
-            Opti_DG_my(y, z, h, :BTMPV) / Opti_DG_my(y, z, h, :BTMStorage)
-        )
+        x_DG_E_storage = x_DG_E_my(y, h, z, :BTMStorage)
+        Opti_DG_PV = Opti_DG_my(y, z, h, :BTMPV)
+        Opti_DG_Storage = Opti_DG_my(y, z, h, :BTMStorage)
+        
+        existing_pv_stor_capacity_my(y, h, z, :BTMStorage, :) .= x_DG_E_storage
+    
+        if Opti_DG_Storage != 0.0
+            ratio = Opti_DG_PV / Opti_DG_Storage
+            existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= x_DG_E_storage * ratio
+        else
+
+            existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= 0.0
+        end
     end
+
     existing_pv_only_capacity_my = initialize_param(
         "existing_pv_only_capacity_my",
         model_data.index_y, model_data.index_h, model_data.index_z, index_m,

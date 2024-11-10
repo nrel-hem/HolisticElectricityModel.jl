@@ -16,6 +16,7 @@ mutable struct HEMData
     index_h::Dimension # customer types
     index_j::Dimension # green tariff technologies
     index_z::Dimension # zone index
+    index_sector::Dimension # zone index
 
     # Parameters
     omega::ParamArray # number of hours per timeslice
@@ -99,6 +100,16 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "ReEDS BA modeled",
     )
 
+    # customer group types
+    index_sector = read_set(
+        input_filename,
+        "index_sector",
+        "index_sector",
+        prose_name = "customer group index sector",
+        description = "customer high level groups",
+        
+    )
+
     return HEMData(
         ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
         index_y,
@@ -109,6 +120,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         index_h,
         index_j,
         index_z,
+        index_sector,
         read_param(
             "omega",
             input_filename,

@@ -1406,6 +1406,7 @@ end
 #     ])
 # end
 
+using JuMP
 
 ############### utility capacity expansion with transmission and storage ###############
 function solve_agent_problem!(
@@ -1507,56 +1508,19 @@ function solve_agent_problem!(
 
     fill!(utility.Net_Load_my, NaN)
     for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        # Compute each term separately
-        demand_term = sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h)
-        total_DG_gen_term = sum(
-            customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m)
-            for h in model_data.index_h, m in customers.index_m
-        )
-        BTM_PV_storage_term = 0.0
-        for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-            rho_DG_value = customers.rho_DG(h, m, z, d, t)
-            aggregation_level_value = der_aggregator.aggregation_level(reg_year_index_dera, z)
-            total_pv_stor_capacity_value = customers.total_pv_stor_capacity_my(y, z, h, m)
-            term_value = rho_DG_value * aggregation_level_value * total_pv_stor_capacity_value
-        
-            # Check for NaN or Inf in each component
-            if isnan(rho_DG_value) || isinf(rho_DG_value)
-                println("NaN or Inf in rho_DG_value for h=$h, m=$m, y=$y, z=$z, d=$d, t=$t")
-            end
-            if isnan(aggregation_level_value) || isinf(aggregation_level_value)
-                println("NaN or Inf in aggregation_level_value for h=$h, m=$m, y=$y, z=$z, d=$d, t=$t")
-            end
-            if isnan(total_pv_stor_capacity_value) || isinf(total_pv_stor_capacity_value)
-                println("NaN or Inf in total_pv_stor_capacity_value for h=$h, m=$m, y=$y, z=$z, d=$d, t=$t")
-            end
-            if isnan(term_value) || isinf(term_value)
-                println("NaN or Inf in term_value for h=$h, m=$m, y=$y, z=$z, d=$d, t=$t")
-            end
-        
-            BTM_PV_storage_term += term_value
-        end
-    
-        # Check for NaN or Inf in each term
-        if isnan(demand_term) || isinf(demand_term)
-            println("NaN or Inf detected in demand_term for y=$y, z=$z, d=$d, t=$t")
-        end
-        if isnan(total_DG_gen_term) || isinf(total_DG_gen_term)
-            println("NaN or Inf detected in total_DG_gen_term for y=$y, z=$z, d=$d, t=$t")
-        end
-        if isnan(BTM_PV_storage_term) || isinf(BTM_PV_storage_term)
-            println("NaN or Inf detected in BTM_PV_storage_term for y=$y, z=$z, d=$d, t=$t")
-        end
-        if isnan(net_load) || isinf(net_load)
-            println("NaN or Inf detected in net_load for y=$y, z=$z, d=$d, t=$t")
-        end
-        
-        println(size(utility.Net_Load_my))
-
-        # Assign the net_load to utility.Net_Load_my
-        utility.Net_Load_my(y, z, d, t, :) .= net_load
+        utility.Net_Load_my(y, z, d, t, :) .=
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - 
+            # total DG generation at time t
+            sum(
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
+                h in model_data.index_h, m in customers.index_m
+            ) +
+            # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
+            sum(
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+            )
     end
-    
     fill!(utility.Max_Net_Load_my, NaN)
     Max_Net_Load_my_dict = Dict()
     for y in model_data.index_y, z in model_data.index_z
@@ -1661,115 +1625,44 @@ function solve_agent_problem!(
 
     @objective(VIUDER_Utility, Min, objective_function)
 
-    supply_demand_balance = (y, z, d, t) -> begin
-        terms = Dict{String, Any}()
-
-        # Bulk generation at time t
-        terms["bulk_gen_existing"] = sum(y_E[y, k, z, d, t] for k in utility.index_k_existing)
-        terms["bulk_gen_new"] = sum(y_C[y, k, z, d, t] for k in utility.index_k_new)
-
-        # Flow out of zone z
-        terms["flow_out"] = sum(utility.trans_topology(l, z) * flow[y, l, d, t] for l in utility.index_l)
-
-        # Battery discharge
-        terms["discharge_existing"] = sum(discharge_E[y, s, z, d, t] for s in utility.index_stor_existing)
-        terms["discharge_new"] = sum(discharge_C[y, s, z, d, t] for s in utility.index_stor_new)
-
-        # Battery charge
-        terms["charge_existing"] = sum(charge_E[y, s, z, d, t] for s in utility.index_stor_existing)
-        terms["charge_new"] = sum(charge_C[y, s, z, d, t] for s in utility.index_stor_new)
-
-        # Demand at time t
-        terms["demand"] = sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h)
-        terms["eximport"] = utility.eximport_my(y, z, d, t)
-
-        # Total DG generation at time t
-        terms["total_DG_gen"] = sum(
-            customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m)
-            for h in model_data.index_h, m in customers.index_m
-        )
-
-        # Remove aggregated behind-the-meter PV/storage generation/consumption
-        terms["BTM_PV_storage"] = sum(
-            customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
-            customers.total_pv_stor_capacity_my(y, z, h, m)
-            for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-        )
-
-        # Green technology subscription at time t
-        terms["green_tech_subscription"] = sum(
-            utility.rho_C_my(j, z, d, t) *
-            sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
-                for y_symbol in model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-            for j in model_data.index_j, h in model_data.index_h
-        )
-
-        # Check each term for NaN or Inf
-        for (term_name, term_value) in terms
-            if isa(term_value, JuMP.AffExpr)
-                # For affine expressions, check coefficients and constants
-                for coef in term_value.terms[2]
-                    if isnan(coef) || isinf(coef)
-                        println("NaN or Inf detected in coefficient of $term_name for y=$y, z=$z, d=$d, t=$t")
-                    end
-                end
-                if isnan(term_value.constant) || isinf(term_value.constant)
-                    println("NaN or Inf detected in constant of $term_name for y=$y, z=$z, d=$d, t=$t")
-                end
-            else
-                # For numeric values, check directly
-                if isnan(term_value) || isinf(term_value)
-                    println("NaN or Inf detected in $term_name for y=$y, z=$z, d=$d, t=$t")
-                end
-            end
+    supply_demand_balance =
+        (y, z, d, t) -> begin
+            # bulk generation at time t
+            sum(y_E[y, k, z, d, t] for k in utility.index_k_existing) +
+            sum(y_C[y, k, z, d, t] for k in utility.index_k_new) -
+            # flow out of zone z
+            sum(utility.trans_topology(l, z) * flow[y, l, d, t] for l in utility.index_l) +
+            # battery discharge
+            sum(discharge_E[y, s, z, d, t] for s in utility.index_stor_existing) +
+            sum(discharge_C[y, s, z, d, t] for s in utility.index_stor_new) -
+            # battery charge
+            sum(charge_E[y, s, z, d, t] for s in utility.index_stor_existing) -
+            sum(charge_C[y, s, z, d, t] for s in utility.index_stor_new) -
+            # demand at time t
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - utility.eximport_my(y, z, d, t) +
+            # total DG generation at time t
+            sum(
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
+                h in model_data.index_h, m in customers.index_m
+            ) -
+            # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
+            sum(
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+            ) +
+            # green technology subscription at time t
+            sum(
+                utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                for j in model_data.index_j, h in model_data.index_h
+            )
         end
 
-        # Construct the supply-demand balance expression
-        return terms["bulk_gen_existing"] +
-            terms["bulk_gen_new"] -
-            terms["flow_out"] +
-            terms["discharge_existing"] +
-            terms["discharge_new"] -
-            terms["charge_existing"] -
-            terms["charge_new"] -
-            terms["demand"] -
-            terms["eximport"] +
-            terms["total_DG_gen"] -
-            terms["BTM_PV_storage"] +
-            terms["green_tech_subscription"]
-    end
-
-    # Define a small positive number to replace zero denominators
-    epsilon = 1e-6 
-
-    # Create adjusted parameters to prevent division by zero
-    # For existing storage
-    adjusted_rte_stor_E_my = Dict{Tuple, Float64}()
-    for y in model_data.index_y
-        for z in model_data.index_z
-            for s in utility.index_stor_existing
-                rte = utility.rte_stor_E_my(y, z, s)
-                adjusted_rte_stor_E_my[(y, z, s)] = rte == 0 ? epsilon : rte
-            end
-        end
-    end
-
-    # For new storage
-    adjusted_rte_stor_C_my = Dict{Tuple, Float64}()
-    for y in model_data.index_y
-        for z in model_data.index_z
-            for s in utility.index_stor_new
-                rte = utility.rte_stor_C_my(y, z, s)
-                adjusted_rte_stor_C_my[(y, z, s)] = rte == 0 ? epsilon : rte
-            end
-        end
-    end
-
-    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        # Calculate the result of supply_demand_balance
-        result = supply_demand_balance(y, z, d, t)
-        # The checks are already performed inside the function
-    end      
+    @constraint(
+        VIUDER_Utility,
+        Eq_miu[y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t],
+        supply_demand_balance(y, z, d, t) == 0
+    )   
    
     # HERE -- once running try defining function over two indices
     # y_E must be less than available capacity
@@ -1856,7 +1749,7 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements[2:end],
         ],
-        energy_E[y, s, z, d, t] == energy_E[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - discharge_E[y, s, z, d, t] / adjusted_rte_stor_E_my[(y, z, s)] * delta_t +
+        energy_E[y, s, z, d, t] == energy_E[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) * delta_t +
             charge_E[y, s, z, d, t] * delta_t
     )
 
@@ -1869,7 +1762,7 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in [model_data.index_t.elements[1]],
         ],
-        energy_E[y, s, z, d, t] == utility.initial_energy_existing_my(y, s, z, d) - discharge_E[y, s, z, d, t] / adjusted_rte_stor_E_my[(y, z, s)] * delta_t +
+        energy_E[y, s, z, d, t] == utility.initial_energy_existing_my(y, s, z, d) - discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) * delta_t +
             charge_E[y, s, z, d, t] * delta_t
     )
 
@@ -1899,7 +1792,7 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        discharge_E[y, s, z, d, t] <= adjusted_rte_stor_E_my[(y, z, s)] * (
+        discharge_E[y, s, z, d, t] <= utility.rte_stor_E_my(y, z, s) * (
             utility.x_stor_E_my(z, s) - sum(
                 x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
                 model_data.year(first(model_data.index_y)):model_data.year(y)
@@ -1994,7 +1887,7 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements,
         ],
-        charge_E[y, s, z, d, t] + discharge_E[y, s, z, d, t] / adjusted_rte_stor_E_my[(y, z, s)] <= 
+        charge_E[y, s, z, d, t] + discharge_E[y, s, z, d, t] / utility.rte_stor_E_my(y, z, s) <= 
             utility.x_stor_E_my(z, s) - sum(
                 x_stor_R[Symbol(Int(y_symbol)), s, z] for y_symbol in
                 model_data.year(first(model_data.index_y)):model_data.year(y)
@@ -2010,7 +1903,7 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements[2:end],
         ],
-        energy_C[y, s, z, d, t] == energy_C[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - discharge_C[y, s, z, d, t] / adjusted_rte_stor_C_my[(y, z, s)] * delta_t +
+        energy_C[y, s, z, d, t] == energy_C[y, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) * delta_t +
             charge_C[y, s, z, d, t] * delta_t
     )
 
@@ -2023,7 +1916,7 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in [model_data.index_t.elements[1]],
         ],
-        energy_C[y, s, z, d, t] == utility.initial_energy_new_my(y, s, z, d) - discharge_C[y, s, z, d, t] / adjusted_rte_stor_C_my[(y, z, s)] * delta_t +
+        energy_C[y, s, z, d, t] == utility.initial_energy_new_my(y, s, z, d) - discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) * delta_t +
             charge_C[y, s, z, d, t] * delta_t
     )
 
@@ -2053,7 +1946,7 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        discharge_C[y, s, z, d, t] <= adjusted_rte_stor_C_my[(y, z, s)] * (
+        discharge_C[y, s, z, d, t] <= utility.rte_stor_C_my(y, z, s) * (
             sum(
                 x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
                 model_data.year(first(model_data.index_y)):model_data.year(y)
@@ -2148,13 +2041,12 @@ function solve_agent_problem!(
             d in model_data.index_d,
             t in model_data.index_t.elements,
         ],
-        charge_C[y, s, z, d, t] + discharge_C[y, s, z, d, t] / adjusted_rte_stor_C_my[(y, z, s)] <= 
+        charge_C[y, s, z, d, t] + discharge_C[y, s, z, d, t] / utility.rte_stor_C_my(y, z, s) <= 
             sum(
                 x_stor_C[Symbol(Int(y_symbol)), s, z] for y_symbol in
                 model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_stor_C_cumu(s, z)
     )
-
 
     # planning_reserves =
     #     (y, t) -> begin
@@ -2272,9 +2164,9 @@ function solve_agent_problem!(
         flow_cap[y, l] - utility.trans_capacity(l, :max) <= 0
     )
 
-    # RPS constraint
-    index_rps_existing = deepcopy(utility.index_rps)
-    push!(index_rps_existing.elements, Symbol("dera_pv"))
+    # RPS constraint  (it gives key :dera_pv not found error, commented for now )
+     index_rps_existing = deepcopy(utility.index_rps)
+#    push!(index_rps_existing.elements, Symbol("dera_pv"))
 
     @constraint(
         VIUDER_Utility,
