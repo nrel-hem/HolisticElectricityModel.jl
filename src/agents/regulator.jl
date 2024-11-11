@@ -2314,15 +2314,11 @@ function solve_agent_problem!(
     end
     replace!(energy_cost_allocation_h_t, NaN => 0.0)
 
-    # Compute the retail price
-    p_before = ParamArray(regulator.p, "p_before")
-    fill!(p_before, NaN)  # TODO DT: debug only
-
-    # Create a mapping from customer types to sectors
+    # Map each customer type in index_h to their sector
     h_to_sector = Dict{Symbol, Symbol}()
     for h in model_data.index_h
         if startswith(String(h), "Res_")
-            h_to_sector[h] = :Residential
+            h_to_sector[h] = :Residential  
         elseif h == :Commercial
             h_to_sector[h] = :Commercial
         elseif h == :Industrial
@@ -2332,70 +2328,114 @@ function solve_agent_problem!(
         end
     end
 
-    # Compute p_before using sector rates
+    # Initialize p_before and set NaN for debugging
+    p_before = ParamArray(regulator.p, "p_before")
+    fill!(p_before, NaN)
+
+    # Compute p_before for each customer type
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-        sector = h_to_sector[h]
-        p_before(z, h, d, t, :) .= regulator.p_my(reg_year_index, z, sector, d, t)
+        p_before(z, h, d, t, :) .= regulator.p_my(reg_year_index, z, h, d, t)
     end
 
     # Retail rate calculation
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
-        for z in model_data.index_z, h in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            regulator.p(z, h, d, t, :) .=
-                (energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)) /
-                net_demand_sector_wo_loss(z, h) +
-                demand_cost_allocation_othercost_h(z, h) / net_demand_wo_green_tech_sector_wo_loss(z, h)
+        sector_rates = Dict{Symbol, Float64}()
+
+        # Calculate sector-level rates
+        for z in model_data.index_z, sector in model_data.index_sector
+            # Collect all customer types in this sector
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+
+            # Aggregate numerator and denominator over customer types
+            numerator_energy_demand = sum(energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+            denominator_net_demand = sum(net_demand_sector_wo_loss(z, h) for h in customer_types)
+            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_sector_wo_loss(z, h) for h in customer_types)
+
+            # Calculate the sector rate
+            sector_rates[sector] = (numerator_energy_demand / denominator_net_demand) + 
+                                (numerator_other_cost / denominator_net_demand_wo_green)
         end
+
+        # Assign sector-level rates to each customer type in the sector
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            sector = h_to_sector[h]
+            regulator.p(z, h, d, t, :) .= sector_rates[sector]
+        end
+
         replace!(regulator.p.values, NaN => 0.0)
+
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
-        for z in model_data.index_z, h in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
-            regulator.p(z, h, d, t, :) .=
-                energy_cost_allocation_h_t(z, h, tou) / net_demand_sector_t_wo_loss(z, h, tou) +
-                demand_cost_allocation_capacity_h(z, h) / net_demand_sector_wo_loss(z, h) +
-                demand_cost_allocation_othercost_h(z, h) / net_demand_wo_green_tech_sector_wo_loss(z, h)
-        end
-        replace!(regulator.p.values, NaN => 0.0)
-    end
+        sector_tou_rates = Dict{Tuple{Symbol, Symbol}, Float64}()
 
-    # Assign sector retail prices to customer types
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-        sector = h_to_sector[h]
-        regulator.p(z, h, d, t, :) .= regulator.p(z, sector, d, t)
+        # Calculate TOU rates for each sector and time-of-use period
+        for z in model_data.index_z, sector in model_data.index_sector
+            # Collect all customer types in this sector
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+
+            # For each TOU period
+            for d in model_data.index_d, t in model_data.index_t
+                tou = Symbol(regulator.rep_day_time_tou_mapping[
+                    (regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& 
+                    (regulator.rep_day_time_tou_mapping.index_t .== String(t)), 
+                    :index_rate_tou][1])
+
+                # Aggregate over customer types
+                numerator_energy = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
+                denominator_net_demand_t = sum(net_demand_sector_t_wo_loss(z, h, tou) for h in customer_types)
+                numerator_demand_capacity = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+                denominator_net_demand = sum(net_demand_sector_wo_loss(z, h) for h in customer_types)
+                numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+                denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_sector_wo_loss(z, h) for h in customer_types)
+
+                # Calculate the sector TOU rate
+                sector_tou_rates[(sector, tou)] = (numerator_energy / denominator_net_demand_t) +
+                                                (numerator_demand_capacity / denominator_net_demand) +
+                                                (numerator_other_cost / denominator_net_demand_wo_green)
+            end
+        end
+
+        # Assign TOU sector rates to each customer type in the sector
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            sector = h_to_sector[h]
+            tou = Symbol(regulator.rep_day_time_tou_mapping[
+                (regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& 
+                (regulator.rep_day_time_tou_mapping.index_t .== String(t)), 
+                :index_rate_tou][1])
+            regulator.p(z, h, d, t, :) .= sector_tou_rates[(sector, tou)]
+        end
+
+        replace!(regulator.p.values, NaN => 0.0)
     end
 
     # Handle net metering policy rates as needed
     if regulator_opts.net_metering_policy isa ExcessRetailRate
         regulator.p_ex = ParamArray(regulator.p)
+
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         fill!(regulator.p_ex, NaN)
-        for z in model_data.index_z, h in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            regulator.p_ex(z, h, d, t, :) .= utility.p_energy_cem_my(reg_year_index, z, d, t)
+        for z in model_data.index_z, sector in model_data.index_sector
+            # Collect all customer types in this sector
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+
+            # For each day and time
+            for d in model_data.index_d, t in model_data.index_t
+                # Calculate average p_ex over customer types
+                avg_p_ex = mean(utility.p_energy_cem_my(reg_year_index, z, d, t) for h in customer_types)
+                # Assign to each customer type
+                for h in customer_types
+                    regulator.p_ex(z, h, d, t, :) .= avg_p_ex
+                end
+            end
         end
-        # Assign to customer types
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = h_to_sector[h]
-            regulator.p_ex(z, h, d, t, :) .= regulator.p_ex(z, sector, d, t)
-        end
+
     elseif regulator_opts.net_metering_policy isa ExcessZero
         fill!(regulator.p_ex, 0.0)
     end
 
-    # Update regulator.p_my and regulator.p_ex_my
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-        regulator.p_my(reg_year_index, z, h, d, t, :) .= regulator.p(z, h, d, t)
-        regulator.p_ex_my(reg_year_index, z, h, d, t, :) .= regulator.p_ex(z, h, d, t)
-    end
-
-    # Return the difference percentage maximum one norm
-    return compute_difference_percentage_maximum_one_norm([
-        (p_before.values, regulator.p.values),
-    ])
-
 end
-
 
 # function solve_agent_problem!(
 #     regulator::Regulator,
