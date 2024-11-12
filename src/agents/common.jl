@@ -17,6 +17,7 @@ mutable struct HEMData
     index_j::Dimension # green tariff technologies
     index_z::Dimension # zone index
     index_sector::Dimension # zone index
+    h_to_sector::Dict{Symbol, Symbol}
 
     # Parameters
     omega::ParamArray # number of hours per timeslice
@@ -81,7 +82,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         prose_name = "customer group index h",
         description = "customer groups",
     )
-
+  
     # green technology types
     index_j = read_set(
         input_filename,
@@ -110,6 +111,54 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         
     )
 
+    index_h_sector_mapping_file = joinpath(input_filename, "index_h_sector_mapping.csv")
+
+    if isfile(index_h_sector_mapping_file)
+        # Read the CSV file, specifying the column names and types
+        index_h_sector_mapping = CSV.read(
+            index_h_sector_mapping_file,
+            DataFrame;
+            header = [:index_h, :index_sector],
+            types = Dict(
+                :index_h => String,
+                :index_sector => String
+            )
+        )
+
+        # Convert the index_h and index_sector columns to Symbols
+        keys = Symbol.(index_h_sector_mapping[!, :index_h])
+        values = Symbol.(index_h_sector_mapping[!, :index_sector])
+
+        # Create a Dict{Symbol, Symbol}
+        h_to_sector = Dict(zip(keys, values))
+    else
+        error("index_h_sector_mapping.csv not found in $index_h_sector_mapping_file")
+    end
+
+    omega = read_param(
+        "omega",
+        input_filename,
+        "Omega",
+        index_d,
+        description = "number of days per representative day"
+    )
+    year = read_param(
+        "year",
+        input_filename,
+        "Year",
+        index_y,
+        description = "Year"
+    )
+    time = read_param(
+        "time",
+        input_filename,
+        "Time",
+        index_t,
+        description = "Time"
+    )
+    year_start = ParamScalar("year_start", 2020, description = "simulation start year")
+
+    # Return HEMData, passing the constructed h_to_sector
     return HEMData(
         ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
         index_y,
@@ -121,16 +170,11 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         index_j,
         index_z,
         index_sector,
-        read_param(
-            "omega",
-            input_filename,
-            "Omega",
-            index_d,
-            description = "number of days per representative day",
-        ),
-        read_param("year", input_filename, "Year", index_y, description = "Year"),
-        read_param("time", input_filename, "Time", index_t, description = "Time"),
-        ParamScalar("year_start", 2020, description = "simulation start year"),
+        h_to_sector, 
+        omega,
+        year,
+        time,
+        year_start
     )
 end
 

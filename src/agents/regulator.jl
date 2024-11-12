@@ -1626,27 +1626,14 @@ function solve_agent_problem!(
             )
     end
 
-    # Create a mapping from customer types to sectors
-    h_to_sector = Dict{Symbol, Symbol}()
-    for h_ct in model_data.index_h
-        if startswith(String(h_ct), "Res_")
-            h_to_sector[h_ct] = :Residential
-        elseif h_ct == :Commercial
-            h_to_sector[h_ct] = :Commercial
-        elseif h_ct == :Industrial
-            h_to_sector[h_ct] = :Industrial
-        else
-            error("Unknown customer type: $h_ct")
-        end
-    end
-
     # Initialize net_demand_sector_wo_loss
     net_demand_sector_wo_loss = make_keyed_array(model_data.index_z, model_data.index_sector)
+
     for z in model_data.index_z, h_sector in model_data.index_sector
-        # Initialize net demand for the sector
         net_demand = 0.0
         # Find all customer types in this sector
-        customer_types = [h_ct for h_ct in model_data.index_h if h_to_sector[h_ct] == h_sector]
+        customer_types = [h_ct for h_ct in model_data.index_h if model_data.h_to_sector[h_ct] == h_sector]
+    
         for h_ct in customer_types
             # Demand without loss
             demand_without_loss = sum(
@@ -1654,7 +1641,7 @@ function solve_agent_problem!(
                 customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
                 for d in model_data.index_d, t in model_data.index_t
             )
-
+    
             # Behind-the-meter generation for PV-only customers
             pv_only_generation = 0.0
             for d in model_data.index_d, t in model_data.index_t
@@ -1745,10 +1732,10 @@ function solve_agent_problem!(
     # Initialize net_demand_wo_green_tech_sector_wo_loss
     net_demand_wo_green_tech_sector_wo_loss = make_keyed_array(model_data.index_z, model_data.index_sector)
     for z in model_data.index_z, h_sector in model_data.index_sector
-        # Initialize net demand for the sector
+
         net_demand = 0.0
         # Find all customer types in this sector
-        customer_types = [h_ct for h_ct in model_data.index_h if h_to_sector[h_ct] == h_sector]
+        customer_types = [h_ct for h_ct in model_data.index_h if model_data.h_to_sector[h_ct] == h_sector]
         for h_ct in customer_types
             # Demand without loss
             demand_without_loss = sum(
@@ -1830,8 +1817,6 @@ function solve_agent_problem!(
         end
         net_demand_wo_green_tech_sector_wo_loss(z, h_sector) = net_demand
     end
-
-
 
     #=
     energy_cost_t = Dict(t => sum(utility.v_E(k, t)*utility.y_E(k, t) for k in utility.index_k_existing) +
@@ -2106,7 +2091,7 @@ function solve_agent_problem!(
     for z in model_data.index_z, h_sector in model_data.index_sector, tou in regulator.index_rate_tou
         net_demand_tou = 0.0
         # Find all customer types in this sector
-        customer_types = [h_ct for h_ct in model_data.index_h if h_to_sector[h_ct] == h_sector]
+        customer_types = [h_ct for h_ct in model_data.index_h if model_data.h_to_sector[h_ct] == h_sector]
         for h_ct in customer_types
             net_demand_tou_h_ct = 0.0
             # Get the indices where rate_tou matches
@@ -2314,20 +2299,6 @@ function solve_agent_problem!(
     end
     replace!(energy_cost_allocation_h_t, NaN => 0.0)
 
-    # Map each customer type in index_h to their sector
-    h_to_sector = Dict{Symbol, Symbol}()
-    for h in model_data.index_h
-        if startswith(String(h), "Res_")
-            h_to_sector[h] = :Residential  
-        elseif h == :Commercial
-            h_to_sector[h] = :Commercial
-        elseif h == :Industrial
-            h_to_sector[h] = :Industrial
-        else
-            error("Unknown customer type: $h")
-        end
-    end
-
     # Initialize p_before and set NaN for debugging
     p_before = ParamArray(regulator.p, "p_before")
     fill!(p_before, NaN)
@@ -2345,7 +2316,7 @@ function solve_agent_problem!(
         # Calculate sector-level rates
         for z in model_data.index_z, sector in model_data.index_sector
             # Collect all customer types in this sector
-            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
 
             # Aggregate numerator and denominator over customer types
             numerator_energy_demand = sum(energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h) for h in customer_types)
@@ -2360,7 +2331,7 @@ function solve_agent_problem!(
 
         # Assign sector-level rates to each customer type in the sector
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = h_to_sector[h]
+            sector = model_data.h_to_sector[h]
             regulator.p(z, h, d, t, :) .= sector_rates[sector]
         end
 
@@ -2373,7 +2344,7 @@ function solve_agent_problem!(
         # Calculate TOU rates for each sector and time-of-use period
         for z in model_data.index_z, sector in model_data.index_sector
             # Collect all customer types in this sector
-            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
 
             # For each TOU period
             for d in model_data.index_d, t in model_data.index_t
@@ -2399,7 +2370,7 @@ function solve_agent_problem!(
 
         # Assign TOU sector rates to each customer type in the sector
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = h_to_sector[h]
+            sector = model_data.h_to_sector[h]
             tou = Symbol(regulator.rep_day_time_tou_mapping[
                 (regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& 
                 (regulator.rep_day_time_tou_mapping.index_t .== String(t)), 
@@ -2418,7 +2389,7 @@ function solve_agent_problem!(
         fill!(regulator.p_ex, NaN)
         for z in model_data.index_z, sector in model_data.index_sector
             # Collect all customer types in this sector
-            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
 
             # For each day and time
             for d in model_data.index_d, t in model_data.index_t
