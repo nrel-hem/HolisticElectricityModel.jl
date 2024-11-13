@@ -11,18 +11,18 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
 ### Installation
 
 #### NREL HPC Instructions
-
-- Go to https://julialang.org/downloads and copy the link to the latest Julia Linux image.
+(* Skip this step if Julia is already installed in the HPC *)
+- Go to https://julialang.org/downloads and copy the link to the latest supported Julia Linux image.
 - ssh to NREL HPC (currently Kestrel) and download the image.
     ```bash
     $ ssh kestrel.hpc.nrel.gov
-    $ wget https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-1.8.1-linux-x86_64.tar.gz
-    $ tar -xzf julia-1.8.1-linux-x86_64.tar.gz
+    $ wget https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-<x.y.z>-linux-x86_64.tar.gz
+    $ tar -xzf julia-<x.y.z>-linux-x86_64.tar.gz
     ```
-- Add lines analogous to these to your ~/.bashrc file on Eagle:
+- Add lines analogous to these to your ~/.bashrc file on the HPC:
     ```
     # User specific aliases and functions
-    alias julia="/home/ehale/julia-1.8.1/bin/julia"
+    alias julia="/home/<user_name>/julia-<x.y.z>/bin/julia"
     ```
 - Reload the file so that you can run `julia`.
     ```bash
@@ -30,7 +30,7 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
     ```
 - Once on a login node, make it so the required packages will load:
     ```bash
-    > module load gurobi/9.1.2
+    > module load gurobi
     > julia --project=runner/Gurobi
     ```
 
@@ -42,7 +42,7 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
     ```
 - Each time before a model run, be sure to load the Gurobi module:
     ```
-    module load gurobi/9.1.2
+    module load gurobi
     ```
     and use the `driver_gurobi.jl` script for your model runs.
   
@@ -51,12 +51,13 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
     > salloc -N 1 -t 60 --account=mpafess --partition=debug
     # ... Wait for a compute node
     > cd HolisticElectricityModel.jl
-    > module load gurobi/9.1.2
+    > module load gurobi
     > julia --project=runner script/driver.jl
     ```
 
 #### NREL Laptop Instructions
 
+- Go to https://julialang.org/downloads/ and isntall Julia based on the OS.
 - [Install the Xpress solver](https://github.nrel.gov/MSOC/fico-xpress)
 - Use the driver_xpress.jl file for your model runs
 

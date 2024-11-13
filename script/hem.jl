@@ -12,6 +12,8 @@ const HEMDataRepo = HolisticElectricityModelData
 # Load config file
 if length(ARGS) > 0 # otherwise, define this variable in the REPL
     config_fp = ARGS[0]
+else
+    config_fp = joinpath(@__DIR__, "configs", "hem_config.yaml")
 end
 config = YAML.load_file(config_fp)
 
@@ -34,6 +36,14 @@ balancing_areas, base_year, num_future_years, num_ipps, folder_suffix, skip_pars
 future_years = [base_year + i for i in range(1, num_future_years)]
 scenario = HEMDataRepo.DataSelection(balancing_areas, base_year, future_years, num_ipps)
 
+# Define parse options
+options = HEMDataRepo.ParseOptions(
+    true,   # der_aggregator
+    true,    # set_nuclear_varcost_negative
+    Vector{String}();    # sectotrs with county level load
+    load_profiles_subdir="NewEngland"
+)
+
 bal_areas_len = length(balancing_areas)
 input_dir_name =
     "ba_" *
@@ -53,7 +63,7 @@ if !skip_parse
     # For the following to work, someone needs to have done the following from HolisticElectricityModelData:
     #     - In julia: run(output_dir = PROFILES_DIRECTORY, user = "nguo", hostname = HOSTNAME, dbname = DATABASE, port = PORT, pca_ids = nothing) to get residential and commercial profiles
     #     - In command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
-    HEMDataRepo.parse_inputs(input_path, input_dir, scenario, false)
+    HEMDataRepo.parse_inputs(input_path, input_dir, scenario, options)
 end
 
 error("Continue implementation here")
