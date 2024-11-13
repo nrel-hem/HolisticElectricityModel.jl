@@ -24,7 +24,7 @@ data_selection:
 # Time -------------------------------------------------------------------------
 
   base_year: 2020
-  num_future_years: 10
+  num_future_years: 2
 
 # Agent Resolution--------------------------------------------------------------
 
@@ -36,7 +36,7 @@ data_selection:
   folder_suffix: "20240806"
 
 # Whether the input folder needs to be (re)created
-  skip_parse: false
+  skip_parse: true
 
 # ------------------------------------------------------------------------------
 # Simulation Parameters

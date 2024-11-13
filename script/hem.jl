@@ -1,7 +1,7 @@
 using Revise
 # using Combinatorics
 # using Ipopt
-# using JuMP
+using JuMP
 using YAML
 
 using HolisticElectricityModel
@@ -66,7 +66,7 @@ if !skip_parse
     HEMDataRepo.parse_inputs(input_path, input_dir, scenario, options)
 end
 
-error("Continue implementation here")
+# error("Continue implementation here")
 
 # Acceptable options config_fields; maps config_fields to lists of acceptable options
 option_dict = Dict{String,Vector{Any}}()
@@ -98,16 +98,16 @@ function unpack_config_struct(config, config_field, option_dict)
 end
 
 bal_areas = option_dict["balancing_areas"]
-base_year = unpack_config_struct(config, "base_year", option_dict)
-num_future_years = unpack_config_struct(config, "num_future_years", option_dict)
+base_year = unpack_config_struct(config["data_selection"], "base_year", option_dict)
+num_future_years = unpack_config_struct(config["data_selection"], "num_future_years", option_dict)
 market_structure = unpack_config_struct(config, "market_structure", option_dict)
 der_use_case = unpack_config_struct(config, "der_use_case", option_dict)
 supply_choice_use_case = unpack_config_struct(config, "supply_choice_use_case", option_dict)
-num_ipps = unpack_config_struct(config, "num_ipps", option_dict)
+num_ipps = unpack_config_struct(config["data_selection"], "num_ipps", option_dict)
 ipp_algorithm = unpack_config_struct(config, "ipp_algorithm", option_dict)
 rate_design = unpack_config_struct(config, "rate_design", option_dict)
 net_metering_policy = unpack_config_struct(config, "net_metering_policy", option_dict)
-solver = unpack_config_struct(config, "solver", option_dict)
+solver = unpack_config_struct(config["simulation_parameters"], "solver", option_dict)
 
 
 
@@ -121,7 +121,7 @@ elseif market_structure == "vertically_integrated_utility"
 end
 # DER use case
 if der_use_case == "der_use_case"
-    der_use_case = DERUseCase()
+    der_use_case = DERAdoption()
 elseif der_use_case == "null_use_case"
     der_use_case = NullUseCase()
 end
@@ -131,6 +131,10 @@ if supply_choice_use_case == "supply_choice_use_case"
 elseif supply_choice_use_case == "null_use_case"
     supply_choice_use_case = NullUseCase()
 end
+
+# der aggregation use case
+der_aggregation_use_case = NullUseCase()
+
 # IPP algorithm
 if ipp_algorithm == "lagrange_decomposition"
     ipp_algorithm = LagrangeDecomposition()
@@ -158,35 +162,38 @@ end
 
 
 # Define HEM run options
-hem_opts = HEMOptions(market_structure, der_use_case, supply_choice_use_case)
+hem_opts = HEMOptions(market_structure, der_use_case, supply_choice_use_case, der_aggregation_use_case)
 
 regulator_opts = RegulatorOptions(rate_design, net_metering_policy)
+
+mip_solver = get_new_jump_model(XpressSolver())
+lp_solver = get_new_jump_model(IpoptSolver())
 
 ipp_opts = IPPOptions(
     ipp_algorithm,
     Dict(
         "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
-            Ipopt.Optimizer,
+            lp_solver,
             "print_level" => 0,
             # "tol" => 1e-6,
             # "max_iter" => 500,
         ),
         "Lagrange_Sub_Dispatch_Cap" => JuMP.optimizer_with_attributes(
-            () -> Gurobi.Optimizer(GUROBI_ENV),
+            mip_solver,
             # "OUTPUTLOG" => 0,
         ),
         "Lagrange_Feasible_Cap" => JuMP.optimizer_with_attributes(
-            () -> Gurobi.Optimizer(GUROBI_ENV),
+            mip_solver,
             "Presolve" => 0,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_cap" => JuMP.optimizer_with_attributes(
-            () -> Gurobi.Optimizer(GUROBI_ENV),
+            mip_solver,
             "Presolve" => 1,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_mppdc" => JuMP.optimizer_with_attributes(
-            () -> Gurobi.Optimizer(GUROBI_ENV),
+            mip_solver,
             "Presolve" => 1,
             "BarHomogeneous" => 1,
             # "NumericFocus" => 3,
@@ -194,7 +201,7 @@ ipp_opts = IPPOptions(
         ),
         "solve_agent_problem_ipp_mppdc_mccormic_lower" =>
             JuMP.optimizer_with_attributes(
-                () -> Gurobi.Optimizer(GUROBI_ENV),
+                mip_solver,
                 "Presolve" => 1,
                 "BarHomogeneous" => 1,
                 # "OUTPUTLOG" => 0,
@@ -203,19 +210,19 @@ ipp_opts = IPPOptions(
 )
 
 utility_opts = UtilityOptions(JuMP.optimizer_with_attributes(
-    () -> Gurobi.Optimizer(GUROBI_ENV),
+    mip_solver,
     # "OUTPUTLOG" => 0,
 ))
 
 green_developer_opts = GreenDeveloperOptions(
     JuMP.optimizer_with_attributes(
-        () -> Gurobi.Optimizer(GUROBI_ENV),
+        mip_solver,
         # "OUTPUTLOG" => 0,
     ),
 )
 
 customers_opts = CustomersOptions(JuMP.optimizer_with_attributes(
-    () -> Gurobi.Optimizer(GUROBI_ENV),
+    mip_solver,
     # "OUTPUTLOG" => 0,
 ))
 
