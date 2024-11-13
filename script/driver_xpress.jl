@@ -1,3 +1,4 @@
+using Revise
 using HolisticElectricityModel
 import HolisticElectricityModelData
 using JuMP
@@ -20,23 +21,24 @@ test_data_dir = joinpath(base_dir, "test", "driver_outputs")
 
 # Create input data
 input_path = joinpath(hem_data_dir, "inputs")
-ba = ["p13"]
+ba = ["p129", "p130", "p131", "p132", "p133", "p134"]
 ba_len = length(ba)
-base_year = 2018
-future_years = [2019, 2020]
+base_year = 2020
+future_years = [2021, 2022]
 future_years_len = length(future_years)
 ipp_number = 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
 input_dir_name = "ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
-mkpath(input_dir)
+# input_dir = joinpath(test_data_dir, input_dir_name)
+# mkpath(input_dir)
 
-HEMDataRepo.parse_inputs(input_path, input_dir, scenario)
+# HEMDataRepo.parse_inputs(input_path, input_dir, scenario)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERAdoption(),                    # DERAdoption(), NullUseCase()
     NullUseCase(),                    # SupplyChoice(), NullUseCase()
     DERAggregation(),                 # DERAggregation(), NullUseCase()
@@ -44,11 +46,12 @@ hem_opts = HEMOptions(
 
 regulator_opts = RegulatorOptions(
     TOU(),                            # FlatRate(), TOU()
-    ExcessZero(),                     # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    ExcessRetailRate();               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    planning_reserve_margin=0.129     # Value for New England from ReEDS-2.0/inputs/reserves/prm_annual.csv
 )
 
 ipp_opts = IPPOptions(
-    LagrangeDecomposition(),          # LagrangeDecomposition(), MIQP()
+    MPPDCMERTransStorage(),          # LagrangeDecomposition(), MIQP()
     Dict(
         "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
             Ipopt.Optimizer,
@@ -64,18 +67,25 @@ ipp_opts = IPPOptions(
             () -> Xpress.Optimizer()
         ),
         "solve_agent_problem_ipp_cap" => JuMP.optimizer_with_attributes(
-            () -> Gurobi.Optimizer(GUROBI_ENV),
-            "Presolve" => 0,
+            () -> Xpress.Optimizer(),
+            # "Presolve" => 1,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_mppdc" => JuMP.optimizer_with_attributes(
-            () -> Gurobi.Optimizer(GUROBI_ENV),
-            "Presolve" => 1,
+            () -> Xpress.Optimizer(),
+            # "Aggregate" => 0,
+            # "Presolve" => 0,
+            # "BarHomogeneous" => 1,
+            # "FeasibilityTol" => 1e-3,
+            # "Method" => 1
+            # "NumericFocus" => 3,
+            # "ScaleFlag" => 2,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_mppdc_mccormic_lower" => JuMP.optimizer_with_attributes(
-            () -> Gurobi.Optimizer(GUROBI_ENV),
-            "Presolve" => 1,
+            () -> Xpress.Optimizer(),
+            # "Presolve" => 1,
+            # "BarHomogeneous" => 1,
             # "OUTPUTLOG" => 0,
         )
     )
@@ -94,7 +104,25 @@ green_developer_opts = GreenDeveloperOptions(
         # "OUTPUTLOG" => 0,
     ),
 )
+
+customer_opts = CustomerOptions(
+    SolarPlusStorageOnly(),
+    JuMP.optimizer_with_attributes(
+        () -> Xpress.Optimizer(),
+        # "OUTPUTLOG" => 0,
+    ),
+)
+
+dera_opts = DERAggregatorOptions(
+    JuMP.optimizer_with_attributes(
+        () -> Xpress.Optimizer(),
+        # "OUTPUTLOG" => 0,
+    ),
+)
+
 # ------------------------------------------------------------------------------
+
+jump_model = []
 
 # Run HEM ----------------------------------------------------------------------
 output_dir = run_hem(
@@ -104,6 +132,9 @@ output_dir = run_hem(
     ipp_options=ipp_opts,
     utility_options=utility_opts,
     green_developer_options=green_developer_opts,
+    customer_options=customer_opts,
+    dera_options=dera_opts,
     force=true,
+    jump_model=jump_model
 )
 # ------------------------------------------------------------------------------

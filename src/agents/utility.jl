@@ -1659,7 +1659,7 @@ function solve_agent_problem!(
     @constraint(
         VIUDER_Utility,
         Eq_miu[y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t],
-        supply_demand_balance(y, z, d, t) >= 0
+        supply_demand_balance(y, z, d, t) == 0
     )
 
     # HERE -- once running try defining function over two indices
@@ -2164,11 +2164,18 @@ function solve_agent_problem!(
     )
 
     # RPS constraint
+    index_rps_existing = deepcopy(utility.index_rps)
+    push!(index_rps_existing.elements, Symbol("dera_pv"))
+
     @constraint(
         VIUDER_Utility,
         Eq_rps[y in model_data.index_y],
         sum(
-            model_data.omega(d) * delta_t * (y_E[y, rps, z, d, t] + y_C[y, rps, z, d, t]) for
+            model_data.omega(d) * delta_t * y_E[y, rps, z, d, t] for
+            rps in index_rps_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        ) + 
+        sum(
+            model_data.omega(d) * delta_t * y_C[y, rps, z, d, t] for
             rps in utility.index_rps, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         ) -
         utility.RPS(y) *
