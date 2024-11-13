@@ -420,7 +420,12 @@ function solve_equilibrium_problem!(
                     @assert !isnothing(diff_one) "Nothing returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
                     @assert !(diff_one isa Tuple) "Tuple returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
                     @info "$(diff_one)"
-                    push!(diff_vec, diff_one)
+
+                    if diff_one isa HolisticElectricityModel.ParamArray
+                        push!(diff_vec, maximum(diff_one.values)) 
+                    else
+                        push!(diff_vec, diff_one)
+                    end
                 end
                 diff = maximum(diff_vec)
                 @info "Iteration $i value: $diff"
