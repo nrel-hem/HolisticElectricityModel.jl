@@ -318,9 +318,13 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     
         if Opti_DG_Storage != 0.0
             ratio = Opti_DG_PV / Opti_DG_Storage
-            existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= x_DG_E_storage * ratio
+            if isfinite(ratio)
+                existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= x_DG_E_storage * ratio
+            else
+                println("Warning: Non-finite ratio at (y, h, z) = ", (y, h, z))
+                existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= 0.0
+            end
         else
-
             existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= 0.0
         end
     end
@@ -1232,9 +1236,19 @@ function solve_agent_problem!(
         update_total_capacity!(customers.total_der_capacity_my, customers.x_DG_new, model_data, reg_year, z, h, m)
     end
 
+    
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-        customers.rho_DG(h, :BTMStorage, z, d, t, :) .= (customers.stor_discharge(reg_year_index, z, h, d, t) - customers.stor_charge(reg_year_index, z, h, d, t)) / customers.Opti_DG(z, h, :BTMStorage)
-        customers.rho_DG_my(reg_year_index, h, :BTMStorage, z, d, t, :) .= customers.rho_DG(h, :BTMStorage, z, d, t, :)
+    
+        discharge = customers.stor_discharge(reg_year_index, z, h, d, t)
+        charge = customers.stor_charge(reg_year_index, z, h, d, t)
+        opti_dg = customers.Opti_DG(z, h, :BTMStorage)
+
+        if opti_dg == 0.0
+            customers.rho_DG(h, :BTMStorage, z, d, t, :) .= 0.0
+        else
+            customers.rho_DG(h, :BTMStorage, z, d, t, :) .= (customers.stor_discharge(reg_year_index, z, h, d, t) - customers.stor_charge(reg_year_index, z, h, d, t)) / customers.Opti_DG(z, h, :BTMStorage)
+            customers.rho_DG_my(reg_year_index, h, :BTMStorage, z, d, t, :) .= customers.rho_DG(h, :BTMStorage, z, d, t, :)
+        end
     end
 
     # @info "Original new DG" x_DG_before
