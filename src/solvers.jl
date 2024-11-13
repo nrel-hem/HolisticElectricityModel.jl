@@ -154,6 +154,6 @@ end
 function _get_xpress()
     @eval Main begin
         import Xpress
-        return Xpress.Optimizer()
+        return Xpress.Optimizer
     end
 end
