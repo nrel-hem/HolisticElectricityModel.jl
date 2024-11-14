@@ -2393,24 +2393,12 @@ function solve_agent_problem!(
     # Handle net metering policy rates as needed
     if regulator_opts.net_metering_policy isa ExcessRetailRate
         regulator.p_ex = ParamArray(regulator.p)
-
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         fill!(regulator.p_ex, NaN)
-        for z in model_data.index_z, sector in model_data.index_sector
-            # Collect all customer types in this sector
-            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
-
-            # For each day and time
-            for d in model_data.index_d, t in model_data.index_t
-                # Calculate average p_ex over customer types
-                avg_p_ex = mean(utility.p_energy_cem_my(reg_year_index, z, d, t) for h in customer_types)
-                # Assign to each customer type
-                for h in customer_types
-                    regulator.p_ex(z, h, d, t, :) .= avg_p_ex
-                end
-            end
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            regulator.p_ex(z, h, d, t, :) .=
+                utility.p_energy_cem_my(reg_year_index, z, d, t)
         end
-
     elseif regulator_opts.net_metering_policy isa ExcessZero
         fill!(regulator.p_ex, 0.0)
     end
