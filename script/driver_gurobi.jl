@@ -30,18 +30,17 @@ future_years_len = length(future_years)
 ipp_number = 1                                   # 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
-# need to run in julia: run(output_dir = PROFILES_DIRECTORY, user = "nguo", hostname = HOSTNAME, dbname = DATABASE, port = PORT, pca_ids = nothing) to get residential and commercial profiles
-# also need to run in command prompt: python inputs/write_industrial_profiles.py #ba to get industrial profiles
-
-input_dir_name = "20241111ba_6_base_2020_future_15_ipps_1"
+inputs_date = "20241111"
+input_dir_name = "$inputs_date"*"_ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full_dera_pv_w_EV_2035_EE"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
+# input_dir = joinpath(test_data_dir, input_dir_name)
 # mkpath(input_dir)
 
 # HEMDataRepo.parse_inputs(input_path, input_dir, scenario, false)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    WholesaleMarket(),                # VerticallyIntegratedUtility(), WholesaleMarket()
     DERAdoption(),                    # DERAdoption(), NullUseCase()
     NullUseCase(),                    # SupplyChoice(), NullUseCase()
     NullUseCase(),                    # DERAggregation(), NullUseCase()
@@ -49,7 +48,8 @@ hem_opts = HEMOptions(
 
 regulator_opts = RegulatorOptions(
     FlatRate(),                       # FlatRate(), TOU()
-    ExcessRetailRate(),               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    ExcessRetailRate();               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    planning_reserve_margin=0.129     # Value for New England from ReEDS-2.0/inputs/reserves/prm_annual.csv
 )
 
 ipp_opts = IPPOptions(
