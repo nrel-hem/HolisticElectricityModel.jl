@@ -2162,9 +2162,9 @@ function solve_agent_problem!(
         flow_cap[y, l] - utility.trans_capacity(l, :max) <= 0
     )
 
-    # RPS constraint  (it gives key :dera_pv not found error, commented for now )
-     index_rps_existing = deepcopy(utility.index_rps)
-#    push!(index_rps_existing.elements, Symbol("dera_pv"))
+    # RPS constraint
+    index_rps_existing = deepcopy(utility.index_rps)
+    push!(index_rps_existing.elements, Symbol("dera_pv"))
 
     @constraint(
         VIUDER_Utility,
