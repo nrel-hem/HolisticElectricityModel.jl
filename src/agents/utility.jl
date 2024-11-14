@@ -1406,8 +1406,6 @@ end
 #     ])
 # end
 
-using JuMP
-
 ############### utility capacity expansion with transmission and storage ###############
 function solve_agent_problem!(
     utility::Utility,
