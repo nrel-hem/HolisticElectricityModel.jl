@@ -173,27 +173,27 @@ ipp_opts = IPPOptions(
     ipp_algorithm,
     Dict(
         "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
-            lp_solver,
+            () -> lp_solver,
             "print_level" => 0,
             # "tol" => 1e-6,
             # "max_iter" => 500,
         ),
         "Lagrange_Sub_Dispatch_Cap" => JuMP.optimizer_with_attributes(
-            mip_solver,
+            () -> mip_solver,
             # "OUTPUTLOG" => 0,
         ),
         "Lagrange_Feasible_Cap" => JuMP.optimizer_with_attributes(
-            mip_solver,
+            () -> mip_solver,
             "Presolve" => 0,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_cap" => JuMP.optimizer_with_attributes(
-            mip_solver,
+            () -> mip_solver,
             "Presolve" => 1,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_mppdc" => JuMP.optimizer_with_attributes(
-            mip_solver,
+            () -> mip_solver,
             "Presolve" => 1,
             "BarHomogeneous" => 1,
             # "NumericFocus" => 3,
@@ -201,7 +201,7 @@ ipp_opts = IPPOptions(
         ),
         "solve_agent_problem_ipp_mppdc_mccormic_lower" =>
             JuMP.optimizer_with_attributes(
-                mip_solver,
+                () -> mip_solver,
                 "Presolve" => 1,
                 "BarHomogeneous" => 1,
                 # "OUTPUTLOG" => 0,
@@ -210,19 +210,19 @@ ipp_opts = IPPOptions(
 )
 
 utility_opts = UtilityOptions(JuMP.optimizer_with_attributes(
-    mip_solver,
+    () -> mip_solver,
     # "OUTPUTLOG" => 0,
 ))
 
 green_developer_opts = GreenDeveloperOptions(
     JuMP.optimizer_with_attributes(
-        mip_solver,
+        () -> mip_solver,
         # "OUTPUTLOG" => 0,
     ),
 )
 
-customers_opts = CustomersOptions(JuMP.optimizer_with_attributes(
-    mip_solver,
+customers_opts = CustomerOptions(JuMP.optimizer_with_attributes(
+    () -> mip_solver,
     # "OUTPUTLOG" => 0,
 ))
 
