@@ -2415,6 +2415,14 @@ function solve_agent_problem!(
         fill!(regulator.p_ex, 0.0)
     end
 
+    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+        regulator.p_my(reg_year_index, z, h, d, t, :) .= regulator.p(z, h, d, t)
+        regulator.p_ex_my(reg_year_index, z, h, d, t, :) .= regulator.p_ex(z, h, d, t)
+    end
+
+    return compute_difference_percentage_maximum_one_norm([
+        (p_before.values, regulator.p.values),
+    ])
 end
 
 # function solve_agent_problem!(
