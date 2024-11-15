@@ -72,6 +72,7 @@ solver are:
 
 - Add a new environment specification under [runner](https://github.com/nrel-hem/HolisticElectricityModel.jl/tree/main/runner)
 - Create a new `HEMSolver` in [src/solvers.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/src/solvers.jl)
+- Add an entry to the get_optimizer_for_solver in [src/solvers.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/src/solvers.jl)
 - Edit `script/hem.jl` accordingly
 
 A nonlinear programming solver is also required, but we've generally found the 
