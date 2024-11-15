@@ -1597,7 +1597,7 @@ function solve_agent_problem!(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist), 
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -2235,7 +2235,7 @@ function solve_agent_problem!(
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
-        sector_rates = Dict{Tuple{Int, Symbol, Int, Int}, Float64}()
+        sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
     
         # Calculate sector-level rates for each combination of z, sector, d, t
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
@@ -2266,14 +2266,13 @@ function solve_agent_problem!(
     
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
-        sector_tou_rates = Dict{Tuple{Int, Symbol, Symbol}, Float64}()
+        sector_tou_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
     
-        # Calculate TOU rates for each combination of z, sector, t
-        for z in model_data.index_z, sector in model_data.index_sector, t in model_data.index_t
-
-            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d.==String(d)) .& (regulator.rep_day_time_tou_mapping.index_t.==String(t)), :index_rate_tou][1])           
-            # Collect all customer types in this sector
+        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
+            
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+                            
+            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
     
             # Aggregate over customer types
             numerator_energy = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
