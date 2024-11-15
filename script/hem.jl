@@ -93,14 +93,14 @@ hem_opts = HEMOptions(market_structure, der_use_case, supply_choice_use_case, de
 regulator_opts = RegulatorOptions(rate_design, net_metering_policy)
 
 # Get the optimizer depending on the solver defined the config
-mip_solver = get_optimizer_for_solver("Ipopt")
+nlp_solver = get_optimizer_for_solver("Ipopt")
 lp_solver = get_optimizer_for_solver(solver)
 
 ipp_opts = IPPOptions(
     ipp_algorithm,
     Dict(
         "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
-            mip_solver,
+            nlp_solver,
             "print_level" => 0,
             # "tol" => 1e-6,
             # "max_iter" => 500,
