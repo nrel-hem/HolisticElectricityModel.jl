@@ -39,11 +39,10 @@ data_selection:
   
   der_aggregator: true
   set_nuclear_varcost_negative: true
-  # sectors_with_county_level_load:
-  # -
+  load_profiles_subdir: "NewEngland"
 
 # Whether the input folder needs to be (re)created
-  skip_parse: true
+  skip_parse: false
 
 # ------------------------------------------------------------------------------
 # Simulation Parameters

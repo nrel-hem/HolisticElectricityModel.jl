@@ -51,7 +51,7 @@ options = HEMDataRepo.ParseOptions(
     der_aggregator,
     set_nuclear_varcost_negative,
     sectors_with_county_level_load;
-    load_profiles_subdir="NewEngland"
+    load_profiles_subdir=load_profiles_subdir
 )
 
 bal_areas_len = length(balancing_areas)
