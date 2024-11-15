@@ -1635,196 +1635,133 @@ function solve_agent_problem!(
             )
     end
 
-    # Initialize net_demand_sector_wo_loss
-    net_demand_sector_wo_loss = make_keyed_array(model_data.index_z, model_data.index_sector)
-
-    for z in model_data.index_z, h_sector in model_data.index_sector
-        net_demand = 0.0
-        # Find all customer types in this sector
-        customer_types = [h_ct for h_ct in model_data.index_h if model_data.h_to_sector[h_ct] == h_sector]
-    
-        for h_ct in customer_types
+    net_demand_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        net_demand_h_wo_loss(z, h, :) .= 
             # Demand without loss
-            demand_without_loss = sum(
-                customers.gamma(z, h_ct) * model_data.omega(d) * delta_t *
-                customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                for d in model_data.index_d, t in model_data.index_t
-            )
-    
-            # Behind-the-meter generation for PV-only customers
-            pv_only_generation = 0.0
-            for d in model_data.index_d, t in model_data.index_t
-                # Initialize inner sum over years
-                inner_sum_y = 0.0
-                for y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    y_symbol = Symbol(string(y))
-                    inner_sum_y += min(
-                        customers.rho_DG(h_ct, :BTMPV, z, d, t) *
-                        customers.Opti_DG_my(y_symbol, z, h_ct, :BTMPV),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_new_my(y_symbol, h_ct, z, :BTMPV) /
-                    customers.Opti_DG_my(y_symbol, z, h_ct, :BTMPV)
-                end
+            sum(
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
+                d in model_data.index_d, t in model_data.index_t
+            ) -
+            # DG
+            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+            # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+            # 100 MW instead of 80 MW.
 
-                pv_only_generation += model_data.omega(d) * delta_t * (
+            # behind the meter generation for pv-only customers
+            sum(
+                model_data.omega(d) * delta_t *
+                (
                     min(
-                        customers.rho_DG(h_ct, :BTMPV, z, d, t) *
-                        customers.Opti_DG_E(z, h_ct, :BTMPV),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_E_my(first(model_data.index_y), h_ct, z, :BTMPV) /
-                    customers.Opti_DG_E(z, h_ct, :BTMPV) +
-                    inner_sum_y -
-                    # Minus PV portion of PV-storage tech
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
+                    customers.Opti_DG_E(z, h, :BTMPV) + sum(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) - 
+                    # minus pv portion of pv_storage tech
                     min(
-                        customers.rho_DG(h_ct, :BTMPV, z, d, t) *
-                        customers.Opti_DG_E(z, h_ct, :BTMPV),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * total_der_pv_capacity(z, h_ct) /
-                    customers.Opti_DG_E(z, h_ct, :BTMPV)
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                    ) * total_der_pv_capacity(z, h) /
+                    customers.Opti_DG_E(z, h, :BTMPV)
                 )
-            end
-
-            # Behind-the-meter generation for PV+Storage customers not in aggregation
-            pv_storage_generation = 0.0
-            for d in model_data.index_d, t in model_data.index_t
-                # Initialize inner sum over years
-                inner_sum_y = 0.0
-                for y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    y_symbol = Symbol(string(y))
-                    inner_sum_m = sum(
-                        customers.rho_DG(h_ct, m, z, d, t) *
-                        customers.Opti_DG_my(y_symbol, z, h_ct, m)
-                        for m in customers.index_m
-                    )
-                    inner_sum_y += min(
-                        inner_sum_m,
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_new_my(y_symbol, h_ct, z, :BTMStorage) /
-                    customers.Opti_DG_my(y_symbol, z, h_ct, :BTMStorage)
-                end
-
-                pv_storage_generation += model_data.omega(d) * delta_t * (
+                for d in model_data.index_d, t in model_data.index_t
+            ) - 
+            # behind the meter generation for pv+storage customers who did not participate in aggregation
+            sum(
+                model_data.omega(d) * delta_t *
+                (
                     min(
-                        sum(
-                            customers.rho_DG(h_ct, m, z, d, t) *
-                            customers.Opti_DG_E(z, h_ct, m)
-                            for m in customers.index_m
-                        ),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_E_my(first(model_data.index_y), h_ct, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h_ct, :BTMStorage) +
-                    inner_sum_y
+                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
+                        min(
+                            sum(customers.rho_DG(h, m, z, d, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
-            end
-
-            # Green technology subscription
-            green_tech_subscription = 0.0
-            for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
-                inner_sum_y = 0.0
-                for y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    y_symbol = Symbol(string(y))
-                    inner_sum_y += green_developer.green_tech_buildout_my(y_symbol, j, z, h_ct)
-                end
-                green_tech_subscription += model_data.omega(d) * delta_t *
-                    utility.rho_C_my(j, z, d, t) * inner_sum_y
-            end
-
-            # Net demand for customer type h_ct
-            net_demand_h = demand_without_loss - pv_only_generation - pv_storage_generation - green_tech_subscription
-
-            # Accumulate net demand for the sector
-            net_demand += net_demand_h
-        end
-        net_demand_sector_wo_loss(z, h_sector) = net_demand
+                for d in model_data.index_d, t in model_data.index_t
+            ) -
+            # green technology subscription
+            sum(
+                model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):reg_year)
+                for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
+            )
     end
 
-    # Initialize net_demand_wo_green_tech_sector_wo_loss
-    net_demand_wo_green_tech_sector_wo_loss = make_keyed_array(model_data.index_z, model_data.index_sector)
-    for z in model_data.index_z, h_sector in model_data.index_sector
-
-        net_demand = 0.0
-        # Find all customer types in this sector
-        customer_types = [h_ct for h_ct in model_data.index_h if model_data.h_to_sector[h_ct] == h_sector]
-        for h_ct in customer_types
-            # Demand without loss
-            demand_without_loss = sum(
-                customers.gamma(z, h_ct) * model_data.omega(d) * delta_t *
-                customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
+    net_demand_wo_green_tech_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        net_demand_wo_green_tech_h_wo_loss(z, h, :) .= 
+            # Demand with loss
+            sum(
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
+                d in model_data.index_d, t in model_data.index_t
+            ) -
+            # DG
+            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+            # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+            # 100 MW instead of 80 MW.
+            # behind the meter generation for pv-only customers
+            sum(
+                model_data.omega(d) * delta_t *
+                (
+                    min(
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
+                    customers.Opti_DG_E(z, h, :BTMPV) + sum(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) - 
+                    # minus pv portion of pv_storage tech
+                    min(
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                    ) * total_der_pv_capacity(z, h) /
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                )
+                for d in model_data.index_d, t in model_data.index_t
+            ) - 
+            # behind the meter generation for pv+storage customers who did not participate in aggregation
+            sum(
+                model_data.omega(d) * delta_t *
+                (
+                    min(
+                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
+                        min(
+                            sum(customers.rho_DG(h, m, z, d, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    )
+                ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
                 for d in model_data.index_d, t in model_data.index_t
             )
-
-            # Behind-the-meter generation for PV-only customers
-            pv_only_generation = 0.0
-            for d in model_data.index_d, t in model_data.index_t
-                # Initialize inner sum over years
-                inner_sum_y = 0.0
-                for y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    y_symbol = Symbol(string(y))
-                    inner_sum_y += min(
-                        customers.rho_DG(h_ct, :BTMPV, z, d, t) *
-                        customers.Opti_DG_my(y_symbol, z, h_ct, :BTMPV),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_new_my(y_symbol, h_ct, z, :BTMPV) /
-                    customers.Opti_DG_my(y_symbol, z, h_ct, :BTMPV)
-                end
-
-                pv_only_generation += model_data.omega(d) * delta_t * (
-                    min(
-                        customers.rho_DG(h_ct, :BTMPV, z, d, t) *
-                        customers.Opti_DG_E(z, h_ct, :BTMPV),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_E_my(first(model_data.index_y), h_ct, z, :BTMPV) /
-                    customers.Opti_DG_E(z, h_ct, :BTMPV) +
-                    inner_sum_y -
-                    # Minus PV portion of PV-storage tech
-                    min(
-                        customers.rho_DG(h_ct, :BTMPV, z, d, t) *
-                        customers.Opti_DG_E(z, h_ct, :BTMPV),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * total_der_pv_capacity(z, h_ct) /
-                    customers.Opti_DG_E(z, h_ct, :BTMPV)
-                )
-            end
-
-            # Behind-the-meter generation for PV+Storage customers not in aggregation
-            pv_storage_generation = 0.0
-            for d in model_data.index_d, t in model_data.index_t
-                # Initialize inner sum over years
-                inner_sum_y = 0.0
-                for y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    y_symbol = Symbol(string(y))
-                    inner_sum_y += min(
-                        sum(
-                            customers.rho_DG(h_ct, m, z, d, t) *
-                            customers.Opti_DG_my(y_symbol, z, h_ct, m)
-                            for m in customers.index_m
-                        ),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_new_my(y_symbol, h_ct, z, :BTMStorage) /
-                    customers.Opti_DG_my(y_symbol, z, h_ct, :BTMStorage)
-                end
-
-                pv_storage_generation += model_data.omega(d) * delta_t * (
-                    min(
-                        sum(
-                            customers.rho_DG(h_ct, m, z, d, t) *
-                            customers.Opti_DG_E(z, h_ct, m)
-                            for m in customers.index_m
-                        ),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_E_my(first(model_data.index_y), h_ct, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h_ct, :BTMStorage) +
-                    inner_sum_y
-                ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
-            end
-
-            # Net demand for customer type h_ct without green tech subscription
-            net_demand_h = demand_without_loss - pv_only_generation - pv_storage_generation
-
-            # Accumulate net demand for the sector
-            net_demand += net_demand_h
-        end
-        net_demand_wo_green_tech_sector_wo_loss(z, h_sector) = net_demand
     end
 
     #=
@@ -2096,98 +2033,70 @@ function solve_agent_problem!(
         net_demand_h_t_w_loss(z, h, tou, :) .= net_demand_h_t_w_loss_temp
     end
 
-    net_demand_sector_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_sector, regulator.index_rate_tou)
-    for z in model_data.index_z, h_sector in model_data.index_sector, tou in regulator.index_rate_tou
-        net_demand_tou = 0.0
-        # Find all customer types in this sector
-        customer_types = [h_ct for h_ct in model_data.index_h if model_data.h_to_sector[h_ct] == h_sector]
-        for h_ct in customer_types
-            net_demand_tou_h_ct = 0.0
-            # Get the indices where rate_tou matches
-            tou_indices = findall(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou))
-            for i in tou_indices
-                d = Symbol(regulator.rep_day_time_tou_mapping.index_d[i])
-                t = Symbol(regulator.rep_day_time_tou_mapping.index_t[i])
+    net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
+    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+        net_demand_h_t_wo_loss_temp = 0.0
+        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+            net_demand_h_t_wo_loss_temp = net_demand_h_t_wo_loss_temp +
                 # Demand without loss
-                demand_without_loss = customers.gamma(z, h_ct) * model_data.omega(d) * delta_t * customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                # Behind-the-meter generation for PV-only customers
-                # Initialize variables
-                pv_only_generation = 0.0
-                # Sum over years
-                inner_sum_y = 0.0
-                for y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    y_symbol = Symbol(string(y))
-                    inner_sum_y += min(
-                        customers.rho_DG(h_ct, :BTMPV, z, d, t) * customers.Opti_DG_my(y_symbol, z, h_ct, :BTMPV),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_new_my(y_symbol, h_ct, z, :BTMPV) /
-                    customers.Opti_DG_my(y_symbol, z, h_ct, :BTMPV)
-                end
-                pv_only_generation += model_data.omega(d) * delta_t * (
+                sum(
+                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                ) -
+                # DG
+                # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+                # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+                # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+                # 100 MW instead of 80 MW.
+                # behind the meter generation for pv-only customers
+                model_data.omega(d) * delta_t *
+                (
                     min(
-                        customers.rho_DG(h_ct, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h_ct, :BTMPV),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_E_my(first(model_data.index_y), h_ct, z, :BTMPV) /
-                    customers.Opti_DG_E(z, h_ct, :BTMPV) +
-                    inner_sum_y -
-                    # Minus PV portion of PV-storage tech
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
+                    customers.Opti_DG_E(z, h, :BTMPV) + sum(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) - 
+                    # minus pv portion of pv_storage tech
                     min(
-                        customers.rho_DG(h_ct, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h_ct, :BTMPV),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * total_der_pv_capacity(z, h_ct) /
-                    customers.Opti_DG_E(z, h_ct, :BTMPV)
-                )
-    
-                # Behind-the-meter generation for PV+Storage customers not in aggregation
-                pv_storage_generation = 0.0
-                # Sum over years
-                inner_sum_y_storage = 0.0
-                for y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    y_symbol = Symbol(string(y))
-                    inner_sum_m = sum(
-                        customers.rho_DG(h_ct, m, z, d, t) * customers.Opti_DG_my(y_symbol, z, h_ct, m)
-                        for m in customers.index_m
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                    ) * total_der_pv_capacity(z, h) /
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                ) - 
+                # behind the meter generation for pv+storage customers who did not participate in aggregation
+                model_data.omega(d) * delta_t *
+                (
+                    min(
+                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
+                    customers.Opti_DG_E(z, h, :BTMStorage) + sum(
+                        min(
+                            sum(customers.rho_DG(h, m, z, d, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
+                        y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
-                    inner_sum_y_storage += min(
-                        inner_sum_m,
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_new_my(y_symbol, h_ct, z, :BTMStorage) /
-                    customers.Opti_DG_my(y_symbol, z, h_ct, :BTMStorage)
-                end
-                pv_storage_generation += model_data.omega(d) * delta_t * (
-                    min(
-                        sum(
-                            customers.rho_DG(h_ct, m, z, d, t) * customers.Opti_DG_E(z, h_ct, m)
-                            for m in customers.index_m
-                        ),
-                        customers.d(h_ct, z, d, t) * (1 - utility.loss_dist)
-                    ) * customers.x_DG_E_my(first(model_data.index_y), h_ct, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h_ct, :BTMStorage) +
-                    inner_sum_y_storage
-                ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
-    
-                # Green technology subscription
-                green_tech_subscription = 0.0
-                for j in model_data.index_j
-                    inner_sum_y_green = 0.0
-                    for y in model_data.year(first(model_data.index_y_fix)):reg_year
-                        y_symbol = Symbol(string(y))
-                        inner_sum_y_green += green_developer.green_tech_buildout_my(y_symbol, j, z, h_ct)
-                    end
-                    green_tech_subscription += model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * inner_sum_y_green
-                end
-    
-                # Net demand for h_ct at this d and t
-                net_demand_h_ct_dt = demand_without_loss - pv_only_generation - pv_storage_generation - green_tech_subscription
-    
-                # Accumulate for h_ct over all (d,t) in this TOU period
-                net_demand_tou_h_ct += net_demand_h_ct_dt
-            end
-            # Accumulate net demand over customer types in the sector
-            net_demand_tou += net_demand_tou_h_ct
+                ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z)) -
+                # green technology subscription
+                sum(
+                    model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):reg_year)
+                    for j in model_data.index_j
+                )
         end
-        # Assign the accumulated net demand to the sector and TOU
-        net_demand_sector_t_wo_loss(z, h_sector, tou) = net_demand_tou
+        net_demand_h_t_wo_loss(z, h, tou, :) .= net_demand_h_t_wo_loss_temp
     end
 
     # for the purpose of calculating net peak load, use load including distribution loss
@@ -2328,12 +2237,12 @@ function solve_agent_problem!(
     
             # Aggregate numerator and denominator over customer types
             numerator_energy_demand = sum(
-                energy_cost_allocation_h(z, h, d, t) + demand_cost_allocation_capacity_h(z, h, d, t)
+                energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)
                 for h in customer_types
             )
-            denominator_net_demand = sum(net_demand_sector_wo_loss(z, h, d, t) for h in customer_types)
-            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h, d, t) for h in customer_types)
-            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_sector_wo_loss(z, h, d, t) for h in customer_types)
+            denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
+            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
     
             # Avoid division by zero
             if denominator_net_demand == 0 || denominator_net_demand_wo_green == 0
@@ -4118,7 +4027,6 @@ function solve_agent_problem!(
     end
     replace!(energy_cost_allocation_h_t, NaN => 0.0)
 
-
     p_before = ParamArray(regulator.p, "p_before")
     fill!(p_before, NaN)
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
@@ -4137,82 +4045,55 @@ function solve_agent_problem!(
     # TODO: the demonimator need to be further thought through (in the case without green-tech, it's the same)
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
-        sector_rates = Dict{Tuple{Int, Symbol, Int, Int}, Float64}()
-    
-        # Calculate sector-level rates for each combination of z, sector, d, t
+        sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+            
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            # Collect all customer types in this sector
+
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
-    
-            # Aggregate numerator and denominator over customer types
-            numerator_energy_demand = sum(
-                energy_cost_allocation_h(z, h, d, t) + demand_cost_allocation_capacity_h(z, h, d, t)
-                for h in customer_types
-            )
-            denominator_net_demand = sum(net_demand_sector_wo_loss(z, h, d, t) for h in customer_types)
-            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h, d, t) for h in customer_types)
-            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_sector_wo_loss(z, h, d, t) for h in customer_types)
-    
-            # Avoid division by zero
-            if denominator_net_demand == 0 || denominator_net_demand_wo_green == 0
-                sector_rates[(z, sector, d, t)] = NaN
-            else
-                # Calculate the sector rate
-                sector_rates[(z, sector, d, t)] = (numerator_energy_demand / denominator_net_demand) + 
-                                                  (numerator_other_cost / denominator_net_demand_wo_green)
-            end
+            
+            energy_cost = sum(energy_cost_allocation_h(z, h) for h in customer_types)
+            demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+            net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+            other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+
+            sector_rates[(z, sector, d, t)] = (energy_cost + demand_capacity_cost + other_cost) / net_demand
+
         end
-    
-        # Assign sector-level rates to each customer type in the sector
+            
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
             sector = model_data.h_to_sector[h]
             regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
         end
-    
+            
         replace!(regulator.p.values, NaN => 0.0)
-    
+        
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
-        sector_tou_rates = Dict{Tuple{Int, Symbol, Symbol}, Float64}()
-    
-        # Assume model_data.index_tou contains all TOU periods
-        # Calculate TOU rates for each combination of z, sector, tou
-        for z in model_data.index_z, sector in model_data.index_sector, tou in model_data.index_tou
+        sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+
+        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
             # Collect all customer types in this sector
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
-    
-            # Aggregate over customer types
-            numerator_energy = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
-            denominator_net_demand_t = sum(net_demand_sector_t_wo_loss(z, h, tou) for h in customer_types)
-            numerator_demand_capacity = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
-            denominator_net_demand = sum(net_demand_sector_wo_loss(z, h) for h in customer_types)
-            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
-            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_sector_wo_loss(z, h) for h in customer_types)
-    
-            # Avoid division by zero
-            if denominator_net_demand_t == 0 || denominator_net_demand == 0 || denominator_net_demand_wo_green == 0
-                sector_tou_rates[(z, sector, tou)] = NaN
-            else
-                # Calculate the sector TOU rate
-                sector_tou_rates[(z, sector, tou)] = (numerator_energy / denominator_net_demand_t) +
-                                                     (numerator_demand_capacity / denominator_net_demand) +
-                                                     (numerator_other_cost / denominator_net_demand_wo_green)
-            end
+                            
+            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
+
+            energy_cost = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
+            net_demand_tou = sum(net_demand_wo_green_tech_h_t_wo_loss(z, h, tou) for h in customer_types)
+            demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+            net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+            other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+        
+            sector_rates[(z, s, d, t)] = energy_cost / net_demand_tou + demand_capacity_cost / net_demand + other_cost / net_demand
+
         end
-    
-        # Assign TOU sector rates to each customer type in the sector
+            
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
             sector = model_data.h_to_sector[h]
-            # Get the TOU period for the current day and time
-            tou = Symbol(regulator.rep_day_time_tou_mapping[
-                (regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& 
-                (regulator.rep_day_time_tou_mapping.index_t .== String(t)), 
-                :index_rate_tou][1])
-            regulator.p(z, h, d, t, :) .= sector_tou_rates[(z, sector, tou)]
+            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
         end
-    
+        
         replace!(regulator.p.values, NaN => 0.0)
-    end    
+    end
 
     # fill!(regulator.p_regression, NaN)
     # for h in model_data.index_h
