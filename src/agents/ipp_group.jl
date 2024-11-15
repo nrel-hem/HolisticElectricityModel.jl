@@ -5483,7 +5483,7 @@ function solve_agent_problem_ipp_cap(
         optimize!(MPPDCMER_lower)
     end
 
-    objective_value(MPPDCMER_lower)
+    #objective_value(MPPDCMER_lower)
 
     # dual_model = dualize(MPPDCMER_lower; dual_names = DualNames("dual", ""))
     # f = open("lower_level_dual.txt","w"); print(f, dual_model); close(f)

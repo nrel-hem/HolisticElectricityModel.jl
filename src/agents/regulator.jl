@@ -2217,15 +2217,22 @@ function solve_agent_problem!(
     end
     replace!(energy_cost_allocation_h_t, NaN => 0.0)
 
-    # Initialize p_before and set NaN for debugging
+    # compute the retail price
     p_before = ParamArray(regulator.p, "p_before")
-    fill!(p_before, NaN)
-
-    # Compute p_before for each customer type
+    fill!(p_before, NaN)  # TODO DT: debug only
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
         p_before(z, h, d, t, :) .= regulator.p_my(reg_year_index, z, h, d, t)
     end
 
+    # p_before_wavg = initialize_param("p_before_wavg", model_data.index_h)
+    # for h in model_data.index_h
+    #     p_before_wavg(h, :) .= 
+    #         sum(regulator.p_my(reg_year_index, z, h, d, t) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t) / 
+    #         sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t)
+    # end
+    # replace!(p_before_wavg.values, NaN => 0.0)
+
+    # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
         sector_rates = Dict{Tuple{Int, Symbol, Int, Int}, Float64}()
@@ -2266,9 +2273,8 @@ function solve_agent_problem!(
         fill!(regulator.p, NaN)
         sector_tou_rates = Dict{Tuple{Int, Symbol, Symbol}, Float64}()
     
-        # Assume model_data.index_tou contains all TOU periods
         # Calculate TOU rates for each combination of z, sector, tou
-        for z in model_data.index_z, sector in model_data.index_sector, tou in model_data.index_tou
+        for z in model_data.index_z, sector in model_data.index_sector, t in model_data.index_t
             # Collect all customer types in this sector
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
     
@@ -2305,7 +2311,20 @@ function solve_agent_problem!(
         replace!(regulator.p.values, NaN => 0.0)
     end    
 
-    # Handle net metering policy rates as needed
+    # fill!(regulator.p_regression, NaN)
+    # for h in model_data.index_h
+    #     regulator.p_regression(h, :) .=
+    #         (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
+    #         net_demand_h_wo_loss(h)
+    # end
+
+    # fill!(regulator.p_td, NaN)
+    # for h in model_data.index_h
+    #     regulator.p_td(h, :) .=
+    #         demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
+    # end
+
+    # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
         regulator.p_ex = ParamArray(regulator.p)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
@@ -2322,6 +2341,24 @@ function solve_agent_problem!(
         regulator.p_my(reg_year_index, z, h, d, t, :) .= regulator.p(z, h, d, t)
         regulator.p_ex_my(reg_year_index, z, h, d, t, :) .= regulator.p_ex(z, h, d, t)
     end
+
+    # for h in model_data.index_h
+    #     regulator.p_my_regression(reg_year_index, h, :) .= regulator.p_regression(h)
+    #     regulator.p_my_td(reg_year_index, h, :) .= regulator.p_td(h)
+    # end
+
+    # p_after_wavg = initialize_param("p_after_wavg", model_data.index_h)
+    # for h in model_data.index_h
+    #     p_after_wavg(h, :) .= 
+    #         sum(regulator.p_my(reg_year_index, z, h, d, t) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * customers.gamma(z, h) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t) / 
+    #         sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) * customers.gamma(z, h) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t)
+    # end
+    # replace!(p_after_wavg.values, NaN => 0.0)
+
+    # @info "Original retail price" p_before
+    # @info "Original DER excess rate" p_ex_before
+    # @info "New retail price" regulator.p
+    # @info "New DER excess rate" regulator.p_ex
 
     return compute_difference_percentage_maximum_one_norm([
         (p_before.values, regulator.p.values),
@@ -4027,6 +4064,7 @@ function solve_agent_problem!(
     end
     replace!(energy_cost_allocation_h_t, NaN => 0.0)
 
+
     p_before = ParamArray(regulator.p, "p_before")
     fill!(p_before, NaN)
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
@@ -4094,6 +4132,7 @@ function solve_agent_problem!(
         
         replace!(regulator.p.values, NaN => 0.0)
     end
+
 
     # fill!(regulator.p_regression, NaN)
     # for h in model_data.index_h
