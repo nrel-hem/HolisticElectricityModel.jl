@@ -2292,7 +2292,7 @@ function solve_agent_problem!(
         # Assign TOU sector rates to each customer type in the sector
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
             sector = model_data.h_to_sector[h]
-            regulator.p(z, h, d, t, :) .= sector_tou_rates[(z, sector, tou)]
+            regulator.p(z, h, d, t, :) .= sector_tou_rates[(z, sector, d, t)]
         end
     
         replace!(regulator.p.values, NaN => 0.0)
