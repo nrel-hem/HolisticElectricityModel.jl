@@ -44,7 +44,7 @@ end
 
 function check_integer(value, min=nothing, max=nothing)
     result = Integer(value)
-    
+
     if !isnothing(min) && (result < min)
         return false, "$result < minimum value $min"
     end
@@ -52,7 +52,7 @@ function check_integer(value, min=nothing, max=nothing)
         return false, "$result > maximum value $max"
     end
 
-    return true, result        
+    return true, result
 end
 
 function check_string(value)
@@ -63,7 +63,7 @@ function check_bool(value)
     return true, Bool(value)
 end
 
-function parse(config::Dict{Any, Any}, section::String, validators::Dict{String,Vector})
+function parse(config::Dict{Any,Any}, section::String, validators::Dict{String,Vector})
     if !(section in keys(config))
         error("Invalid config section: $section.")
     end
@@ -78,10 +78,27 @@ function parse(config::Dict{Any, Any}, section::String, validators::Dict{String,
                 error("Did not find field $validator.name in $section")
             end
             push!(result, validator.default)
+        else
+            push!(result, validate(section, validator, fields[validator.name]))
         end
-
-        push!(result, validate(section, validator, fields[validator.name]))
     end
-
     return result
+end
+
+function unpack_config_struct(config, config_field, option_dict)
+    # if the config_field isn't supported
+    if !(config_field in keys(config))
+        error("Invalid config field: $config_field.")
+        # elseif the option specified in the yaml for the config_field isn't an acceptable option
+    elseif !(config[config_field] in option_dict[config_field])
+        error("Invalid option $config[config_field] for config_field $config_field.")
+        # all good -- unpack and return
+    else
+        config[config_field]
+    end
+end
+
+function check_and_return_from_map(value::AbstractString, mapping::Dict)
+    check_in_collection(value, keys(mapping))
+    return true, mapping[value]
 end

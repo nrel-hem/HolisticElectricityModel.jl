@@ -157,3 +157,15 @@ function _get_xpress()
         return Xpress.Optimizer
     end
 end
+
+
+function get_optimizer_for_solver(solver_name:: AbstractString)
+    if solver_name == "Xpress"
+        return _get_xpress()
+    elseif solver_name == "Gurobi"
+        return _get_gurobi()
+    elseif solver_name == "Ipopt"
+        return _get_ipopt()
+    else @error "Solver not implemented"
+    end
+end

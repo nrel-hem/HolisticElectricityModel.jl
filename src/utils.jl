@@ -287,52 +287,6 @@ function configure_logging(;
     )
 end
 
-"""
-Returns a ParamArray with all values set to value.
-"""
-# function initialize_param(
-#     name::AbstractString,
-#     index::Dimension;
-#     value = 0.0,
-#     prose_name = "",
-#     description = "",
-# )
-#     return ParamArray(
-#         name,
-#         (index,),
-#         initialize_keyed_array(index; value = value),
-#         prose_name = prose_name,
-#         description = description,
-#     )
-# end
-
-"""
-Return a ParamArray with all values set to value, and indices formed from
-Iterators.product(indices...).
-"""
-# function initialize_param(
-#     name::AbstractString,
-#     indices...;
-#     value = 0.0,
-#     prose_name = "",
-#     description = "",
-# )
-#     num_dims = length(indices)
-#     param = try
-#         ParamArray(
-#             name,
-#             indices,
-#             initialize_keyed_array(indices...; value = value),
-#             prose_name = prose_name,
-#             description = description,
-#         )
-#     catch e
-#         @info "Failed to initialize parameter $name"
-#         rethrow(e)
-#     end
-#     return param
-# end
-
 function read_dataframe(filename::AbstractString)
     ext = lowercase(splitext(filename)[2])
     if ext == ".csv"

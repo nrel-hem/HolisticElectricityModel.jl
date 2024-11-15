@@ -35,6 +35,13 @@ data_selection:
 # String used to distinguish the input data folder from others
   folder_suffix: "20240806"
 
+# Parse options-----------------------------------------------------------------
+  
+  der_aggregator: true
+  set_nuclear_varcost_negative: true
+  # sectors_with_county_level_load:
+  # -
+
 # Whether the input folder needs to be (re)created
   skip_parse: true
 
@@ -50,19 +57,34 @@ simulation_parameters:
 # Holistic Energy Model (HEM) model-wide options
 # ------------------------------------------------------------------------------
 
-market_structure: "vertically_integrated_utility"
-der_use_case: "der_use_case"
-supply_choice_use_case: "null_use_case"
+hem_options:
+
+  market_structure: "vertically_integrated_utility"
+  der_use_case: "der_use_case"
+  supply_choice_use_case: "null_use_case"
+  der_aggregation_use_case: "der_aggregation_use_case"
 
 # ------------------------------------------------------------------------------
 # Independent Power Producer (IPP) options
 # ------------------------------------------------------------------------------
 
-ipp_algorithm: "mppdcmer_transportation_storage"
+ipp_options:
+
+  ipp_algorithm: "mppdcmer_transportation_storage"
 
 # ------------------------------------------------------------------------------
 # Regulator options
 # ------------------------------------------------------------------------------
 
-rate_design: "flat_rate"
-net_metering_policy: "excess_retail_rate"
+regulator_options:
+
+  rate_design: "flat_rate"
+  net_metering_policy: "excess_retail_rate"
+
+
+# ------------------------------------------------------------------------------
+# Customer options
+# ------------------------------------------------------------------------------
+customer_options:
+
+  pv_adoption_type: "solar_plus_storage"
