@@ -2250,15 +2250,10 @@ function solve_agent_problem!(
             denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
             numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
             denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
-    
-            # Avoid division by zero
-            if denominator_net_demand == 0 || denominator_net_demand_wo_green == 0
-                sector_rates[(z, sector, d, t)] = NaN
-            else
-                # Calculate the sector rate
-                sector_rates[(z, sector, d, t)] = (numerator_energy_demand / denominator_net_demand) + 
-                                                  (numerator_other_cost / denominator_net_demand_wo_green)
-            end
+
+            sector_rates[(z, sector, d, t)] = (numerator_energy_demand / denominator_net_demand) + 
+                                              (numerator_other_cost / denominator_net_demand_wo_green)
+
         end
     
         # Assign sector-level rates to each customer type in the sector
@@ -2273,38 +2268,31 @@ function solve_agent_problem!(
         fill!(regulator.p, NaN)
         sector_tou_rates = Dict{Tuple{Int, Symbol, Symbol}, Float64}()
     
-        # Calculate TOU rates for each combination of z, sector, tou
+        # Calculate TOU rates for each combination of z, sector, t
         for z in model_data.index_z, sector in model_data.index_sector, t in model_data.index_t
+
+            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d.==String(d)) .& (regulator.rep_day_time_tou_mapping.index_t.==String(t)), :index_rate_tou][1])           
             # Collect all customer types in this sector
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
     
             # Aggregate over customer types
             numerator_energy = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
-            denominator_net_demand_t = sum(net_demand_sector_t_wo_loss(z, h, tou) for h in customer_types)
+            denominator_net_demand_t = sum(net_demand_h_t_wo_loss(z, h, tou) for h in customer_types)
             numerator_demand_capacity = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
-            denominator_net_demand = sum(net_demand_sector_wo_loss(z, h) for h in customer_types)
+            denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
             numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
-            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_sector_wo_loss(z, h) for h in customer_types)
+            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
     
-            # Avoid division by zero
-            if denominator_net_demand_t == 0 || denominator_net_demand == 0 || denominator_net_demand_wo_green == 0
-                sector_tou_rates[(z, sector, tou)] = NaN
-            else
-                # Calculate the sector TOU rate
-                sector_tou_rates[(z, sector, tou)] = (numerator_energy / denominator_net_demand_t) +
-                                                     (numerator_demand_capacity / denominator_net_demand) +
-                                                     (numerator_other_cost / denominator_net_demand_wo_green)
-            end
+
+            sector_tou_rates[(z, sector, d, t)] = (numerator_energy / denominator_net_demand_t) +
+                                                  (numerator_demand_capacity / denominator_net_demand) +
+                                                  (numerator_other_cost / denominator_net_demand_wo_green)
+
         end
     
         # Assign TOU sector rates to each customer type in the sector
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
             sector = model_data.h_to_sector[h]
-            # Get the TOU period for the current day and time
-            tou = Symbol(regulator.rep_day_time_tou_mapping[
-                (regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& 
-                (regulator.rep_day_time_tou_mapping.index_t .== String(t)), 
-                :index_rate_tou][1])
             regulator.p(z, h, d, t, :) .= sector_tou_rates[(z, sector, tou)]
         end
     
@@ -4110,7 +4098,7 @@ function solve_agent_problem!(
         sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
 
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            # Collect all customer types in this sector
+            
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
                             
             tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
@@ -4121,7 +4109,7 @@ function solve_agent_problem!(
             net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
             other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
         
-            sector_rates[(z, s, d, t)] = energy_cost / net_demand_tou + demand_capacity_cost / net_demand + other_cost / net_demand
+            sector_rates[(z, sector, d, t)] = energy_cost / net_demand_tou + demand_capacity_cost / net_demand + other_cost / net_demand
 
         end
             
