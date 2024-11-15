@@ -25,13 +25,13 @@ input_path = joinpath(hem_data_dir, "inputs")
 ba = ["p129", "p130", "p131", "p132", "p133", "p134"]                                     # p13
 ba_len = length(ba)
 base_year = 2020                                 # 2018
-future_years = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030]                      # [2019, 2020]
+future_years = [2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035]                      # [2019, 2020]
 future_years_len = length(future_years)
 ipp_number = 1                                   # 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
 inputs_date = "20241111"
-input_dir_name = "$inputs_date"*"_ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*"_enhanced_test_full_dera_pv_w_EV_2035_EE"
+input_dir_name = "$inputs_date"*"ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"*""
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 # input_dir = joinpath(test_data_dir, input_dir_name)
 # mkpath(input_dir)
