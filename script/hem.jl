@@ -29,8 +29,18 @@ include(joinpath(base_dir, "script", "config_data.jl"))
 # Input Folder and Data
 # ------------------------------------------------------------------------------
 
-balancing_areas, base_year, num_future_years, num_ipps, folder_suffix, der_aggregator, set_nuclear_varcost_negative, sectors_with_county_level_load, skip_parse =
-    parse(config, "data_selection", validators)
+(
+    balancing_areas,
+    base_year,
+    num_future_years,
+    num_ipps,
+    folder_suffix,
+    der_aggregator,
+    set_nuclear_varcost_negative,
+    sectors_with_county_level_load,
+    load_profiles_subdir, 
+    skip_parse
+) = parse(config, "data_selection", validators)
 
 # Define scenario
 future_years = [base_year + i for i in range(1, num_future_years)]
@@ -69,6 +79,8 @@ end
 # ------------------------------------------------------------------------------
 # Model configuration
 # ------------------------------------------------------------------------------
+
+solver, = parse(config, "simulation_parameters", validators)
 
 market_structure, der_use_case, supply_choice_use_case, der_aggregation_use_case = parse(config, "hem_options", validators)
 ipp_algorithm, = parse(config, "ipp_options", validators)

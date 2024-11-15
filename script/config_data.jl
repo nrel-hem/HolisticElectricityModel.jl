@@ -84,6 +84,11 @@ validators = Dict(
             value -> check_iterable(value, 1, x -> check_string(x)),
             Vector{String}()
         ),
+        FieldValidatorHasDefault(
+            "load_profiles_subdir",
+            value -> check_string(value),
+            nothing
+        ),
         FieldValidatorBasic(
             "skip_parse",
             value -> check_bool(value)
