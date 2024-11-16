@@ -3,6 +3,7 @@ using Revise
 # using Ipopt
 using JuMP
 using YAML
+using Gurobi
 
 using HolisticElectricityModel
 import HolisticElectricityModelData
@@ -82,6 +83,8 @@ end
 
 solver, = parse(config, "simulation_parameters", validators)
 
+@info "Running on environment $(splitpath(Base.active_project())[end-1]) with solver $(solver)"
+
 market_structure, der_use_case, supply_choice_use_case, der_aggregation_use_case = parse(config, "hem_options", validators)
 ipp_algorithm, = parse(config, "ipp_options", validators)
 rate_design, net_metering_policy = parse(config, "regulator_options", validators)
@@ -93,34 +96,31 @@ hem_opts = HEMOptions(market_structure, der_use_case, supply_choice_use_case, de
 regulator_opts = RegulatorOptions(rate_design, net_metering_policy)
 
 # Get the optimizer depending on the solver defined the config
-nlp_solver = get_optimizer_for_solver("Ipopt")
-lp_solver = get_optimizer_for_solver(solver)
-
 ipp_opts = IPPOptions(
     ipp_algorithm,
     Dict(
         "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
-            nlp_solver,
+            () -> get_optimizer_for_solver("Ipopt"),
             "print_level" => 0,
             # "tol" => 1e-6,
             # "max_iter" => 500,
         ),
         "Lagrange_Sub_Dispatch_Cap" => JuMP.optimizer_with_attributes(
-            lp_solver,
+            () -> get_optimizer_for_solver(solver),
             # "OUTPUTLOG" => 0,
         ),
         "Lagrange_Feasible_Cap" => JuMP.optimizer_with_attributes(
-            lp_solver,
+            () -> get_optimizer_for_solver(solver),
             "Presolve" => 0,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_cap" => JuMP.optimizer_with_attributes(
-            lp_solver,
+            () -> get_optimizer_for_solver(solver),
             "Presolve" => 1,
             # "OUTPUTLOG" => 0,
         ),
         "solve_agent_problem_ipp_mppdc" => JuMP.optimizer_with_attributes(
-            lp_solver,
+            () -> get_optimizer_for_solver(solver),
             "Presolve" => 1,
             "BarHomogeneous" => 1,
             # "NumericFocus" => 3,
@@ -128,7 +128,7 @@ ipp_opts = IPPOptions(
         ),
         "solve_agent_problem_ipp_mppdc_mccormic_lower" =>
             JuMP.optimizer_with_attributes(
-                lp_solver,
+                () -> get_optimizer_for_solver(solver),
                 "Presolve" => 1,
                 "BarHomogeneous" => 1,
                 # "OUTPUTLOG" => 0,
@@ -137,13 +137,13 @@ ipp_opts = IPPOptions(
 )
 
 utility_opts = UtilityOptions(JuMP.optimizer_with_attributes(
-    lp_solver,
+    () -> get_optimizer_for_solver(solver),
     # "OUTPUTLOG" => 0,
 ))
 
 green_developer_opts = GreenDeveloperOptions(
     JuMP.optimizer_with_attributes(
-        lp_solver,
+        () -> get_optimizer_for_solver(solver)
         # "OUTPUTLOG" => 0,
     ),
 )
@@ -151,13 +151,14 @@ green_developer_opts = GreenDeveloperOptions(
 customer_opts = CustomerOptions(
     pv_adoption_type,
     JuMP.optimizer_with_attributes(
-        lp_solver,
+        () -> get_optimizer_for_solver(solver),
         # "OUTPUTLOG" => 0,
-    ))
+    ),
+)
 
 dera_opts = DERAggregatorOptions(
     JuMP.optimizer_with_attributes(
-        () -> Xpress.Optimizer(),
+        () -> get_optimizer_for_solver(solver),
         # "OUTPUTLOG" => 0,
     ),
 )

@@ -158,14 +158,37 @@ function _get_xpress()
     end
 end
 
+function _initialize_optimizer_xpress()
+    @eval Main begin
+        import Xpress
+        return Xpress.Optimizer()
+    end
+end
+
+function _initialize_optimizer_ipopt()
+    @eval Main begin
+        import Ipopt
+        return Ipopt.Optimizer()
+    end
+end
+
+function _initialize_optimizer_gurobi()
+    @eval Main begin
+        import Gurobi
+        if !(@isdefined GUROBI_ENV)
+            global const GUROBI_ENV = Gurobi.Env()
+        end
+        return Gurobi.Optimizer(GUROBI_ENV)
+    end
+end
 
 function get_optimizer_for_solver(solver_name:: AbstractString)
     if solver_name == "Xpress"
-        return _get_xpress()
+        return _initialize_optimizer_xpress()
     elseif solver_name == "Gurobi"
-        return _get_gurobi()
+        return _initialize_optimizer_gurobi()
     elseif solver_name == "Ipopt"
-        return _get_ipopt()
+        return _initialize_optimizer_ipopt()
     else @error "Solver not implemented"
     end
 end
