@@ -30,7 +30,7 @@ julia> solver = IpoptSolver(ipopt)
 ```
 """
 struct IpoptSolver <: HEMSolver
-    attributes::Union{Nothing, MOI.OptimizerWithAttributes}
+    attributes::Union{Nothing,MOI.OptimizerWithAttributes}
 
     IpoptSolver(attributes=nothing) = new(attributes)
 end
@@ -63,7 +63,7 @@ julia> solver = XpressSolver(xpress)
 ```
 """
 struct XpressSolver <: HEMSolver
-    attributes::Union{Nothing, MOI.OptimizerWithAttributes}
+    attributes::Union{Nothing,MOI.OptimizerWithAttributes}
 
     XpressSolver(attributes=nothing) = new(attributes)
 end
@@ -95,7 +95,7 @@ julia> solver = GurobiSolver(gurobi)
 """
 struct GurobiSolver <: HEMSolver
     env::Any
-    attributes::Union{Nothing, MOI.OptimizerWithAttributes}
+    attributes::Union{Nothing,MOI.OptimizerWithAttributes}
 
     GurobiSolver(env, attributes=nothing) = new(GurobiSolver(env, attributes))
 end
@@ -176,19 +176,32 @@ function _initialize_optimizer_gurobi()
     @eval Main begin
         import Gurobi
         if !(@isdefined GUROBI_ENV)
-            global const GUROBI_ENV = Gurobi.Env()
+            const global GUROBI_ENV = Gurobi.Env()
         end
         return Gurobi.Optimizer(GUROBI_ENV)
     end
 end
 
-function get_optimizer_for_solver(solver_name:: AbstractString)
+function import_solver_package(solver_name::AbstractString)
+    if solver_name == "Xpress"
+        import_xpress()
+    elseif solver_name == "Gurobi"
+        import_gurobi()
+    elseif solver_name == "Ipopt"
+        import_ipopt()
+    else
+        @error "Solver not implemented"
+    end
+end
+
+function get_optimizer_for_solver(solver_name::AbstractString)
     if solver_name == "Xpress"
         return _initialize_optimizer_xpress()
     elseif solver_name == "Gurobi"
         return _initialize_optimizer_gurobi()
     elseif solver_name == "Ipopt"
         return _initialize_optimizer_ipopt()
-    else @error "Solver not implemented"
+    else
+        @error "Solver not implemented"
     end
 end

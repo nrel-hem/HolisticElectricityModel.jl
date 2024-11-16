@@ -76,6 +76,7 @@ export run_hem
 export initialize_param
 export get_new_jump_model
 export make_keyed_array
+export import_solver_package
 export get_optimizer_for_solver
 
 ################################################################################

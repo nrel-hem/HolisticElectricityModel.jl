@@ -3,7 +3,6 @@ using Revise
 # using Ipopt
 using JuMP
 using YAML
-using Gurobi
 
 using HolisticElectricityModel
 import HolisticElectricityModelData
@@ -26,6 +25,11 @@ input_path = joinpath(hem_data_dir, "inputs")
 include(joinpath(base_dir, "script", "config.jl"))
 include(joinpath(base_dir, "script", "config_data.jl"))
 
+# configure solver
+solver, = parse(config, "simulation_parameters", validators)
+@info "Running on environment $(splitpath(Base.active_project())[end-1]) with solver $(solver)"
+import_solver_package(solver)
+
 # ------------------------------------------------------------------------------
 # Input Folder and Data
 # ------------------------------------------------------------------------------
@@ -39,7 +43,7 @@ include(joinpath(base_dir, "script", "config_data.jl"))
     der_aggregator,
     set_nuclear_varcost_negative,
     sectors_with_county_level_load,
-    load_profiles_subdir, 
+    load_profiles_subdir,
     skip_parse
 ) = parse(config, "data_selection", validators)
 
@@ -80,10 +84,6 @@ end
 # ------------------------------------------------------------------------------
 # Model configuration
 # ------------------------------------------------------------------------------
-
-solver, = parse(config, "simulation_parameters", validators)
-
-@info "Running on environment $(splitpath(Base.active_project())[end-1]) with solver $(solver)"
 
 market_structure, der_use_case, supply_choice_use_case, der_aggregation_use_case = parse(config, "hem_options", validators)
 ipp_algorithm, = parse(config, "ipp_options", validators)
