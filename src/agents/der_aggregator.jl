@@ -62,6 +62,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket, <:UseCase, <:UseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -99,6 +100,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase, <:UseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -135,6 +137,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket, <:UseCase, <:UseCase, DERAggregation},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -382,6 +385,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase, <:UseCase, DERAggregation},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -443,6 +447,7 @@ function solve_agent_problem!(
                             hem_opts,
                             agent_store,
                             w_iter,
+                            window_length,
                             jump_model,
                             export_file_path,
                             false
@@ -464,6 +469,7 @@ function solve_agent_problem!(
                             hem_opts,
                             agent_store,
                             w_iter,
+                            window_length,
                             jump_model,
                             export_file_path,
                             false

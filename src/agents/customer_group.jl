@@ -742,6 +742,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, DERAdoption, NullUseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool

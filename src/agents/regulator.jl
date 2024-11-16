@@ -1063,6 +1063,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -2903,6 +2904,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -4026,15 +4028,13 @@ function solve_agent_problem!(
     # TODO: the demonimator need to be further thought through (in the case without green-tech, it's the same)
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
-        for h in model_data.index_h, t in model_data.index_t
-            for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-                regulator.p(z, h, d, t, :) .=
-                    (energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)) /
-                    net_demand_wo_green_tech_h_wo_loss(z, h) +
-                    demand_cost_allocation_othercost_h(z, h) / net_demand_wo_green_tech_h_wo_loss(z, h)
-            end
-            replace!(regulator.p.values, NaN => 0.0)
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            regulator.p(z, h, d, t, :) .=
+                (energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)) /
+                net_demand_wo_green_tech_h_wo_loss(z, h) +
+                demand_cost_allocation_othercost_h(z, h) / net_demand_wo_green_tech_h_wo_loss(z, h)
         end
+        replace!(regulator.p.values, NaN => 0.0)
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t

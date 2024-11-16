@@ -143,6 +143,17 @@ function get_prev_reg_year(model_data::HEMData, w_iter::Integer)
     return prev_reg_year, Symbol(Int(prev_reg_year))
 end
 
+function get_prev_two_reg_year(model_data::HEMData, w_iter::Integer)
+    if w_iter >= 3
+        prev_reg_year = model_data.year(first(model_data.index_y)) - 2
+    elseif w_iter == 2
+        prev_reg_year = model_data.year(first(model_data.index_y)) - 1
+    else
+        prev_reg_year = model_data.year(first(model_data.index_y))
+    end
+    return prev_reg_year, Symbol(Int(prev_reg_year))
+end
+
 
 # Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end
@@ -356,6 +367,7 @@ function solve_equilibrium_problem!(
                             hem_opts,
                             store,
                             w,
+                            window_length,
                             jump_model,
                             export_file_path,
                             true
