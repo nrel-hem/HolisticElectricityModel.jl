@@ -208,6 +208,33 @@ mutable struct IPPGroup <: AbstractIPPGroup
     flow_my::ParamArray
 
     Max_Net_Load_my_dict::Dict
+
+    # McCormic bounds
+    eta_L_vec::Vector{}
+    eta_U_vec::Vector{}
+    lambda_L_vec::Vector{}
+    lambda_U_vec::Vector{}
+    theta_E_energy_L_vec::Vector{}
+    theta_E_energy_U_vec::Vector{}
+    theta_E_discharge_L_vec::Vector{}
+    theta_E_discharge_U_vec::Vector{}
+    theta_E_charge_L_vec::Vector{}
+    theta_E_charge_U_vec::Vector{}
+    pi_E_charge_L_vec::Vector{}
+    pi_E_charge_U_vec::Vector{}
+    kappa_E_L_vec::Vector{}
+    kappa_E_U_vec::Vector{}
+    theta_C_energy_L_vec::Vector{}
+    theta_C_energy_U_vec::Vector{}
+    theta_C_discharge_L_vec::Vector{}
+    theta_C_discharge_U_vec::Vector{}
+    theta_C_charge_L_vec::Vector{}
+    theta_C_charge_U_vec::Vector{}
+    pi_C_charge_L_vec::Vector{}
+    pi_C_charge_U_vec::Vector{}
+    kappa_C_L_vec::Vector{}
+    kappa_C_U_vec::Vector{}
+    
 end
 
 function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
@@ -740,7 +767,8 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
             model_data.index_d,
             model_data.index_t,
         ),
-        Dict()
+        Dict(),
+        repeat([[]], 24)...
     )
 end
 
@@ -753,6 +781,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -4982,6 +5011,7 @@ function solve_agent_problem_ipp_cap(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model
 )
     x_R_before = ParamArray(ipp.x_R_my)
@@ -4989,6 +5019,7 @@ function solve_agent_problem_ipp_cap(
     delta_t = get_delta_t(model_data)
     # the aggregator problem hasn't solved yet, so use last year's participation rates
     reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
+    reg_year_dera_pre, reg_year_index_dera_pre = get_prev_two_reg_year(model_data, w_iter)
 
     # utility = get_agent(Utility, agent_store)
     regulator = get_agent(Regulator, agent_store)
@@ -4999,6 +5030,11 @@ function solve_agent_problem_ipp_cap(
     WMDER_IPP = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc"])
     MPPDCMER_lower = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"])
     MPPDCMER_lower_dual = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"])
+
+    if w_iter >= 2
+        model_data.index_y.elements =
+                model_data.index_y_fix.elements[w_iter-1:(w_iter-1 + window_length - 1)]
+    end
 
     # first, use lower level optimization results to set variable bounds for McCormick-envelope Relaxation
     @variable(
@@ -5079,7 +5115,7 @@ function solve_agent_problem_ipp_cap(
             ) - 
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
-                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera_pre, z) *
                 customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             ) +
             # green technology subscription at time t
@@ -5107,10 +5143,7 @@ function solve_agent_problem_ipp_cap(
             t in model_data.index_t,
         ],
         ipp.rho_E_my(p, k, z, d, t) * (
-            ipp.x_E_my(p, z, k) - sum(
-                ipp.x_R_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - ipp.x_R_cumu(p, k, z)
+            ipp.x_E_my(p, z, k) - ipp.x_R_cumu(p, k, z)
         ) - y_E_bounds[y, p, k, z, d, t] >= 0
     )
 
@@ -5125,10 +5158,7 @@ function solve_agent_problem_ipp_cap(
             t in model_data.index_t,
         ],
         ipp.rho_C_my(p, k, z, d, t) * (
-            sum(
-                ipp.x_C_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + ipp.x_C_cumu(p, k, z)
+            ipp.x_C_cumu(p, k, z)
         ) - y_C_bounds[y, p, k, z, d, t] >= 0
     )
 
@@ -5193,10 +5223,7 @@ function solve_agent_problem_ipp_cap(
             t in model_data.index_t,
         ],
         ipp.stor_duration_existing(s) * (
-            ipp.x_stor_E_my(p, z, s) - sum(
-                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - ipp.x_stor_R_cumu(p, s, z)
+            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
         ) - energy_E_bounds[y, p, s, z, d, t] >= 0
     )
 
@@ -5211,10 +5238,7 @@ function solve_agent_problem_ipp_cap(
             t in model_data.index_t,
         ],
         ipp.rte_stor_E_my(y, p, z, s) * (
-            ipp.x_stor_E_my(p, z, s) - sum(
-                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - ipp.x_stor_R_cumu(p, s, z)
+            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
         ) - discharge_E_bounds[y, p, s, z, d, t] >= 0
     )
 
@@ -5228,10 +5252,7 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-            ipp.x_stor_E_my(p, z, s) - sum(
-                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - ipp.x_stor_R_cumu(p, s, z) - charge_E_bounds[y, p, s, z, d, t] >= 0
+        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z) - charge_E_bounds[y, p, s, z, d, t] >= 0
     )
 
     @constraint(
@@ -5271,10 +5292,7 @@ function solve_agent_problem_ipp_cap(
             t in model_data.index_t.elements[2:end],
         ],
         ipp.stor_duration_existing(s) * (
-            ipp.x_stor_E_my(p, z, s) - sum(
-                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - ipp.x_stor_R_cumu(p, s, z)
+            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
         ) -
         energy_E_bounds[y, p, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] -
         charge_E_bounds[y, p, s, z, d, t] * delta_t >= 0
@@ -5291,10 +5309,7 @@ function solve_agent_problem_ipp_cap(
             t in [model_data.index_t.elements[1]],
         ],
         ipp.stor_duration_existing(s) * (
-            ipp.x_stor_E_my(p, z, s) - sum(
-                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - ipp.x_stor_R_cumu(p, s, z)
+            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
         ) -
         ipp.initial_energy_existing_my(y, p, s, z, d) - charge_E_bounds[y, p, s, z, d, t] * delta_t >= 0
     )
@@ -5309,10 +5324,8 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t.elements,
         ],
-            ipp.x_stor_E_my(p, z, s) - sum(
-                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) - ipp.x_stor_R_cumu(p, s, z) - charge_E_bounds[y, p, s, z, d, t] - discharge_E_bounds[y, p, s, z, d, t] / ipp.rte_stor_E_my(y, p, z, s) >= 0
+            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z) -  
+            charge_E_bounds[y, p, s, z, d, t] - discharge_E_bounds[y, p, s, z, d, t] / ipp.rte_stor_E_my(y, p, z, s) >= 0
     )
 
     @constraint(
@@ -5354,10 +5367,7 @@ function solve_agent_problem_ipp_cap(
             t in model_data.index_t,
         ],
         ipp.stor_duration_new(s) * (
-            sum(
-                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + ipp.x_stor_C_cumu(p, s, z)
+            ipp.x_stor_C_cumu(p, s, z)
         ) - energy_C_bounds[y, p, s, z, d, t] >= 0
     )
 
@@ -5372,10 +5382,7 @@ function solve_agent_problem_ipp_cap(
             t in model_data.index_t,
         ],
         ipp.rte_stor_C_my(y, p, z, s) * (
-            sum(
-                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + ipp.x_stor_C_cumu(p, s, z)
+            ipp.x_stor_C_cumu(p, s, z)
         ) - discharge_C_bounds[y, p, s, z, d, t] >= 0
     )
 
@@ -5389,10 +5396,7 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-            sum(
-                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + ipp.x_stor_C_cumu(p, s, z) - charge_C_bounds[y, p, s, z, d, t] >= 0
+        ipp.x_stor_C_cumu(p, s, z) - charge_C_bounds[y, p, s, z, d, t] >= 0
     )
 
     @constraint(
@@ -5432,10 +5436,7 @@ function solve_agent_problem_ipp_cap(
             t in model_data.index_t.elements[2:end],
         ],
         ipp.stor_duration_new(s) * (
-            sum(
-                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + ipp.x_stor_C_cumu(p, s, z)
+            ipp.x_stor_C_cumu(p, s, z)
         ) -
         energy_C_bounds[y, p, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] -
         charge_C_bounds[y, p, s, z, d, t] * delta_t >= 0
@@ -5452,10 +5453,7 @@ function solve_agent_problem_ipp_cap(
             t in [model_data.index_t.elements[1]],
         ],
         ipp.stor_duration_new(s) * (
-            sum(
-                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + ipp.x_stor_C_cumu(p, s, z)
+            ipp.x_stor_C_cumu(p, s, z)
         ) -
         ipp.initial_energy_new_my(y, p, s, z, d) - charge_C_bounds[y, p, s, z, d, t] * delta_t >= 0
     )
@@ -5470,10 +5468,7 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t.elements,
         ],
-            sum(
-                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                model_data.year(first(model_data.index_y)):model_data.year(y)
-            ) + ipp.x_stor_C_cumu(p, s, z) - charge_C_bounds[y, p, s, z, d, t] - discharge_C_bounds[y, p, s, z, d, t] / ipp.rte_stor_C_my(y, p, z, s) >= 0
+        ipp.x_stor_C_cumu(p, s, z) - charge_C_bounds[y, p, s, z, d, t] - discharge_C_bounds[y, p, s, z, d, t] / ipp.rte_stor_C_my(y, p, z, s) >= 0
     )
 
     push!(jump_model, MPPDCMER_lower)
@@ -5483,8 +5478,13 @@ function solve_agent_problem_ipp_cap(
         optimize!(MPPDCMER_lower)
     end
 
+<<<<<<< HEAD
     #objective_value(MPPDCMER_lower)
 
+=======
+    # TEMPORARY CODE FOR TESTING
+    # objective_value(MPPDCMER_lower) # calling this errors the program if the optimization failed
+>>>>>>> main
     # dual_model = dualize(MPPDCMER_lower; dual_names = DualNames("dual", ""))
     # f = open("lower_level_dual.txt","w"); print(f, dual_model); close(f)
 
@@ -5578,7 +5578,7 @@ function solve_agent_problem_ipp_cap(
                     ) +
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * 
+                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera_pre, z) * 
                         customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                     ) -
                     # green technology subscription at time t
@@ -5593,10 +5593,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     eta_lower[y, p, k, z, d, t] *
                     ipp.rho_E_my(p, k, z, d, t) * (
-                        ipp.x_E_my(p, z, k) - sum(
-                            ipp.x_R_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) - ipp.x_R_cumu(p, k, z)
+                        ipp.x_E_my(p, z, k) - ipp.x_R_cumu(p, k, z)
                     ) for p in ipp.index_p, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -5604,10 +5601,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     lambda_lower[y, p, k, z, d, t] *
                     ipp.rho_C_my(p, k, z, d, t) * (
-                        sum(
-                            ipp.x_C_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) + ipp.x_C_cumu(p, k, z)
+                        ipp.x_C_cumu(p, k, z)
                     ) for p in ipp.index_p, k in ipp.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) + 
@@ -5619,10 +5613,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     theta_E_energy_lower[y, p, s, z, d, t] *
                     ipp.stor_duration_existing(s) * (
-                        ipp.x_stor_E_my(p, z, s) - sum(
-                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -5630,10 +5621,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     theta_E_discharge_lower[y, p, s, z, d, t] *
                     ipp.rte_stor_E_my(y, p, z, s) * (
-                        ipp.x_stor_E_my(p, z, s) - sum(
-                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -5641,10 +5629,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     theta_E_charge_lower[y, p, s, z, d, t] *
                     (
-                        ipp.x_stor_E_my(p, z, s) - sum(
-                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -5652,10 +5637,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     pi_E_charge_lower[y, p, s, z, d, t] *
                     ipp.stor_duration_existing(s) * (
-                        ipp.x_stor_E_my(p, z, s) - sum(
-                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -5663,10 +5645,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     kappa_E_lower[y, p, s, z, d, t] *
                     (
-                        ipp.x_stor_E_my(p, z, s) - sum(
-                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -5674,10 +5653,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     theta_C_energy_lower[y, p, s, z, d, t] *
                     ipp.stor_duration_new(s) * (
-                        sum(
-                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) + ipp.x_stor_C_cumu(p, s, z)
+                        ipp.x_stor_C_cumu(p, s, z)
                     )
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -5686,10 +5662,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     theta_C_discharge_lower[y, p, s, z, d, t] *
                     ipp.rte_stor_C_my(y, p, z, s) * (
-                        sum(
-                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) + ipp.x_stor_C_cumu(p, s, z)
+                        ipp.x_stor_C_cumu(p, s, z)
                     ) 
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -5697,10 +5670,7 @@ function solve_agent_problem_ipp_cap(
             (
                 sum(
                     theta_C_charge_lower[y, p, s, z, d, t] * (
-                        sum(
-                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) + ipp.x_stor_C_cumu(p, s, z)
+                        ipp.x_stor_C_cumu(p, s, z)
                     ) 
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -5709,10 +5679,7 @@ function solve_agent_problem_ipp_cap(
                 sum(
                     pi_C_charge_lower[y, p, s, z, d, t] *
                     ipp.stor_duration_new(s) * (
-                        sum(
-                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) + ipp.x_stor_C_cumu(p, s, z)
+                        ipp.x_stor_C_cumu(p, s, z)
                     ) 
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -5720,10 +5687,7 @@ function solve_agent_problem_ipp_cap(
             (
                 sum(
                     kappa_C_lower[y, p, s, z, d, t] * (
-                        sum(
-                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) + ipp.x_stor_C_cumu(p, s, z)
+                        ipp.x_stor_C_cumu(p, s, z)
                     ) 
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -5889,139 +5853,365 @@ function solve_agent_problem_ipp_cap(
         optimize!(MPPDCMER_lower_dual)
     end
 
-    objective_value(MPPDCMER_lower_dual)
-
+    # TEMPORARY CODE FOR TESTING
+    # objective_value(MPPDCMER_lower_dual) # calling this errors the program if the optimization failed
     # f = open("lower_level_dual_my_version.txt","w"); print(f, MPPDCMER_lower_dual); close(f)
-
     # abs.(value.(miu_lower).data) .- abs.(dual.(Eq_primal_feasible_supplydemandbalance_lower).data)
 
+    model_data.index_y.elements =
+                model_data.index_y_fix.elements[w_iter:(w_iter + window_length - 1)]
 
-    eta_param = initialize_param("eta_param", model_data.index_y, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(eta_param, NaN)
-    for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        eta_param(y, k, z, d, t, :) .= abs(dual.(Eq_primal_feasible_gen_max_E_lower[y, p_star, k, z, d, t]))
-    end
+    if termination_status(MPPDCMER_lower) == OPTIMAL
+        # Lower-level problem completed successfully. Calculate and save McCormick bounds.
 
-    lambda_param = initialize_param("lambda_param", model_data.index_y, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(lambda_param, NaN)
-    for y in model_data.index_y, k in ipp.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        lambda_param(y, k, z, d, t, :) .= abs(dual.(Eq_primal_feasible_gen_max_C_lower[y, p_star, k, z, d, t]))
-    end
+        eta_param = initialize_param("eta_param", model_data.index_y, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(eta_param, NaN)
+        for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            eta_param(y, k, z, d, t, :) .= abs(dual.(Eq_primal_feasible_gen_max_E_lower[Symbol(y_minus), p_star, k, z, d, t]))
+        end
 
-    theta_E_energy_param = initialize_param("theta_E_energy_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(theta_E_energy_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        theta_E_energy_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_energy_upper_bound_E_lower[y, p_star, s, z, d, t]))
-    end
+        lambda_param = initialize_param("lambda_param", model_data.index_y, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(lambda_param, NaN)
+        for y in model_data.index_y, k in ipp.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            lambda_param(y, k, z, d, t, :) .= abs(dual.(Eq_primal_feasible_gen_max_C_lower[Symbol(y_minus), p_star, k, z, d, t]))
+        end
 
-    theta_E_discharge_param = initialize_param("theta_E_discharge_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(theta_E_discharge_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        theta_E_discharge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_discharge_upper_bound_E_lower[y, p_star, s, z, d, t]))
-    end
+        theta_E_energy_param = initialize_param("theta_E_energy_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(theta_E_energy_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            theta_E_energy_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_energy_upper_bound_E_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    theta_E_charge_param = initialize_param("theta_E_charge_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(theta_E_charge_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        theta_E_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_upper_bound_E_lower[y, p_star, s, z, d, t]))
-    end
+        theta_E_discharge_param = initialize_param("theta_E_discharge_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(theta_E_discharge_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            theta_E_discharge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_discharge_upper_bound_E_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    pi_E_charge_param = initialize_param("pi_E_charge_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(pi_E_charge_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t.elements[2:end]
-        pi_E_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_energy_upper_bound_E_lower[y, p_star, s, z, d, t]))
-    end
-    for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in [model_data.index_t.elements[1]]
-        pi_E_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_energy_upper_bound_E_0_lower[y, p_star, s, z, d, t]))
-    end
+        theta_E_charge_param = initialize_param("theta_E_charge_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(theta_E_charge_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            theta_E_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_upper_bound_E_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    kappa_E_param = initialize_param("kappa_E_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(kappa_E_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        kappa_E_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_discharge_upper_bound_E_lower[y, p_star, s, z, d, t]))
-    end
+        pi_E_charge_param = initialize_param("pi_E_charge_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(pi_E_charge_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t.elements[2:end]
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            pi_E_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_energy_upper_bound_E_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
+        for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in [model_data.index_t.elements[1]]
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            pi_E_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_energy_upper_bound_E_0_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    theta_C_energy_param = initialize_param("theta_C_energy_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(theta_C_energy_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        theta_C_energy_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_energy_upper_bound_C_lower[y, p_star, s, z, d, t]))
-    end
+        kappa_E_param = initialize_param("kappa_E_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(kappa_E_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            kappa_E_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_discharge_upper_bound_E_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    theta_C_discharge_param = initialize_param("theta_C_discharge_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(theta_C_discharge_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        theta_C_discharge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_discharge_upper_bound_C_lower[y, p_star, s, z, d, t]))
-    end
+        theta_C_energy_param = initialize_param("theta_C_energy_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(theta_C_energy_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            theta_C_energy_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_energy_upper_bound_C_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    theta_C_charge_param = initialize_param("theta_C_charge_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(theta_C_charge_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        theta_C_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_upper_bound_C_lower[y, p_star, s, z, d, t]))
-    end
+        theta_C_discharge_param = initialize_param("theta_C_discharge_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(theta_C_discharge_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            theta_C_discharge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_discharge_upper_bound_C_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    pi_C_charge_param = initialize_param("pi_C_charge_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(pi_C_charge_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t.elements[2:end]
-        pi_C_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_energy_upper_bound_C_lower[y, p_star, s, z, d, t]))
-    end
-    for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in [model_data.index_t.elements[1]]
-        pi_C_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_energy_upper_bound_C_0_lower[y, p_star, s, z, d, t]))
-    end
+        theta_C_charge_param = initialize_param("theta_C_charge_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(theta_C_charge_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            theta_C_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_upper_bound_C_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    kappa_C_param = initialize_param("kappa_C_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    fill!(kappa_C_param, NaN)
-    for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        kappa_C_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_discharge_upper_bound_C_lower[y, p_star, s, z, d, t]))
-    end
+        pi_C_charge_param = initialize_param("pi_C_charge_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(pi_C_charge_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t.elements[2:end]
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            pi_C_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_energy_upper_bound_C_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
+        for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in [model_data.index_t.elements[1]]
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            pi_C_charge_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_energy_upper_bound_C_0_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    # test bounds McCormick-envelope Relaxation
-    # eta_param = CSV.read(joinpath("/home/nguo/HolisticElectricityModel-Data/outputs/ba_1_base_2018_future_1_ipps_1", "eta.csv"), DataFrame)
-    # lambda_param = CSV.read(joinpath("/home/nguo/HolisticElectricityModel-Data/outputs/ba_1_base_2018_future_1_ipps_1", "lambda.csv"), DataFrame)
- 
-    # eta_upper_bound_adj = 1.015
-    # eta_lower_bound_adj = 0.985
-    # lambda_upper_bound_adj = 1.015
-    # lambda_lower_bound_adj = 0.985
-    # battery_upper_bound_adj = 1.015
-    # battery_lower_bound_adj = 0.985
+        kappa_C_param = initialize_param("kappa_C_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        fill!(kappa_C_param, NaN)
+        for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
+            kappa_C_param(y, s, z, d, t, :) .= abs(dual.(Eq_primal_feasible_charge_discharge_upper_bound_C_lower[Symbol(y_minus), p_star, s, z, d, t]))
+        end
 
-    # adjust these bounds may make the problem easier to solve! But it may also hurt the duality gap.
-    eta_upper_bound_adj = 1.1 # 1.1
-    eta_lower_bound_adj = 0.9 # 0.8
-    lambda_upper_bound_adj = 1.1
-    lambda_lower_bound_adj = 0.9
-    battery_upper_bound_adj = 1.1
-    battery_lower_bound_adj = 0.9
+        # TEMPORARY CODE FOR TESTING
+        # test bounds McCormick-envelope Relaxation
+        # eta_param = CSV.read(joinpath("/home/nguo/HolisticElectricityModel-Data/outputs/ba_1_base_2018_future_1_ipps_1", "eta.csv"), DataFrame)
+        # lambda_param = CSV.read(joinpath("/home/nguo/HolisticElectricityModel-Data/outputs/ba_1_base_2018_future_1_ipps_1", "lambda.csv"), DataFrame)
 
-    # eta_upper_bound_adj = 10.0
-    # eta_lower_bound_adj = 10.0
-    # lambda_upper_bound_adj = 10.0
-    # lambda_lower_bound_adj = 10.0
+        # adjust these bounds may make the problem easier to solve! But it may also hurt the duality gap.
+        eta_upper_bound_adj = 1.3 # 1.1
+        eta_lower_bound_adj = 0.7 # 0.8
+        lambda_upper_bound_adj = 1.3
+        lambda_lower_bound_adj = 0.7
+        battery_upper_bound_adj = 1.3
+        battery_lower_bound_adj = 0.7
 
-    eta_L = initialize_param("eta_L", model_data.index_y, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    eta_U = initialize_param("eta_U", model_data.index_y, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        eta_L = initialize_param("eta_L", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        eta_U = initialize_param("eta_U", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
 
-    for y in model_data.index_y
-        for k in ipp.index_k_existing
-            for z in model_data.index_z
-                for d in model_data.index_d
-                    for t in model_data.index_t
-                        eta_U(y, k, z, d, t, :) .= eta_param(y, k, z, d, t) * eta_upper_bound_adj
-                        eta_L(y, k, z, d, t, :) .= eta_param(y, k, z, d, t) * eta_lower_bound_adj
+        for y in model_data.index_y
+            for k in ipp.index_k_existing
+                for z in model_data.index_z
+                    for d in model_data.index_d
+                        for t in model_data.index_t
+                            eta_U(y, k, z, d, t, :) .= eta_param(y, k, z, d, t) * eta_upper_bound_adj
+                            eta_L(y, k, z, d, t, :) .= eta_param(y, k, z, d, t) * eta_lower_bound_adj
+                        end
                     end
                 end
             end
         end
+        push!(ipp.eta_U_vec, eta_U)
+        push!(ipp.eta_L_vec, eta_L)
+
+        lambda_L = initialize_param("lambda_L", deepcopy(model_data.index_y), ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        lambda_U = initialize_param("lambda_U", deepcopy(model_data.index_y), ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        
+        for y in model_data.index_y
+            for k in ipp.index_k_new
+                for z in model_data.index_z
+                    for d in model_data.index_d
+                        for t in model_data.index_t
+                            lambda_U(y, k, z, d, t, :) .= lambda_param(y, k, z, d, t) * lambda_upper_bound_adj
+                            lambda_L(y, k, z, d, t, :) .= lambda_param(y, k, z, d, t) * lambda_lower_bound_adj
+                        end
+                    end
+                end
+            end
+        end
+
+        push!(ipp.lambda_U_vec, lambda_U)
+        push!(ipp.lambda_L_vec, lambda_L)
+
+        theta_E_energy_L = initialize_param("theta_E_energy_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_energy_U = initialize_param("theta_E_energy_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_discharge_L = initialize_param("theta_E_discharge_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_discharge_U = initialize_param("theta_E_discharge_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_charge_L = initialize_param("theta_E_charge_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_charge_U = initialize_param("theta_E_charge_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_E_charge_L = initialize_param("pi_E_charge_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_E_charge_U = initialize_param("pi_E_charge_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_E_L = initialize_param("kappa_E_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_E_U = initialize_param("kappa_E_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+
+        for y in model_data.index_y
+            for k in ipp.index_stor_existing
+                for z in model_data.index_z
+                    for d in model_data.index_d
+                        for t in model_data.index_t
+                            theta_E_energy_U(y, k, z, d, t, :) .= theta_E_energy_param(y, k, z, d, t) * battery_upper_bound_adj
+                            theta_E_energy_L(y, k, z, d, t, :) .= theta_E_energy_param(y, k, z, d, t) * battery_lower_bound_adj
+                            theta_E_discharge_U(y, k, z, d, t, :) .= theta_E_discharge_param(y, k, z, d, t) * battery_upper_bound_adj
+                            theta_E_discharge_L(y, k, z, d, t, :) .= theta_E_discharge_param(y, k, z, d, t) * battery_lower_bound_adj
+                            theta_E_charge_U(y, k, z, d, t, :) .= theta_E_charge_param(y, k, z, d, t) * battery_upper_bound_adj
+                            theta_E_charge_L(y, k, z, d, t, :) .= theta_E_charge_param(y, k, z, d, t) * battery_lower_bound_adj
+                            pi_E_charge_U(y, k, z, d, t, :) .= pi_E_charge_param(y, k, z, d, t) * battery_upper_bound_adj
+                            pi_E_charge_L(y, k, z, d, t, :) .= pi_E_charge_param(y, k, z, d, t) * battery_lower_bound_adj
+                            kappa_E_U(y, k, z, d, t, :) .= kappa_E_param(y, k, z, d, t) * battery_upper_bound_adj
+                            kappa_E_L(y, k, z, d, t, :) .= kappa_E_param(y, k, z, d, t) * battery_lower_bound_adj
+                        end
+                    end
+                end
+            end
+        end
+
+        push!(ipp.theta_E_energy_L_vec, theta_E_energy_L)
+        push!(ipp.theta_E_energy_U_vec, theta_E_energy_U)
+        push!(ipp.theta_E_discharge_L_vec, theta_E_discharge_L)
+        push!(ipp.theta_E_discharge_U_vec, theta_E_discharge_U)
+        push!(ipp.theta_E_charge_L_vec, theta_E_charge_L)
+        push!(ipp.theta_E_charge_U_vec, theta_E_charge_U)
+        push!(ipp.pi_E_charge_L_vec, pi_E_charge_L)
+        push!(ipp.pi_E_charge_U_vec, pi_E_charge_U)
+        push!(ipp.kappa_E_L_vec, kappa_E_L)
+        push!(ipp.kappa_E_U_vec, kappa_E_U)
+
+        theta_C_energy_L = initialize_param("theta_C_energy_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_energy_U = initialize_param("theta_C_energy_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_discharge_L = initialize_param("theta_C_discharge_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_discharge_U = initialize_param("theta_C_discharge_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_charge_L = initialize_param("theta_C_charge_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_charge_U = initialize_param("theta_C_charge_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_C_charge_L = initialize_param("pi_C_charge_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_C_charge_U = initialize_param("pi_C_charge_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_C_L = initialize_param("kappa_C_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_C_U = initialize_param("kappa_C_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+
+        for y in model_data.index_y
+            for k in ipp.index_stor_new
+                for z in model_data.index_z
+                    for d in model_data.index_d
+                        for t in model_data.index_t
+                            theta_C_energy_U(y, k, z, d, t, :) .= theta_C_energy_param(y, k, z, d, t) * battery_upper_bound_adj
+                            theta_C_energy_L(y, k, z, d, t, :) .= theta_C_energy_param(y, k, z, d, t) * battery_lower_bound_adj
+                            theta_C_discharge_U(y, k, z, d, t, :) .= theta_C_discharge_param(y, k, z, d, t) * battery_upper_bound_adj
+                            theta_C_discharge_L(y, k, z, d, t, :) .= theta_C_discharge_param(y, k, z, d, t) * battery_lower_bound_adj
+                            theta_C_charge_U(y, k, z, d, t, :) .= theta_C_charge_param(y, k, z, d, t) * battery_upper_bound_adj
+                            theta_C_charge_L(y, k, z, d, t, :) .= theta_C_charge_param(y, k, z, d, t) * battery_lower_bound_adj
+                            pi_C_charge_U(y, k, z, d, t, :) .= pi_C_charge_param(y, k, z, d, t) * battery_upper_bound_adj
+                            pi_C_charge_L(y, k, z, d, t, :) .= pi_C_charge_param(y, k, z, d, t) * battery_lower_bound_adj
+                            kappa_C_U(y, k, z, d, t, :) .= kappa_C_param(y, k, z, d, t) * battery_upper_bound_adj
+                            kappa_C_L(y, k, z, d, t, :) .= kappa_C_param(y, k, z, d, t) * battery_lower_bound_adj
+                        end
+                    end
+                end
+            end
+        end
+
+        push!(ipp.theta_C_energy_L_vec, theta_C_energy_L)
+        push!(ipp.theta_C_energy_U_vec, theta_C_energy_U)
+        push!(ipp.theta_C_discharge_L_vec, theta_C_discharge_L)
+        push!(ipp.theta_C_discharge_U_vec, theta_C_discharge_U)
+        push!(ipp.theta_C_charge_L_vec, theta_C_charge_L)
+        push!(ipp.theta_C_charge_U_vec, theta_C_charge_U)
+        push!(ipp.pi_C_charge_L_vec, pi_C_charge_L)
+        push!(ipp.pi_C_charge_U_vec, pi_C_charge_U)
+        push!(ipp.kappa_C_L_vec, kappa_C_L)
+        push!(ipp.kappa_C_U_vec, kappa_C_U)
+    else
+        # Lower-level problem failed. Use previous McCormick bounds.
+
+        eta_L = initialize_param("eta_L", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        eta_U = initialize_param("eta_U", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+
+        for y in model_data.index_y
+            i = 1
+            y_before = ipp.eta_U_vec[end].dims[1][i]
+
+            for k in ipp.index_k_existing
+                for z in model_data.index_z
+                    for d in model_data.index_d
+                        for t in model_data.index_t
+                            eta_U(y, k, z, d, t, :) .= ipp.eta_U_vec[end](y_before, k, z, d, t)
+                            eta_L(y, k, z, d, t, :) .= ipp.eta_L_vec[end](y_before, k, z, d, t)
+                        end
+                    end
+                end
+            end
+
+            i += 1
+        end
+
+        lambda_L = initialize_param("lambda_L", deepcopy(model_data.index_y), ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        lambda_U = initialize_param("lambda_U", deepcopy(model_data.index_y), ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
+
+        for y in model_data.index_y
+            i = 1
+            y_before = ipp.eta_U_vec[end].dims[1][i]
+
+            for k in ipp.index_k_new
+                for z in model_data.index_z
+                    for d in model_data.index_d
+                        for t in model_data.index_t
+                            lambda_U(y, k, z, d, t, :) .= ipp.lambda_U_vec[end](y_before, k, z, d, t)
+                            lambda_L(y, k, z, d, t, :) .= ipp.lambda_L_vec[end](y_before, k, z, d, t)
+                        end
+                    end
+                end
+            end
+
+            i += 1
+        end
+
+        theta_E_energy_L = initialize_param("theta_E_energy_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_energy_U = initialize_param("theta_E_energy_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_discharge_L = initialize_param("theta_E_discharge_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_discharge_U = initialize_param("theta_E_discharge_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_charge_L = initialize_param("theta_E_charge_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_charge_U = initialize_param("theta_E_charge_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_E_charge_L = initialize_param("pi_E_charge_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_E_charge_U = initialize_param("pi_E_charge_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_E_L = initialize_param("kappa_E_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_E_U = initialize_param("kappa_E_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        
+        for y in model_data.index_y
+            i = 1
+            y_before = ipp.eta_U_vec[end].dims[1][i]
+
+            for k in ipp.index_stor_existing
+                for z in model_data.index_z
+                    for d in model_data.index_d
+                        for t in model_data.index_t
+                            theta_E_energy_U(y, k, z, d, t, :) .= ipp.theta_E_energy_U_vec[end](y_before, k, z, d, t)
+                            theta_E_energy_L(y, k, z, d, t, :) .= ipp.theta_E_energy_L_vec[end](y_before, k, z, d, t)
+                            theta_E_discharge_U(y, k, z, d, t, :) .= ipp.theta_E_discharge_U_vec[end](y_before, k, z, d, t)
+                            theta_E_discharge_L(y, k, z, d, t, :) .= ipp.theta_E_discharge_L_vec[end](y_before, k, z, d, t)
+                            theta_E_charge_U(y, k, z, d, t, :) .= ipp.theta_E_charge_U_vec[end](y_before, k, z, d, t)
+                            theta_E_charge_L(y, k, z, d, t, :) .= ipp.theta_E_charge_L_vec[end](y_before, k, z, d, t)
+                            pi_E_charge_U(y, k, z, d, t, :) .= ipp.pi_E_charge_U_vec[end](y_before, k, z, d, t)
+                            pi_E_charge_L(y, k, z, d, t, :) .= ipp.pi_E_charge_L_vec[end](y_before, k, z, d, t)
+                            kappa_E_U(y, k, z, d, t, :) .= ipp.kappa_E_U_vec[end](y_before, k, z, d, t)
+                            kappa_E_L(y, k, z, d, t, :) .= ipp.kappa_E_L_vec[end](y_before, k, z, d, t)
+                        end
+                    end
+                end
+            end
+
+            i += 1
+        end
+
+        theta_C_energy_L = initialize_param("theta_C_energy_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_energy_U = initialize_param("theta_C_energy_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_discharge_L = initialize_param("theta_C_discharge_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_discharge_U = initialize_param("theta_C_discharge_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_charge_L = initialize_param("theta_C_charge_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_charge_U = initialize_param("theta_C_charge_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_C_charge_L = initialize_param("pi_C_charge_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_C_charge_U = initialize_param("pi_C_charge_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_C_L = initialize_param("kappa_C_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_C_U = initialize_param("kappa_C_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+
+        for y in model_data.index_y
+            i = 1
+            y_before = ipp.eta_U_vec[end].dims[1][i]
+
+            for k in ipp.index_stor_new
+                for z in model_data.index_z
+                    for d in model_data.index_d
+                        for t in model_data.index_t
+                            theta_C_energy_U(y, k, z, d, t, :) .= ipp.theta_C_energy_U_vec[end](y_before, k, z, d, t)
+                            theta_C_energy_L(y, k, z, d, t, :) .= ipp.theta_C_energy_L_vec[end](y_before, k, z, d, t)
+                            theta_C_discharge_U(y, k, z, d, t, :) .= ipp.theta_C_discharge_U_vec[end](y_before, k, z, d, t)
+                            theta_C_discharge_L(y, k, z, d, t, :) .= ipp.theta_C_discharge_L_vec[end](y_before, k, z, d, t)
+                            theta_C_charge_U(y, k, z, d, t, :) .= ipp.theta_C_charge_U_vec[end](y_before, k, z, d, t)
+                            theta_C_charge_L(y, k, z, d, t, :) .= ipp.theta_C_charge_L_vec[end](y_before, k, z, d, t)
+                            pi_C_charge_U(y, k, z, d, t, :) .= ipp.pi_C_charge_U_vec[end](y_before, k, z, d, t)
+                            pi_C_charge_L(y, k, z, d, t, :) .= ipp.pi_C_charge_L_vec[end](y_before, k, z, d, t)
+                            kappa_C_U(y, k, z, d, t, :) .= ipp.kappa_C_U_vec[end](y_before, k, z, d, t)
+                            kappa_C_L(y, k, z, d, t, :) .= ipp.kappa_C_L_vec[end](y_before, k, z, d, t)
+                        end
+                    end
+                end
+            end
+
+            i += 1
+        end
+
     end
 
-    # for y in model_data.index_y
-    #     for k in ipp.index_k_existing
-    #         for t in model_data.index_t
-    #             eta_U[y, k, t] = eta_param[(eta_param.Year .== model_data.year[y]) .& (eta_param.IPP .== "ipp1") .& (eta_param.GenTech .== string(k)) .& (eta_param.Time .== string(t)), "eta"][1] + 10.0
-    #             eta_L[y, k, t] = eta_param[(eta_param.Year .== model_data.year[y]) .& (eta_param.IPP .== "ipp1") .& (eta_param.GenTech .== string(k)) .& (eta_param.Time .== string(t)), "eta"][1] - 10.0
-    #         end
-    #     end
-    # end
 
     X_R_cumu_L = initialize_param("x_R_L", model_data.index_y, ipp.index_k_existing, model_data.index_z)
     X_R_cumu_U = initialize_param("x_R_U", model_data.index_y, ipp.index_k_existing, model_data.index_z)
@@ -6051,31 +6241,6 @@ function solve_agent_problem_ipp_cap(
         end
     end
 
-    lambda_L = initialize_param("lambda_L", model_data.index_y, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    lambda_U = initialize_param("lambda_U", model_data.index_y, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    
-    for y in model_data.index_y
-        for k in ipp.index_k_new
-            for z in model_data.index_z
-                for d in model_data.index_d
-                    for t in model_data.index_t
-                        lambda_U(y, k, z, d, t, :) .= lambda_param(y, k, z, d, t) * lambda_upper_bound_adj
-                        lambda_L(y, k, z, d, t, :) .= lambda_param(y, k, z, d, t) * lambda_lower_bound_adj
-                    end
-                end
-            end
-        end
-    end
-
-    # for y in model_data.index_y
-    #     for k in ipp.index_k_new
-    #         for t in model_data.index_t
-    #             lambda_U[y, k, t] = lambda_param[(lambda_param.Year .== model_data.year[y]) .& (lambda_param.IPP .== "ipp1") .& (lambda_param.GenTech .== string(k)) .& (lambda_param.Time .== string(t)), "Generation_MWh"][1] + 10.0
-    #             lambda_L[y, k, t] = lambda_param[(lambda_param.Year .== model_data.year[y]) .& (lambda_param.IPP .== "ipp1") .& (lambda_param.GenTech .== string(k)) .& (lambda_param.Time .== string(t)), "Generation_MWh"][1] - 10.0
-    #         end
-    #     end
-    # end
-
     X_C_cumu_L = initialize_param("x_C_L", model_data.index_y, ipp.index_k_new, model_data.index_z)
     X_C_cumu_U = initialize_param("x_C_U", model_data.index_y, ipp.index_k_new, model_data.index_z)
     X_C_stor_cumu_L = initialize_param("x_C_stor_L", model_data.index_y, ipp.index_stor_new, model_data.index_z)
@@ -6095,82 +6260,6 @@ function solve_agent_problem_ipp_cap(
                 # need to have constraints in the optimization as well
                 # this hard-coded number needs to change
                 X_C_stor_cumu_U(y, s, z, :) .= 5000.0
-            end
-        end
-    end
-
-    # adjust upper bound of X_C for specific technology
-    # for y in model_data.index_y
-    #     for z in model_data.index_z
-    #         # need to have constraints in the optimization as well
-    #         # this hard-coded number needs to change
-    #         X_C_cumu_U(y, Symbol("lfill-gas"), z, :) .= 10.0
-    #         X_C_cumu_U(y, Symbol("coaloldscr"), z, :) .= 10.0
-    #         X_C_cumu_U(y, Symbol("coalolduns"), z, :) .= 10.0
-    #         X_C_cumu_U(y, Symbol("o-g-s"), z, :) .= 10.0
-    #     end
-    # end
-
-    theta_E_energy_L = initialize_param("theta_E_energy_L", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_E_energy_U = initialize_param("theta_E_energy_U", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_E_discharge_L = initialize_param("theta_E_discharge_L", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_E_discharge_U = initialize_param("theta_E_discharge_U", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_E_charge_L = initialize_param("theta_E_charge_L", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_E_charge_U = initialize_param("theta_E_charge_U", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    pi_E_charge_L = initialize_param("pi_E_charge_L", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    pi_E_charge_U = initialize_param("pi_E_charge_U", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    kappa_E_L = initialize_param("kappa_E_L", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-    kappa_E_U = initialize_param("kappa_E_U", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
-
-    for y in model_data.index_y
-        for k in ipp.index_stor_existing
-            for z in model_data.index_z
-                for d in model_data.index_d
-                    for t in model_data.index_t
-                        theta_E_energy_U(y, k, z, d, t, :) .= theta_E_energy_param(y, k, z, d, t) * battery_upper_bound_adj
-                        theta_E_energy_L(y, k, z, d, t, :) .= theta_E_energy_param(y, k, z, d, t) * battery_lower_bound_adj
-                        theta_E_discharge_U(y, k, z, d, t, :) .= theta_E_discharge_param(y, k, z, d, t) * battery_upper_bound_adj
-                        theta_E_discharge_L(y, k, z, d, t, :) .= theta_E_discharge_param(y, k, z, d, t) * battery_lower_bound_adj
-                        theta_E_charge_U(y, k, z, d, t, :) .= theta_E_charge_param(y, k, z, d, t) * battery_upper_bound_adj
-                        theta_E_charge_L(y, k, z, d, t, :) .= theta_E_charge_param(y, k, z, d, t) * battery_lower_bound_adj
-                        pi_E_charge_U(y, k, z, d, t, :) .= pi_E_charge_param(y, k, z, d, t) * battery_upper_bound_adj
-                        pi_E_charge_L(y, k, z, d, t, :) .= pi_E_charge_param(y, k, z, d, t) * battery_lower_bound_adj
-                        kappa_E_U(y, k, z, d, t, :) .= kappa_E_param(y, k, z, d, t) * battery_upper_bound_adj
-                        kappa_E_L(y, k, z, d, t, :) .= kappa_E_param(y, k, z, d, t) * battery_lower_bound_adj
-                    end
-                end
-            end
-        end
-    end
-
-    theta_C_energy_L = initialize_param("theta_C_energy_L", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_C_energy_U = initialize_param("theta_C_energy_U", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_C_discharge_L = initialize_param("theta_C_discharge_L", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_C_discharge_U = initialize_param("theta_C_discharge_U", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_C_charge_L = initialize_param("theta_C_charge_L", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    theta_C_charge_U = initialize_param("theta_C_charge_U", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    pi_C_charge_L = initialize_param("pi_C_charge_L", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    pi_C_charge_U = initialize_param("pi_C_charge_U", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    kappa_C_L = initialize_param("kappa_C_L", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-    kappa_C_U = initialize_param("kappa_C_U", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
-
-    for y in model_data.index_y
-        for k in ipp.index_stor_new
-            for z in model_data.index_z
-                for d in model_data.index_d
-                    for t in model_data.index_t
-                        theta_C_energy_U(y, k, z, d, t, :) .= theta_C_energy_param(y, k, z, d, t) * battery_upper_bound_adj
-                        theta_C_energy_L(y, k, z, d, t, :) .= theta_C_energy_param(y, k, z, d, t) * battery_lower_bound_adj
-                        theta_C_discharge_U(y, k, z, d, t, :) .= theta_C_discharge_param(y, k, z, d, t) * battery_upper_bound_adj
-                        theta_C_discharge_L(y, k, z, d, t, :) .= theta_C_discharge_param(y, k, z, d, t) * battery_lower_bound_adj
-                        theta_C_charge_U(y, k, z, d, t, :) .= theta_C_charge_param(y, k, z, d, t) * battery_upper_bound_adj
-                        theta_C_charge_L(y, k, z, d, t, :) .= theta_C_charge_param(y, k, z, d, t) * battery_lower_bound_adj
-                        pi_C_charge_U(y, k, z, d, t, :) .= pi_C_charge_param(y, k, z, d, t) * battery_upper_bound_adj
-                        pi_C_charge_L(y, k, z, d, t, :) .= pi_C_charge_param(y, k, z, d, t) * battery_lower_bound_adj
-                        kappa_C_U(y, k, z, d, t, :) .= kappa_C_param(y, k, z, d, t) * battery_upper_bound_adj
-                        kappa_C_L(y, k, z, d, t, :) .= kappa_C_param(y, k, z, d, t) * battery_lower_bound_adj
-                    end
-                end
             end
         end
     end
@@ -6380,60 +6469,7 @@ function solve_agent_problem_ipp_cap(
         flow_cap[model_data.index_y, ipp.index_l]
     )
 
-
-    # for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(eta[y, p_star, k, z, d, t], eta_L(y, k, z, d, t))
-    #     set_upper_bound(eta[y, p_star, k, z, d, t], eta_U(y, k, z, d, t))
-    # end
-    # for y in model_data.index_y, k in ipp.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(lambda[y, p_star, k, z, d, t], lambda_L(y, k, z, d, t))
-    #     set_upper_bound(lambda[y, p_star, k, z, d, t], lambda_U(y, k, z, d, t))
-    # end
-    # for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(theta_E_energy[y, p_star, s, z, d, t], theta_E_energy_L(y, s, z, d, t))
-    #     set_upper_bound(theta_E_energy[y, p_star, s, z, d, t], theta_E_energy_U(y, s, z, d, t))
-    # end
-    # for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(theta_E_discharge[y, p_star, s, z, d, t], theta_E_discharge_L(y, s, z, d, t))
-    #     set_upper_bound(theta_E_discharge[y, p_star, s, z, d, t], theta_E_discharge_U(y, s, z, d, t))
-    # end
-    # for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(theta_E_charge[y, p_star, s, z, d, t], theta_E_charge_L(y, s, z, d, t))
-    #     set_upper_bound(theta_E_charge[y, p_star, s, z, d, t], theta_E_charge_U(y, s, z, d, t))
-    # end
-    # for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(pi_E_charge[y, p_star, s, z, d, t], pi_E_charge_L(y, s, z, d, t))
-    #     set_upper_bound(pi_E_charge[y, p_star, s, z, d, t], pi_E_charge_U(y, s, z, d, t))
-    # end
-    # for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(kappa_E[y, p_star, s, z, d, t], kappa_E_L(y, s, z, d, t))
-    #     set_upper_bound(kappa_E[y, p_star, s, z, d, t], kappa_E_U(y, s, z, d, t))
-    # end
-
-
-    # for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(theta_C_energy[y, p_star, s, z, d, t], theta_C_energy_L(y, s, z, d, t))
-    #     set_upper_bound(theta_C_energy[y, p_star, s, z, d, t], theta_C_energy_U(y, s, z, d, t))
-    # end
-    # for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(theta_C_discharge[y, p_star, s, z, d, t], theta_C_discharge_L(y, s, z, d, t))
-    #     set_upper_bound(theta_C_discharge[y, p_star, s, z, d, t], theta_C_discharge_U(y, s, z, d, t))
-    # end
-    # for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(theta_C_charge[y, p_star, s, z, d, t], theta_C_charge_L(y, s, z, d, t))
-    #     set_upper_bound(theta_C_charge[y, p_star, s, z, d, t], theta_C_charge_U(y, s, z, d, t))
-    # end
-    # for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(pi_C_charge[y, p_star, s, z, d, t], pi_C_charge_L(y, s, z, d, t))
-    #     set_upper_bound(pi_C_charge[y, p_star, s, z, d, t], pi_C_charge_U(y, s, z, d, t))
-    # end
-    # for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-    #     set_lower_bound(kappa_C[y, p_star, s, z, d, t], kappa_C_L(y, s, z, d, t))
-    #     set_upper_bound(kappa_C[y, p_star, s, z, d, t], kappa_C_U(y, s, z, d, t))
-    # end
-
-
-
+    # TEMPORARY CODE FOR TESTING
     # setvalue(x_C[Symbol("2019"), :GasCC], 0.0)
     # setvalue(x_C[Symbol("2019"), :GasCT], 0.0)
     # setvalue(x_C[Symbol("2019"), :UPV], 762.961280674661)
@@ -9505,6 +9541,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -9521,6 +9558,7 @@ function solve_agent_problem!(
                 hem_opts,
                 agent_store,
                 w_iter,
+                window_length,
                 jump_model
             )
         end
