@@ -16,6 +16,8 @@ mutable struct HEMData
     index_h::Dimension # customer types
     index_j::Dimension # green tariff technologies
     index_z::Dimension # zone index
+    index_sector::Dimension # zone index
+    h_to_sector::Dict{Symbol, Symbol}
 
     # Parameters
     omega::ParamArray # number of hours per timeslice
@@ -80,7 +82,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         prose_name = "customer group index h",
         description = "customer groups",
     )
-
+  
     # green technology types
     index_j = read_set(
         input_filename,
@@ -99,6 +101,64 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "ReEDS BA modeled",
     )
 
+    # customer group types
+    index_sector = read_set(
+        input_filename,
+        "index_sector",
+        "index_sector",
+        prose_name = "customer group index sector",
+        description = "customer high level groups",
+        
+    )
+
+    index_h_sector_mapping_file = joinpath(input_filename, "index_h_sector_mapping.csv")
+
+    if isfile(index_h_sector_mapping_file)
+        # Read the CSV file, specifying the column names and types
+        index_h_sector_mapping = CSV.read(
+            index_h_sector_mapping_file,
+            DataFrame;
+            header = [:index_h, :index_sector],
+            types = Dict(
+                :index_h => String,
+                :index_sector => String
+            )
+        )
+
+        # Convert the index_h and index_sector columns to Symbols
+        keys = Symbol.(index_h_sector_mapping[!, :index_h])
+        values = Symbol.(index_h_sector_mapping[!, :index_sector])
+
+        # Create a Dict{Symbol, Symbol}
+        h_to_sector = Dict(zip(keys, values))
+    else
+        error("index_h_sector_mapping.csv not found in $index_h_sector_mapping_file")
+    end
+
+    omega = read_param(
+        "omega",
+        input_filename,
+        "Omega",
+        index_d,
+        description = "number of days per representative day"
+    )
+    year = read_param(
+        "year",
+        input_filename,
+        "Year",
+        index_y,
+        description = "Year"
+    )
+    time = read_param(
+        "time",
+        input_filename,
+        "Time",
+        index_t,
+        description = "Time"
+    )
+    year_start = ParamScalar("year_start", 2020, description = "simulation start year")
+
+    # Return HEMData, passing the constructed h_to_sector
     return HEMData(
         ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
         index_y,
@@ -109,16 +169,12 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         index_h,
         index_j,
         index_z,
-        read_param(
-            "omega",
-            input_filename,
-            "Omega",
-            index_d,
-            description = "number of days per representative day",
-        ),
-        read_param("year", input_filename, "Year", index_y, description = "Year"),
-        read_param("time", input_filename, "Time", index_t, description = "Time"),
-        ParamScalar("year_start", 2020, description = "simulation start year"),
+        index_sector,
+        h_to_sector, 
+        omega,
+        year,
+        time,
+        year_start
     )
 end
 
@@ -136,6 +192,17 @@ end
 
 function get_prev_reg_year(model_data::HEMData, w_iter::Integer)
     if w_iter >= 2
+        prev_reg_year = model_data.year(first(model_data.index_y)) - 1
+    else
+        prev_reg_year = model_data.year(first(model_data.index_y))
+    end
+    return prev_reg_year, Symbol(Int(prev_reg_year))
+end
+
+function get_prev_two_reg_year(model_data::HEMData, w_iter::Integer)
+    if w_iter >= 3
+        prev_reg_year = model_data.year(first(model_data.index_y)) - 2
+    elseif w_iter == 2
         prev_reg_year = model_data.year(first(model_data.index_y)) - 1
     else
         prev_reg_year = model_data.year(first(model_data.index_y))
@@ -356,6 +423,7 @@ function solve_equilibrium_problem!(
                             hem_opts,
                             store,
                             w,
+                            window_length,
                             jump_model,
                             export_file_path,
                             true
@@ -364,7 +432,12 @@ function solve_equilibrium_problem!(
                     @assert !isnothing(diff_one) "Nothing returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
                     @assert !(diff_one isa Tuple) "Tuple returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
                     @info "$(diff_one)"
-                    push!(diff_vec, diff_one)
+
+                    if diff_one isa HolisticElectricityModel.ParamArray
+                        push!(diff_vec, maximum(diff_one.values)) 
+                    else
+                        push!(diff_vec, diff_one)
+                    end
                 end
                 diff = maximum(diff_vec)
                 @info "Iteration $i value: $diff"
