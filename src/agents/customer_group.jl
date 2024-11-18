@@ -103,12 +103,13 @@ end
 
 mutable struct GreenSubModel
     Constant::ParamArray
-    GreenPowerPrice_coefficient::ParamArray
     EnergyRate_coefficient::ParamArray
+    WTP_coefficient::ParamArray
     WholesaleMarket_coefficient::ParamArray
+    GreenPowerPrice_coefficient::ParamArray
     RetailCompetition_coefficient::ParamArray
     RPS_coefficient::ParamArray
-    WTP_coefficient::ParamArray
+    
 end
 
 abstract type AbstractCustomerGroup <: AgentGroup end
@@ -357,51 +358,77 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ),
     )
 
+    function generate_coefficients(index_h, h_to_sector, coefficients)
+        return [
+            get(coefficients, h_to_sector[index], 0.0) for index in index_h
+        ]
+    end
+    
+    param_coefficients = Dict(
+        "WholesaleMarket_coefficient" => Dict(
+            "Residential" => 0.0,
+            "Commercial" => 0.14,
+            "Industrial" => 0.14
+        ),
+        "GreenPowerPrice_coefficient" => Dict(
+            "Residential" => 0.0,
+            "Commercial" => 0.55,
+            "Industrial" => 0.55
+        ),
+        "RetailCompetition_coefficient" => Dict(
+            "Residential" => 0.0,
+            "Commercial" => 0.16,
+            "Industrial" => 0.16
+        ),
+        "RPS_coefficient" => Dict(
+            "Residential" => 0.0,
+            "Commercial" => 0.42,
+            "Industrial" => 0.42
+        )
+    )
+    
     green_sub_model = GreenSubModel(
+        # Constant ParamArray
         ParamArray(
             "Constant",
-            (model_data.index_h,),
-            fill(0.0, length(model_data.index_h)),
-            description = "Constant in green power uptake function (regression parameter)",
+            (model_data.index_h,),  
+            fill(0.0, length(model_data.index_h));
+            description = "Constant in green power uptake function (regression parameter)"
         ),
-        ParamArray(
-            "GreenPowerPrice_coefficient",
-            (model_data.index_h,),
-            vcat(fill(0.0, length(model_data.index_h) - 2), [-0.55, -0.55]),
-            description = "Sum of PPA and REC prices (regression parameter)",
-        ),
+        
+        # Energy Rate Coefficient
         ParamArray(
             "EnergyRate_coefficient",
             (model_data.index_h,),
-            vcat(fill(0.0, length(model_data.index_h) - 2), [0.0, 0.0]),
-            description = "Weighted mean C&I volumetric (\$/MWh) rate (regression parameter)",
+            fill(0.0, length(model_data.index_h));
+            description = "Weighted mean C&I volumetric (\$/MWh) rate (regression parameter)"
         ),
-        ParamArray(
-            "WholesaleMarket_coefficient",
-            (model_data.index_h,),
-            vcat(fill(0.0, length(model_data.index_h) - 2), [0.14, 0.14]),
-            description = "% of load served by an ISO (regression parameter)",
-        ),
-        ParamArray(
-            "RetailCompetition_coefficient",
-            (model_data.index_h,),
-            vcat(fill(0.0, length(model_data.index_h) - 2), [0.16, 0.16]),
-            description = "% of C&I customers that are eligible for retail choice (regression parameter)",
-        ),
-        ParamArray(
-            "RPS_coefficient",
-            (model_data.index_h,),
-            vcat(fill(0.0, length(model_data.index_h) - 2), [0.42, 0.42]),
-            description = "RPS percentage requirement in 2019 (regression parameter)",
-        ),
+    
+        # WTP Coefficient
         ParamArray(
             "WTP_coefficient",
             (model_data.index_h,),
-            vcat(fill(0.0, length(model_data.index_h) - 2), [0.0, 0.0]),
-            description = "% of customers willing to pay for renewable energy at the state level (regression parameter)",
+            fill(0.0, length(model_data.index_h));
+            description = "% of customers willing to pay for renewable energy at the state level (regression parameter)"
         ),
+    
+        # Sector-based ParamArrays
+        [
+            ParamArray(
+                param_name,
+                (model_data.index_h,),
+                generate_coefficients(model_data.index_h, model_data.h_to_sector, param_coefficients[param_name]);
+                description = description
+            ) for (param_name, description) in [
+                ("WholesaleMarket_coefficient", "% of load served by an ISO (regression parameter)"),
+                ("GreenPowerPrice_coefficient", "Sum of PPA and REC prices (regression parameter)"),
+                ("RetailCompetition_coefficient", "% of C&I customers that are eligible for retail choice (regression parameter)"),
+                ("RPS_coefficient", "RPS percentage requirement in 2019 (regression parameter)")
+            ]
+        ]...  
     )
     
+        
     # Customer financing
     debt_ratio =
         read_param("debt_ratio", input_filename, "CustomerDebtRatio", model_data.index_h, [model_data.index_z])
