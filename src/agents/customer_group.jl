@@ -360,7 +360,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
 
     function generate_coefficients(index_h, h_to_sector, coefficients)
         return [
-            get(coefficients, h_to_sector[index], 0.0) for index in index_h
+            get(coefficients, h_to_sector[h], 0.0) for h in index_h
         ]
     end
     
