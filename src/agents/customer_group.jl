@@ -103,12 +103,13 @@ end
 
 mutable struct GreenSubModel
     Constant::ParamArray
-    GreenPowerPrice_coefficient::ParamArray
     EnergyRate_coefficient::ParamArray
+    WTP_coefficient::ParamArray
     WholesaleMarket_coefficient::ParamArray
+    GreenPowerPrice_coefficient::ParamArray
     RetailCompetition_coefficient::ParamArray
     RPS_coefficient::ParamArray
-    WTP_coefficient::ParamArray
+    
 end
 
 abstract type AbstractCustomerGroup <: AgentGroup end
@@ -302,17 +303,33 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         MaxLoad_my(y, z, h, :) .=
             gamma(z, h) * findmax(Dict((d, t) => demand_my(y, h, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
+    
     existing_pv_stor_capacity_my = initialize_param(
         "existing_pv_stor_capacity_my",
         model_data.index_y, model_data.index_h, model_data.index_z, index_m,
         description="Portion of existing DER at year y (x_DG_E_my) assigned to be Solar plus Storage"
     )
+    
     for y in model_data.index_y, h in model_data.index_h, z in model_data.index_z
-        existing_pv_stor_capacity_my(y, h, z, :BTMStorage, :) .= x_DG_E_my(y, h, z, :BTMStorage)
-        existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= x_DG_E_my(y, h, z, :BTMStorage) * (
-            Opti_DG_my(y, z, h, :BTMPV) / Opti_DG_my(y, z, h, :BTMStorage)
-        )
+        x_DG_E_storage = x_DG_E_my(y, h, z, :BTMStorage)
+        Opti_DG_PV = Opti_DG_my(y, z, h, :BTMPV)
+        Opti_DG_Storage = Opti_DG_my(y, z, h, :BTMStorage)
+        
+        existing_pv_stor_capacity_my(y, h, z, :BTMStorage, :) .= x_DG_E_storage
+    
+        if Opti_DG_Storage != 0.0
+            ratio = Opti_DG_PV / Opti_DG_Storage
+            if isfinite(ratio)
+                existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= x_DG_E_storage * ratio
+            else
+                println("Warning: Non-finite ratio at (y, h, z) = ", (y, h, z))
+                existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= 0.0
+            end
+        else
+            existing_pv_stor_capacity_my(y, h, z, :BTMPV, :) .= 0.0
+        end
     end
+
     existing_pv_only_capacity_my = initialize_param(
         "existing_pv_only_capacity_my",
         model_data.index_y, model_data.index_h, model_data.index_z, index_m,
@@ -341,51 +358,77 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ),
     )
 
+    function generate_coefficients(index_h, h_to_sector, coefficients)
+        return [
+            get(coefficients, h_to_sector[h], 0.0) for h in index_h
+        ]
+    end
+    
+    param_coefficients = Dict(
+        "WholesaleMarket_coefficient" => Dict(
+            "Residential" => 0.0,
+            "Commercial" => 0.14,
+            "Industrial" => 0.14
+        ),
+        "GreenPowerPrice_coefficient" => Dict(
+            "Residential" => 0.0,
+            "Commercial" => 0.55,
+            "Industrial" => 0.55
+        ),
+        "RetailCompetition_coefficient" => Dict(
+            "Residential" => 0.0,
+            "Commercial" => 0.16,
+            "Industrial" => 0.16
+        ),
+        "RPS_coefficient" => Dict(
+            "Residential" => 0.0,
+            "Commercial" => 0.42,
+            "Industrial" => 0.42
+        )
+    )
+    
     green_sub_model = GreenSubModel(
+        # Constant ParamArray
         ParamArray(
             "Constant",
-            (model_data.index_h,),
-            [0.0, 0.0, 0.0]; 
-            description = "Constant in green power uptake function (regression parameter)",
+            (model_data.index_h,),  
+            fill(0.0, length(model_data.index_h));
+            description = "Constant in green power uptake function (regression parameter)"
         ),
-        ParamArray(
-            "GreenPowerPrice_coefficient",
-            (model_data.index_h,),
-            [0.0, -0.55, -0.55];
-            description = "Sum of PPA and REC prices (regression parameter)",
-        ),
+        
+        # Energy Rate Coefficient
         ParamArray(
             "EnergyRate_coefficient",
             (model_data.index_h,),
-            [0.0, 0.0, 0.0]; 
-            description = "Weighted mean C&I volumetric (\$/MWh) rate (regression parameter)",
+            fill(0.0, length(model_data.index_h));
+            description = "Weighted mean C&I volumetric (\$/MWh) rate (regression parameter)"
         ),
-        ParamArray(
-            "WholesaleMarket_coefficient",
-            (model_data.index_h,),
-            [0.0, 0.14, 0.14]; 
-            description = "% of load served by an ISO (regression parameter)",
-        ),
-        ParamArray(
-            "RetailCompetition_coefficient",
-            (model_data.index_h,),
-            [0.0, 0.16, 0.16]; 
-            description = "% of C&I customers that are eligible for retail choice (regression parameter)",
-        ),
-        ParamArray(
-            "RPS_coefficient",
-            (model_data.index_h,),
-            [0.0, 0.42, 0.42]; 
-            description = "RPS percentage requirement in 2019 (regression parameter)",
-        ),
+    
+        # WTP Coefficient
         ParamArray(
             "WTP_coefficient",
             (model_data.index_h,),
-            [0.0, 0.0, 0.0]; 
-            description = "% of customers willing to pay for renewable energy at the state level (regression parameter)",
+            fill(0.0, length(model_data.index_h));
+            description = "% of customers willing to pay for renewable energy at the state level (regression parameter)"
         ),
+    
+        # Sector-based ParamArrays
+        [
+            ParamArray(
+                param_name,
+                (model_data.index_h,),
+                generate_coefficients(model_data.index_h, model_data.h_to_sector, param_coefficients[param_name]);
+                description = description
+            ) for (param_name, description) in [
+                ("WholesaleMarket_coefficient", "% of load served by an ISO (regression parameter)"),
+                ("GreenPowerPrice_coefficient", "Sum of PPA and REC prices (regression parameter)"),
+                ("RetailCompetition_coefficient", "% of C&I customers that are eligible for retail choice (regression parameter)"),
+                ("RPS_coefficient", "RPS percentage requirement in 2019 (regression parameter)")
+            ]
+        ]...  
     )
-
+    
+        
     # Customer financing
     debt_ratio =
         read_param("debt_ratio", input_filename, "CustomerDebtRatio", model_data.index_h, [model_data.index_z])
@@ -471,12 +514,17 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("rho_DG_my", model_data.index_y, model_data.index_h, index_m, model_data.index_z, model_data.index_d, model_data.index_t,
                          description = "Store each year's DER dispatch. Only populated for actively dispatched DER (e.g., :BTMStorage)."),
         ParamScalar("delta", 0.05),
+               
+        # Call ParamArray with the PeakLoad parameter
         ParamArray("PeakLoad", Tuple(push!(copy([model_data.index_z]), model_data.index_h)), MaxLoad),
+        
+        # Call ParamArray with the PeakLoad_my parameter
         ParamArray(
             "PeakLoad_my",
             Tuple(push!(copy([model_data.index_y, model_data.index_z]), model_data.index_h)),
             MaxLoad_my,
         ),
+        
         initialize_param("x_DG_new", model_data.index_h, model_data.index_z, index_m, value = 0.0),
         initialize_param("x_DG_new_my", model_data.index_y, model_data.index_h, model_data.index_z, index_m, value = 0.0),
         initialize_param("x_green_sub", model_data.index_h, model_data.index_z, value = 10.0),
@@ -489,6 +537,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("year", model_data.index_z, model_data.index_h, index_m),
         initialize_param("A", model_data.index_z, model_data.index_h, index_m),
         initialize_param("ConPVNetSurplus", model_data.index_z, model_data.index_h, index_m),
+        
         initialize_param(
             "ConPVNetSurplus_my",
             model_data.index_y,
@@ -1215,9 +1264,19 @@ function solve_agent_problem!(
         update_total_capacity!(customers.total_der_capacity_my, customers.x_DG_new, model_data, reg_year, z, h, m)
     end
 
+    
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-        customers.rho_DG(h, :BTMStorage, z, d, t, :) .= (customers.stor_discharge(reg_year_index, z, h, d, t) - customers.stor_charge(reg_year_index, z, h, d, t)) / customers.Opti_DG(z, h, :BTMStorage)
-        customers.rho_DG_my(reg_year_index, h, :BTMStorage, z, d, t, :) .= customers.rho_DG(h, :BTMStorage, z, d, t, :)
+    
+        discharge = customers.stor_discharge(reg_year_index, z, h, d, t)
+        charge = customers.stor_charge(reg_year_index, z, h, d, t)
+        opti_dg = customers.Opti_DG(z, h, :BTMStorage)
+
+        if opti_dg == 0.0
+            customers.rho_DG(h, :BTMStorage, z, d, t, :) .= 0.0
+        else
+            customers.rho_DG(h, :BTMStorage, z, d, t, :) .= (customers.stor_discharge(reg_year_index, z, h, d, t) - customers.stor_charge(reg_year_index, z, h, d, t)) / customers.Opti_DG(z, h, :BTMStorage)
+            customers.rho_DG_my(reg_year_index, h, :BTMStorage, z, d, t, :) .= customers.rho_DG(h, :BTMStorage, z, d, t, :)
+        end
     end
 
     # @info "Original new DG" x_DG_before
