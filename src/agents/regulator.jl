@@ -1063,6 +1063,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -1597,7 +1598,7 @@ function solve_agent_problem!(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist), 
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -2235,24 +2236,68 @@ function solve_agent_problem!(
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            regulator.p(z, h, d, t, :) .=
-                (energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)) /
-                net_demand_h_wo_loss(z, h) +
-                demand_cost_allocation_othercost_h(z, h) / net_demand_wo_green_tech_h_wo_loss(z, h)
+        sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+    
+        # Calculate sector-level rates for each combination of z, sector, d, t
+        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
+            # Collect all customer types in this sector
+            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+    
+            # Aggregate numerator and denominator over customer types
+            numerator_energy_demand = sum(
+                energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)
+                for h in customer_types
+            )
+            denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
+            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+
+            sector_rates[(z, sector, d, t)] = (numerator_energy_demand / denominator_net_demand) + 
+                                              (numerator_other_cost / denominator_net_demand_wo_green)
+
         end
+    
+        # Assign sector-level rates to each customer type in the sector
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            sector = model_data.h_to_sector[h]
+            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
+        end
+    
         replace!(regulator.p.values, NaN => 0.0)
+    
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d.==String(d)) .& (regulator.rep_day_time_tou_mapping.index_t.==String(t)), :index_rate_tou][1])
-            regulator.p(z, h, d, t, :) .=
-                energy_cost_allocation_h_t(z, h, tou) / net_demand_h_t_wo_loss(z, h, tou) +
-                demand_cost_allocation_capacity_h(z, h) / net_demand_h_wo_loss(z, h) +
-                demand_cost_allocation_othercost_h(z, h) / net_demand_wo_green_tech_h_wo_loss(z, h)
+        sector_tou_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+    
+        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
+            
+            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+                            
+            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
+    
+            # Aggregate over customer types
+            numerator_energy = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
+            denominator_net_demand_t = sum(net_demand_h_t_wo_loss(z, h, tou) for h in customer_types)
+            numerator_demand_capacity = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+            denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
+            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+    
+
+            sector_tou_rates[(z, sector, d, t)] = (numerator_energy / denominator_net_demand_t) +
+                                                  (numerator_demand_capacity / denominator_net_demand) +
+                                                  (numerator_other_cost / denominator_net_demand_wo_green)
+
         end
+    
+        # Assign TOU sector rates to each customer type in the sector
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            sector = model_data.h_to_sector[h]
+            regulator.p(z, h, d, t, :) .= sector_tou_rates[(z, sector, d, t)]
+        end
+    
         replace!(regulator.p.values, NaN => 0.0)
-    end
+    end    
 
     # fill!(regulator.p_regression, NaN)
     # for h in model_data.index_h
@@ -2903,6 +2948,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -4026,26 +4072,56 @@ function solve_agent_problem!(
     # TODO: the demonimator need to be further thought through (in the case without green-tech, it's the same)
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
-        for h in model_data.index_h, t in model_data.index_t
-            for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-                regulator.p(z, h, d, t, :) .=
-                    (energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)) /
-                    net_demand_wo_green_tech_h_wo_loss(z, h) +
-                    demand_cost_allocation_othercost_h(z, h) / net_demand_wo_green_tech_h_wo_loss(z, h)
-            end
-            replace!(regulator.p.values, NaN => 0.0)
+        sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+            
+        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
+
+            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+            
+            energy_cost = sum(energy_cost_allocation_h(z, h) for h in customer_types)
+            demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+            net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+            other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+
+            sector_rates[(z, sector, d, t)] = (energy_cost + demand_capacity_cost + other_cost) / net_demand
+
         end
+            
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            sector = model_data.h_to_sector[h]
+            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
+        end
+            
+        replace!(regulator.p.values, NaN => 0.0)
+        
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d.==String(d)) .& (regulator.rep_day_time_tou_mapping.index_t.==String(t)), :index_rate_tou][1])
-            regulator.p(z, h, d, t, :) .=
-                energy_cost_allocation_h_t(z, h, tou) / net_demand_wo_green_tech_h_t_wo_loss(z, h, tou) +
-                demand_cost_allocation_capacity_h(z, h) / net_demand_wo_green_tech_h_wo_loss(z, h) +
-                demand_cost_allocation_othercost_h(z, h) / net_demand_wo_green_tech_h_wo_loss(z, h)
+        sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+
+        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
+            
+            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+                            
+            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
+
+            energy_cost = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
+            net_demand_tou = sum(net_demand_wo_green_tech_h_t_wo_loss(z, h, tou) for h in customer_types)
+            demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+            net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+            other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+        
+            sector_rates[(z, sector, d, t)] = energy_cost / net_demand_tou + demand_capacity_cost / net_demand + other_cost / net_demand
+
         end
+            
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            sector = model_data.h_to_sector[h]
+            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
+        end
+        
         replace!(regulator.p.values, NaN => 0.0)
     end
+
 
     # fill!(regulator.p_regression, NaN)
     # for h in model_data.index_h

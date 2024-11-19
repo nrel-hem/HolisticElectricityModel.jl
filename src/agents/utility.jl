@@ -1072,6 +1072,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{WholesaleMarket},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -1406,7 +1407,6 @@ end
 #     ])
 # end
 
-
 ############### utility capacity expansion with transmission and storage ###############
 function solve_agent_problem!(
     utility::Utility,
@@ -1415,6 +1415,7 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{VerticallyIntegratedUtility},
     agent_store::AgentStore,
     w_iter,
+    window_length,
     jump_model,
     export_file_path,
     update_results::Bool
@@ -1661,8 +1662,8 @@ function solve_agent_problem!(
         VIUDER_Utility,
         Eq_miu[y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t],
         supply_demand_balance(y, z, d, t) == 0
-    )
-
+    )   
+   
     # HERE -- once running try defining function over two indices
     # y_E must be less than available capacity
     @constraint(
@@ -2046,7 +2047,6 @@ function solve_agent_problem!(
                 model_data.year(first(model_data.index_y)):model_data.year(y)
             ) + utility.x_stor_C_cumu(s, z)
     )
-
 
     # planning_reserves =
     #     (y, t) -> begin
