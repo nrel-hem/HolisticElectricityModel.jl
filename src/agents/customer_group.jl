@@ -138,8 +138,6 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     #TODO; change this assumption later
     Opti_DG_E::ParamArray
     Opti_DG_my::ParamArray
-    # "DER generation by a representative customer h and DER technology m"
-    # DERGen::ParamArray
     CapEx_DG::ParamArray
     CapEx_DG_my::ParamArray
     FOM_DG::ParamArray
@@ -283,15 +281,6 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         model_data.index_t,
         [model_data.index_h, index_m, model_data.index_z, model_data.index_d],
     )
-    # # Define total DER generation per individual customer per hour
-    # DERGen = initialize_param("DERGen", model_data.index_h, model_data.index_t, value = 1.0)
-    # for h in model_data.index_h, t in model_data.index_t
-    #     if sum(rho_DG(h, m, t) * Opti_DG(h, m) for m in index_m) != 0.0
-    #         DERGen(h, t, :) .= sum(rho_DG(h, m, t) * Opti_DG(h, m) for m in index_m)
-    #     else
-    #         DERGen(h, t, :) .= 1.0
-    #     end
-    # end
     # Calculate maximum demand for each customer type
     MaxLoad = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
@@ -1753,13 +1742,6 @@ function welfare_calculation!(
     end
 
     # Calculate energy savings associated with new DER (including previously installed new DER) for a certain year
-    #=
-    EnergySaving = Dict((y,h,m) =>
-        sum(model_data.omega(t) * regulator.p_my(y,h,t) * min(customers.d_my(y,h,t), customers.rho_DG(h, m, t) * customers.Opti_DG_my(y, h, m)) 
-            for t in model_data.index_t) * sum(customers.x_DG_new_my(Symbol(y_star),h,m) for y_star = model_data.year(first(model_data.index_y_fix)):model_data.year(y)) / customers.Opti_DG_my(y, h, m)
-            for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
-    )
-    =#
     EnergySaving =
         make_keyed_array(model_data.index_y_fix, model_data.index_h, customers.index_m)
     for y in model_data.index_y_fix, h in model_data.index_h, m in customers.index_m
