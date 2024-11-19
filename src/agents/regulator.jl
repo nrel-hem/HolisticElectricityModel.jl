@@ -2924,6 +2924,9 @@ function solve_agent_problem!(
     green_developer = get_agent(GreenDeveloper, agent_store)
     der_aggregator = get_agent(DERAggregator, agent_store)
 
+    index_rps_existing = deepcopy(ipp.index_rps)
+    push!(index_rps_existing.elements, Symbol("dera_pv"))
+
     # the year regulator is making a rate case
     reg_year, reg_year_index = get_reg_year(model_data)
 
@@ -3889,7 +3892,7 @@ function solve_agent_problem!(
                 model_data.omega(d) * delta_t *
                 (
                     sum(
-                        ipp.y_E_my(reg_year_index, p, rps, z, d, t) for rps in ipp.index_rps,
+                        ipp.y_E_my(reg_year_index, p, rps, z, d, t) for rps in index_rps_existing,
                         p in ipp.index_p
                     ) + sum(
                         ipp.y_C_my(reg_year_index, p, rps, z, d, t) for rps in ipp.index_rps,
@@ -3926,7 +3929,7 @@ function solve_agent_problem!(
                 model_data.omega(d) * delta_t *
                 (
                     sum(
-                        ipp.y_E_my(reg_year_index, p, rps, z, d, t) for rps in ipp.index_rps,
+                        ipp.y_E_my(reg_year_index, p, rps, z, d, t) for rps in index_rps_existing,
                         p in ipp.index_p
                     ) + sum(
                         ipp.y_C_my(reg_year_index, p, rps, z, d, t) for rps in ipp.index_rps,
