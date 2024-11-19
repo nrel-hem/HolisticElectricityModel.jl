@@ -5,7 +5,7 @@ const DER_factor = 1.0    # A scaling factor applied to existing DER penetration
 abstract type PVAdoptionType end
 struct StandalonePVOnly <: PVAdoptionType end
 struct SolarPlusStorageOnly <: PVAdoptionType end
-struct Compete_StandalonePV_SolarPlusStorage <: PVAdoptionType end
+struct CompeteDERConfigs <: PVAdoptionType end
 
 abstract type AbstractCustomerOptions <: AgentOptions end
 
@@ -775,7 +775,7 @@ end
 ############ BTM PV+Storage adoption ############
 function solve_agent_problem!(
     customers::CustomerGroup,
-    customer_opts::Union{CustomerOptions{SolarPlusStorageOnly},CustomerOptions{Compete_StandalonePV_SolarPlusStorage}},
+    customer_opts::Union{CustomerOptions{SolarPlusStorageOnly},CustomerOptions{CompeteDERConfigs}},
     model_data::HEMData,
     hem_opts::HEMOptions{<:MarketStructure, DERAdoption, NullUseCase, <:UseCase},
     agent_store::AgentStore,
@@ -1092,7 +1092,7 @@ function solve_agent_problem!(
 
             update_total_capacity_pv_stor_builds!(customers, model_data, reg_year, z, h)
         else
-            @assert customer_opts isa CustomerOptions{Compete_StandalonePV_SolarPlusStorage}
+            @assert customer_opts isa CustomerOptions{CompeteDERConfigs}
 
             if (NetProfit_pv_stor(z, h) > 0.0) && (NetProfit_PV_only(z, h) > 0.0)
                 customers.Payback_pv_stor(z, h, :) .=
@@ -1303,7 +1303,7 @@ function solve_agent_problem!(
         customers.d(h, t, :) .= customers.d_my(reg_year_index, h, t)
     end
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoice, <:UseCase}
+    if hem_opts isa HEMOptions{VIU, NullUseCase, SupplyChoice, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1501,7 +1501,7 @@ function solve_agent_problem!(
 
     green_sub_model = customers.green_sub_model
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERAdoption, SupplyChoice, <:UseCase}
+    if hem_opts isa HEMOptions{VIU, DERAdoption, SupplyChoice, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1907,7 +1907,7 @@ function welfare_calculation!(
         price_at_max_sub(y, h, :) .= 0.0
     end
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, NullUseCase, SupplyChoice, <:UseCase}
+    if hem_opts isa HEMOptions{VIU, NullUseCase, SupplyChoice, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -2174,7 +2174,7 @@ function welfare_calculation!(
         price_at_max_sub(y, h, :) .= 0.0
     end
 
-    if hem_opts isa HEMOptions{VerticallyIntegratedUtility, DERAdoption, SupplyChoice, <:UseCase}
+    if hem_opts isa HEMOptions{VIU, DERAdoption, SupplyChoice, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0

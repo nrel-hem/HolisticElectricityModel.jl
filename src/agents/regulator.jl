@@ -18,18 +18,28 @@ struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegu
     rate_design::T
     net_metering_policy::U
 
+    tou_suffix::AbstractString
+
     planning_reserve_margin::AbstractFloat
     allowed_return_on_investment::AbstractFloat
 end
 
-function RegulatorOptions(rate_design::RateDesign, net_metering_policy::NetMeteringPolicy; 
-    planning_reserve_margin::AbstractFloat = 0.12, allowed_return_on_investment::AbstractFloat = 0.112)
-
-    return RegulatorOptions(rate_design, net_metering_policy, planning_reserve_margin, allowed_return_on_investment)
+function RegulatorOptions(
+    rate_design::RateDesign, 
+    net_metering_policy::NetMeteringPolicy; 
+    tou_suffix="NE2025",
+    planning_reserve_margin::AbstractFloat = 0.12, 
+    allowed_return_on_investment::AbstractFloat = 0.112
+)
+    return RegulatorOptions(rate_design, net_metering_policy, tou_suffix, planning_reserve_margin, allowed_return_on_investment)
 end
 
 function get_file_prefix(options::RegulatorOptions)
-    return join(["$(typeof(options.rate_design))", 
+    rate_design = "$(typeof(options.rate_design))"
+    if typeof(options.rate_design) == TOU
+        rate_design *= options.tou_suffix
+    end
+    return join([rate_design, 
                  "$(typeof(options.net_metering_policy))"], "_")
 end
 
@@ -38,7 +48,7 @@ abstract type AbstractRegulator <: Agent end
 mutable struct Regulator <: AbstractRegulator
     id::String
     index_rate_tou::Dimension
-    rep_day_time_tou_mapping::DataFrame
+    tou_rate_structure::DataFrame
     # Parameters
     "planning reserve (fraction)"
     r::ParamArray
@@ -103,7 +113,7 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
         prose_name = "index for time-of-use rates",
     )
 
-    rep_day_time_tou_mapping = CSV.read(joinpath(input_filename, "rep_day_time_tou_mapping.csv"), DataFrame)
+    tou_rate_structure = CSV.read(joinpath(input_filename, "tou_rate_structure_$(opts.tou_suffix).csv"), DataFrame)
 
     distribution_cost = read_param(
         "distribution_cost",
@@ -153,7 +163,7 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
     return Regulator(
         id,
         index_rate_tou,
-        rep_day_time_tou_mapping,
+        tou_rate_structure,
         initialize_param(
             "r",
             model_data.index_z,
@@ -349,7 +359,7 @@ function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -1061,9 +1071,9 @@ function solve_agent_problem!(
     energy_cost_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         energy_cost_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             energy_cost_t_temp = energy_cost_t_temp + 
                 sum(
                     model_data.omega(d) * delta_t *
@@ -1081,9 +1091,9 @@ function solve_agent_problem!(
     net_eximport_cost_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_eximport_cost_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_eximport_cost_t_temp = net_eximport_cost_t_temp +
                 # export and import cost of modeled areas
                 sum(
@@ -1102,9 +1112,9 @@ function solve_agent_problem!(
     net_demand_t_w_loss = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_demand_t_w_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_t_w_loss_temp = net_demand_t_w_loss_temp + 
                 # demand
                 # when it comes to sharing the revenue requirement (cost), use load including distribution loss
@@ -1158,9 +1168,9 @@ function solve_agent_problem!(
     net_demand_t_w_loss_no_eximport = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_demand_t_w_loss_no_eximport_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_t_w_loss_no_eximport_temp = net_demand_t_w_loss_no_eximport_temp + 
                 # demand
                 # when it comes to sharing the revenue requirement (cost), use load including distribution loss
@@ -1205,9 +1215,9 @@ function solve_agent_problem!(
     exo_eximport_demand_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         exo_eximport_demand_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             exo_eximport_demand_t_temp = exo_eximport_demand_t_temp + 
                 # exogenous export/import
                 sum(
@@ -1220,9 +1230,9 @@ function solve_agent_problem!(
     edo_eximport_demand_t = make_keyed_array(model_data.index_z, utility.index_l, regulator.index_rate_tou)
     for z in model_data.index_z, l in utility.index_l, tou in regulator.index_rate_tou
         edo_eximport_demand_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             edo_eximport_demand_t_temp = edo_eximport_demand_t_temp + 
                 # endogenous export/import (flow out of zone z)
                 sum(
@@ -1235,9 +1245,9 @@ function solve_agent_problem!(
     der_excess_cost_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         der_excess_cost_h_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             der_excess_cost_h_t_temp = der_excess_cost_h_t_temp + 
             # der excess for pv-only customers
             model_data.omega(d) * delta_t *
@@ -1293,9 +1303,9 @@ function solve_agent_problem!(
     net_demand_h_t_w_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_w_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_h_t_w_loss_temp = net_demand_h_t_w_loss_temp +
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t)
@@ -1326,9 +1336,9 @@ function solve_agent_problem!(
     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_wo_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_h_t_wo_loss_temp = net_demand_h_t_wo_loss_temp +
                 # Demand without loss
                 sum(
@@ -1554,7 +1564,7 @@ function solve_agent_problem!(
             
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
                             
-            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
+            tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
     
             # Aggregate over customer types
             numerator_energy = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
@@ -1615,7 +1625,7 @@ function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WM},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -1983,9 +1993,9 @@ function solve_agent_problem!(
     net_demand_t_w_loss = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_demand_t_w_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_t_w_loss_temp = net_demand_t_w_loss_temp + 
                 # demand
                 # when it comes to sharing the revenue requirement (cost), use load including distribution loss
@@ -2039,9 +2049,9 @@ function solve_agent_problem!(
     net_demand_t_w_loss_no_eximport = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_demand_t_w_loss_no_eximport_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_t_w_loss_no_eximport_temp = net_demand_t_w_loss_no_eximport_temp + 
                 # demand
                 # when it comes to sharing the revenue requirement (cost), use load including distribution loss
@@ -2086,9 +2096,9 @@ function solve_agent_problem!(
     exo_eximport_demand_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         exo_eximport_demand_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             exo_eximport_demand_t_temp = exo_eximport_demand_t_temp + 
                 # exogenous export/import
                 sum(
@@ -2101,9 +2111,9 @@ function solve_agent_problem!(
     edo_eximport_demand_t = make_keyed_array(model_data.index_z, utility.index_l, regulator.index_rate_tou)
     for z in model_data.index_z, l in utility.index_l, tou in regulator.index_rate_tou
         edo_eximport_demand_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             edo_eximport_demand_t_temp = edo_eximport_demand_t_temp + 
                 # endogenous export/import (flow out of zone z)
                 sum(
@@ -2116,9 +2126,9 @@ function solve_agent_problem!(
     der_excess_cost_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         der_excess_cost_h_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             der_excess_cost_h_t_temp = der_excess_cost_h_t_temp + 
             # der excess for pv-only customers
             model_data.omega(d) * delta_t *
@@ -2194,9 +2204,9 @@ function solve_agent_problem!(
     net_demand_h_t_w_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_w_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_h_t_w_loss_temp = net_demand_h_t_w_loss_temp +
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t)
@@ -2227,9 +2237,9 @@ function solve_agent_problem!(
     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_wo_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_h_t_wo_loss_temp = net_demand_h_t_wo_loss_temp +
                 # Demand without loss
                 sum(
@@ -2294,9 +2304,9 @@ function solve_agent_problem!(
     net_demand_wo_green_tech_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_wo_green_tech_h_t_wo_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_wo_green_tech_h_t_wo_loss_temp = net_demand_wo_green_tech_h_t_wo_loss_temp +
                 # Demand without loss
                 sum(
@@ -2459,9 +2469,9 @@ function solve_agent_problem!(
     local_net_load_tou = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         local_net_load_tou_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
 
             local_net_load_tou_temp = local_net_load_tou_temp + 
                 model_data.omega(d) * delta_t * 
@@ -2485,9 +2495,9 @@ function solve_agent_problem!(
     energy_purchase_quantity_detailed_tou = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         energy_purchase_quantity_detailed_tou_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
 
             energy_purchase_quantity_detailed_tou_temp = energy_purchase_quantity_detailed_tou_temp +
                 # positive net load
@@ -2551,9 +2561,9 @@ function solve_agent_problem!(
     energy_purchase_cost_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         energy_purchase_cost_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
 
             energy_purchase_cost_t_temp = energy_purchase_cost_t_temp + 
                 model_data.omega(d) * delta_t * ipp.LMP_my(reg_year_index, z, d, t) *
@@ -2565,9 +2575,9 @@ function solve_agent_problem!(
     rec_purchase_cost_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         rec_purchase_cost_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
 
             rec_purchase_cost_t_temp = rec_purchase_cost_t_temp + 
                 # incorporate REC cost into energy purchase cost
@@ -2707,7 +2717,7 @@ function solve_agent_problem!(
             
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
                             
-            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
+            tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
 
             energy_cost = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
             net_demand_tou = sum(net_demand_wo_green_tech_h_t_wo_loss(z, h, tou) for h in customer_types)

@@ -2,14 +2,27 @@ abstract type AbstractDERAggregator <: Agent end
 
 struct DERAggregatorOptions <: AgentOptions
     solvers::HEMSolver
-    # solvers::Union{HEMSolver, Dict{String, <:HEMSolver}}
+    
+    incentive_curve::Int
+    frac_viu_cost_savings_as_revenue::AbstractFloat
 end
 
 """
 Construct DERAggregatorOptions with an MOI.OptimizerWithAttributes instance.
 """
-function DERAggregatorOptions(attributes::MOI.OptimizerWithAttributes)
-    return DERAggregatorOptions(AnySolver(attributes))
+function DERAggregatorOptions(
+    attributes::MOI.OptimizerWithAttributes; 
+    incentive_curve::Int = 1, 
+    frac_viu_cost_savings_as_revenue::AbstractFloat = 0.1
+)
+    @assert (incentive_curve >= 1) && (incentive_curve <= 5) "dera_stor_incenctive_function_{x} is available for 1 <= x <= 5, was passed $(incentive_curve)"
+    @assert (frac_viu_cost_savings_as_revenue > 0.0) && (frac_viu_cost_savings_as_revenue <= 1.0) "Expected fraction > 0 and <= 1, got $(frac_viu_cost_savings_as_revenue)"
+    return DERAggregatorOptions(AnySolver(attributes), incentive_curve, frac_viu_cost_savings_as_revenue)
+end
+
+function get_file_prefix(options::DERAggregatorOptions)
+    return join(["IncentiveCurve$(options.incentive_curve)",
+                 "VIURevenueFrac$(options.frac_viu_cost_savings_as_revenue)"], "_")
 end
 
 mutable struct DERAggregator <: AbstractDERAggregator
@@ -34,10 +47,10 @@ mutable struct DERAggregator <: AbstractDERAggregator
     dera_pv_my::ParamArray
 end
 
-function DERAggregator(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function DERAggregator(input_filename::AbstractString, model_data::HEMData, opts::DERAggregatorOptions; id = DEFAULT_ID)
 
     # need to have the incentive function for each customer type
-    dera_stor_incentive_function = CSV.read(joinpath(input_filename, "dera_stor_incentive_function.csv"), DataFrame)
+    dera_stor_incentive_function = CSV.read(joinpath(input_filename, "dera_stor_incentive_function_$(opts.incentive_curve).csv"), DataFrame)
 
     return DERAggregator(
         id,
@@ -47,7 +60,7 @@ function DERAggregator(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("revenue", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("aggregation_level", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("aggregation_level_output", model_data.index_y, model_data.index_z, value = 0.0),
-        initialize_param("rev_perc_cost_saving_viu", model_data.index_y, model_data.index_z, value = 0.1),
+        initialize_param("rev_perc_cost_saving_viu", model_data.index_y, model_data.index_z, value = opts.frac_viu_cost_savings_as_revenue),
         initialize_param("dera_stor_my", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
         initialize_param("dera_pv_my", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
     )
@@ -59,7 +72,7 @@ function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::DERAggregatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase, <:UseCase, NullUseCase},
+    hem_opts::HEMOptions{WM, <:UseCase, <:UseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -97,7 +110,7 @@ function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase, <:UseCase, NullUseCase},
+    hem_opts::HEMOptions{VIU, <:UseCase, <:UseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -134,7 +147,7 @@ function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase, <:UseCase, DERAggregation},
+    hem_opts::HEMOptions{WM, <:UseCase, <:UseCase, DERAggregation},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -382,7 +395,7 @@ function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::DERAggregatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase, <:UseCase, DERAggregation},
+    hem_opts::HEMOptions{VIU, <:UseCase, <:UseCase, DERAggregation},
     agent_store::AgentStore,
     w_iter,
     window_length,

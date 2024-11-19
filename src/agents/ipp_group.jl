@@ -778,7 +778,7 @@ function solve_agent_problem!(
     ipps::IPPGroup,
     ipp_opts::IPPOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -796,7 +796,7 @@ function solve_agent_problem_ipp_cap(
     ipp_opts::IPPOptions{MPPDCMERTransStorage},
     p_star,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WM},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -5206,7 +5206,7 @@ function solve_agent_problem!(
     ipp::IPPGroup,
     ipp_opts::IPPOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WM},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -5239,7 +5239,7 @@ end
 function save_results(
     ipps::IPPGroup,
     ipp_opts::AgentOptions,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WM},
     export_file_path::AbstractString,
 )
     # Primal Variables
@@ -5333,7 +5333,7 @@ function welfare_calculation!(
     ipp::IPPGroup,
     ipp_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WM},
     agent_store::AgentStore,
 )
     regulator = get_agent(Regulator, agent_store)

@@ -1006,7 +1006,7 @@ function solve_agent_problem!(
     utility::Utility,
     utility_opts::UtilityOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WM},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -1023,7 +1023,7 @@ function solve_agent_problem!(
     utility::Utility,
     utility_opts::UtilityOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -1813,7 +1813,7 @@ end
 function save_results(
     utility::Utility,
     utility_opts::AgentOptions,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     export_file_path::AbstractString,
 )
     # Primal Variables
@@ -1907,7 +1907,7 @@ function welfare_calculation!(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     agent_store::AgentStore,
 )
     regulator = get_agent(Regulator, agent_store)
@@ -1957,7 +1957,7 @@ function solve_agent_problem_decomposition_by_year(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     agent_store::AgentStore,
     w_iter,
     year,
@@ -2298,7 +2298,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     agent_store::AgentStore,
     w_iter,
     year,
@@ -2654,7 +2654,7 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     agent_store::AgentStore,
     w_iter,
 )
@@ -2803,7 +2803,7 @@ function solve_agent_problem_decomposition_by_year_master(
     utility::Utility,
     utility_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     agent_store::AgentStore,
     w_iter,
 )

@@ -213,8 +213,8 @@ end
 
 # Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end
-struct VerticallyIntegratedUtility <: MarketStructure end
-struct WholesaleMarket <: MarketStructure end
+struct VIU <: MarketStructure end
+struct WM <: MarketStructure end
 
 abstract type UseCase end
 struct NullUseCase <: UseCase end
@@ -239,8 +239,8 @@ struct HEMOptions{T <: MarketStructure,
 end
 
 function get_file_prefix(options::HEMOptions)
-    return join(["$(typeof(options.der_use_case))", 
-                 "$(typeof(options.supply_choice_use_case))",
+    return join([# "$(typeof(options.der_use_case))", 
+                 # "$(typeof(options.supply_choice_use_case))",
                  "$(typeof(options.der_aggregation_use_case))",
                  "$(typeof(options.market_structure))"],"_")
 end
@@ -463,14 +463,14 @@ function solve_equilibrium_problem!(
         save_results(agent, options, hem_opts, export_file_path)
     end
 
-    # if hem_opts.market_structure isa VerticallyIntegratedUtility
+    # if hem_opts.market_structure isa VIU
     #     x = store.data[Utility]["default"]
     #     Welfare_supply =
     #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
     #     y = store.data[CustomerGroup]["default"]
     #     Welfare_demand =
     #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    # elseif hem_opts.market_structure isa WholesaleMarket
+    # elseif hem_opts.market_structure isa WM
     #     x = store.data[IPPGroup]["default"]
     #     Welfare_supply =
     #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)

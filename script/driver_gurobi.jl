@@ -40,7 +40,7 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    VIU(),    # VIU(), WM()
     DERAdoption(),                    # DERAdoption(), NullUseCase()
     NullUseCase(),                    # SupplyChoice(), NullUseCase()
     DERAggregation(),                 # DERAggregation(), NullUseCase()
@@ -49,6 +49,7 @@ hem_opts = HEMOptions(
 regulator_opts = RegulatorOptions(
     TOU(),                            # FlatRate(), TOU()
     ExcessRetailRate();               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    tou_suffix="NE2025",
     planning_reserve_margin=0.129     # Value for New England from ReEDS-2.0/inputs/reserves/prm_annual.csv
 )
 
@@ -121,7 +122,9 @@ dera_opts = DERAggregatorOptions(
     JuMP.optimizer_with_attributes(
         () -> Gurobi.Optimizer(GUROBI_ENV),
         # "OUTPUTLOG" => 0,
-    ),
+    );
+    incentive_curve=1,
+    frac_viu_cost_savings_as_revenue=0.1,
 )
 # ------------------------------------------------------------------------------
 
