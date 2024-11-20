@@ -524,7 +524,7 @@ function Utility(
         [model_data.index_y],
     )
     ITCStorNew_my = read_param(
-        "CumuITCAmortStor_new_my",
+        "ITCStor_new_my",
         input_filename,
         "ITCStorNewmy",
         index_stor_new,

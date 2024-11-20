@@ -105,10 +105,14 @@ mutable struct IPPGroup <: AbstractIPPGroup
     fom_stor_C_my::ParamArray # fixed O&M of new storage capacity ($/MW-yr)
     CapEx_my::ParamArray # capital expense of new capacity ($/MW)
     CapEx_stor_my::ParamArray # capital expense of new storage capacity ($/MW)
+    ITC_new_my::ParamArray # ITC of new capacity (%)
+    ITCStor_new_my::ParamArray # ITC of new capacity (%)    
     rte_stor_E_my::ParamArray # round trip efficiency of existing storage ($/MW)
     rte_stor_C_my::ParamArray # round trip efficiency of new storage ($/MW)
     v_E_my::ParamArray # variable cost of existing capacity ($/MWh)
     v_C_my::ParamArray # variable cost of new capacity ($/MWh)
+    PTC_existing::ParamArray # PTC of existing capacity ($/MWh)
+    PTC_new_my::ParamArray # PTC of new capacity ($/MWh)
     rho_E_my::ParamArray # availability of existing capacity (fraction)
     rho_C_my::ParamArray # availability of new capacity (fraction)
     eximport_my::ParamArray # net export (MWh)
@@ -274,6 +278,7 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
             atwacc[p] * (1 + atwacc[p])^LifetimeNew(p, k) /
             ((1 + atwacc[p])^LifetimeNew(p, k) - 1) for p in index_p, k in index_k_new
     )
+    # TODO: Remove if not being used. Also strange that this is combining FOM and CapEx
     FixedCostNew = make_keyed_array(index_p, model_data.index_z, index_k_new)
     for p in index_p, z in model_data.index_z, k in index_k_new
         FixedCostNew(p, z, k, :) .= FOMNew(p, z, k) + CapExNew(p, z, k) * CRF[p, k]
@@ -426,6 +431,20 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
+            "ITC_new_my",
+            input_filename,
+            "ITCNewmy",
+            index_k_new,
+            [model_data.index_y],
+        ),
+        read_param(
+            "ITCStor_new_my",
+            input_filename,
+            "ITCStorNewmy",
+            index_stor_new,
+            [model_data.index_y],
+        ),
+        read_param(
             "rte_stor_E_my",
             input_filename,
             "StorRTEOldIPPmy",
@@ -452,6 +471,14 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
             "VariableCostNewIPPmy",
             model_data.index_t,
             [model_data.index_y, index_p, index_k_new, model_data.index_z, model_data.index_d],
+        ),
+        read_param("PTC_existing_my", input_filename, "PTCOld", index_k_existing),
+        read_param(
+            "PTC_new_my",
+            input_filename,
+            "PTCNewmy",
+            index_k_new,
+            [model_data.index_y],
         ),
         read_param(
             "rho_E_my",
@@ -866,12 +893,12 @@ function solve_agent_problem_ipp_cap(
         sum(
             sum(
                 model_data.omega(d) * delta_t *
-                (ipp.v_E_my(y, p, k, z, d, t) * y_E_bounds[y, p, k, z, d, t]) for
+                ((ipp.v_E_my(y, p, k, z, d, t) - ipp.PTC_existing(k)) * y_E_bounds[y, p, k, z, d, t]) for
                 d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in ipp.index_k_existing, p in ipp.index_p
             ) + 
             sum(
                 model_data.omega(d) * delta_t *
-                (ipp.v_C_my(y, p, k, z, d, t) * y_C_bounds[y, p, k, z, d, t]) for
+                ((ipp.v_C_my(y, p, k, z, d, t) - ipp.PTC_new_my(y, k)) * y_C_bounds[y, p, k, z, d, t]) for
                 d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in ipp.index_k_new, p in ipp.index_p
             )
             for y in model_data.index_y
@@ -1504,7 +1531,7 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        model_data.omega(d) * delta_t * ipp.v_E_my(y, p, k, z, d, t) - miu_lower[y, z, d, t] + eta_lower[y, p, k, z, d, t] >= 0
+        model_data.omega(d) * delta_t * (ipp.v_E_my(y, p, k, z, d, t) - ipp.PTC_existing(k)) - miu_lower[y, z, d, t] + eta_lower[y, p, k, z, d, t] >= 0
     )
     @constraint(
         MPPDCMER_lower_dual,
@@ -1516,7 +1543,7 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        model_data.omega(d) * delta_t * ipp.v_C_my(y, p, k, z, d, t) - miu_lower[y, z, d, t] + lambda_lower[y, p, k, z, d, t] >= 0
+        model_data.omega(d) * delta_t * (ipp.v_C_my(y, p, k, z, d, t) - ipp.PTC_new_my(y, k)) - miu_lower[y, z, d, t] + lambda_lower[y, p, k, z, d, t] >= 0
     )
     @constraint(
         MPPDCMER_lower_dual,
@@ -2465,8 +2492,9 @@ function solve_agent_problem_ipp_cap(
             ) -
             # fixed costs
             #   capex * cap new for gen type
-            ipp.pvf_cap(y, p_star) *
-            sum(ipp.CapEx_my(y, p_star, z, k) * x_C[y, k, z] for k in ipp.index_k_new, z in model_data.index_z) -
+            ipp.pvf_cap(y, p_star) * sum(
+                (1.0 - ipp.ITC_new_my(y, k)) * ipp.CapEx_my(y, p_star, z, k) * x_C[y, k, z] 
+                for k in ipp.index_k_new, z in model_data.index_z) -
             # fixed costs
             #   fom * (cap exist - cap retiring) for stor type
             ipp.pvf_onm(y, p_star) * sum(
@@ -2489,8 +2517,9 @@ function solve_agent_problem_ipp_cap(
             ) -
             # fixed costs
             #   capex * cap new for stor type
-            ipp.pvf_cap(y, p_star) *
-            sum(ipp.CapEx_stor_my(y, p_star, z, s) * x_stor_C[y, s, z] for s in ipp.index_stor_new, z in model_data.index_z) +
+            ipp.pvf_cap(y, p_star) * sum(
+                (1.0 - ipp.ITCStor_new_my(y, s)) * ipp.CapEx_stor_my(y, p_star, z, s) * x_stor_C[y, s, z] 
+                for s in ipp.index_stor_new, z in model_data.index_z) +
             # Linearized profit term
             ipp.pvf_onm(y, p_star) * (
                 sum(
@@ -2767,12 +2796,12 @@ function solve_agent_problem_ipp_cap(
                 (
                     sum(
                         model_data.omega(d) * delta_t *
-                        (ipp.v_E_my(y, p, k, z, d, t) * y_E[y, p, k, z, d, t]) for
+                        ((ipp.v_E_my(y, p, k, z, d, t) - ipp.PTC_existing(k)) * y_E[y, p, k, z, d, t]) for
                         d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in ipp.index_k_existing, p in ipp.index_p
                     ) + 
                     sum(
                         model_data.omega(d) * delta_t *
-                        (ipp.v_C_my(y, p, k, z, d, t) * y_C[y, p, k, z, d, t]) for
+                        ((ipp.v_C_my(y, p, k, z, d, t) - ipp.PTC_new_my(y, k)) * y_C[y, p, k, z, d, t]) for
                         d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in ipp.index_k_new, p in ipp.index_p
                     )
                 )
@@ -2823,7 +2852,7 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        model_data.omega(d) * delta_t * ipp.v_E_my(y, p, k, z, d, t) - miu[y, z, d, t] + eta[y, p, k, z, d, t] >= 0
+        model_data.omega(d) * delta_t * (ipp.v_E_my(y, p, k, z, d, t) - ipp.PTC_existing(k)) - miu[y, z, d, t] + eta[y, p, k, z, d, t] >= 0
     )
     @constraint(
         WMDER_IPP,
@@ -2835,7 +2864,7 @@ function solve_agent_problem_ipp_cap(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        model_data.omega(d) * delta_t * ipp.v_C_my(y, p, k, z, d, t) - miu[y, z, d, t] + lambda[y, p, k, z, d, t] >= 0
+        model_data.omega(d) * delta_t * (ipp.v_C_my(y, p, k, z, d, t) - ipp.PTC_new_my(y, k)) - miu[y, z, d, t] + lambda[y, p, k, z, d, t] >= 0
     )
     @constraint(
         WMDER_IPP,
@@ -3635,12 +3664,12 @@ function solve_agent_problem_ipp_cap(
         #     ],
         #     sum(
         #         model_data.omega(t) *
-        #         (ipp.v_E_my(y, p, k, t) * y_E[y, p, k, t]) for
+        #         ((ipp.v_E_my(y, p, k, t) - ipp.PTC_existing(k)) * y_E[y, p, k, t]) for
         #         t in model_data.index_t, k in ipp.index_k_existing, p in ipp.index_p
         #     ) + 
         #     sum(
         #         model_data.omega(t) *
-        #         (ipp.v_C_my(y, p, k, t) * y_C[y, p, k, t]) for
+        #         ((ipp.v_C_my(y, p, k, t) - ipp.PTC_new_my(y, k)) * y_C[y, p, k, t]) for
         #         t in model_data.index_t, k in ipp.index_k_new, p in ipp.index_p
         #     ) == 
         #     sum(
@@ -3711,12 +3740,12 @@ function solve_agent_problem_ipp_cap(
             ],
             sum(
                 model_data.omega(d) * delta_t *
-                (ipp.v_E_my(y, p, k, z, d, t) * y_E[y, p, k, z, d, t]) for
+                ((ipp.v_E_my(y, p, k, z, d, t) - ipp.PTC_existing(k)) * y_E[y, p, k, z, d, t]) for
                 d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in ipp.index_k_existing, p in ipp.index_p
             ) + 
             sum(
                 model_data.omega(d) * delta_t *
-                (ipp.v_C_my(y, p, k, z, d, t) * y_C[y, p, k, z, d, t]) for
+                ((ipp.v_C_my(y, p, k, z, d, t) - ipp.PTC_new_my(y, k)) * y_C[y, p, k, z, d, t]) for
                 d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in ipp.index_k_new, p in ipp.index_p
             ) == 
             sum(
@@ -4935,12 +4964,12 @@ function solve_agent_problem_ipp_cap(
         lower_level_primal_obj[1, y] = 
         sum(
             model_data.omega(d) * delta_t *
-            (ipp.v_E_my(y, p, k, z, d, t) * value.(y_E[y, p, k, z, d, t])) for
+            ((ipp.v_E_my(y, p, k, z, d, t) - ipp.PTC_existing(k)) * value.(y_E[y, p, k, z, d, t])) for
             d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in ipp.index_k_existing, p in ipp.index_p
         ) + 
         sum(
             model_data.omega(d) * delta_t *
-            (ipp.v_C_my(y, p, k, z, d, t) * value.(y_C[y, p, k, z, d, t])) for
+            ((ipp.v_C_my(y, p, k, z, d, t) - ipp.PTC_new_my(y, k)) * value.(y_C[y, p, k, z, d, t])) for
             d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in ipp.index_k_new, p in ipp.index_p
         )
 
@@ -5376,10 +5405,10 @@ function welfare_calculation!(
     for y in model_data.index_y_fix, p in ipp.index_p
         energy_cost(y, p, :) .=
             sum(
-                model_data.omega(t) * (ipp.v_E_my(y, p, k, t) * ipp.y_E_my(y, p, k, t)) for
+                model_data.omega(t) * ((ipp.v_E_my(y, p, k, t) - ipp.PTC_existing(k)) * ipp.y_E_my(y, p, k, t)) for
                 t in model_data.index_t, k in ipp.index_k_existing
             ) + sum(
-                model_data.omega(t) * (ipp.v_C_my(y, p, k, t) * ipp.y_C_my(y, p, k, t)) for
+                model_data.omega(t) * ((ipp.v_C_my(y, p, k, t) - ipp.PTC_new_my(y, k)) * ipp.y_C_my(y, p, k, t)) for
                 t in model_data.index_t, k in ipp.index_k_new
             )
     end
