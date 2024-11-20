@@ -140,6 +140,8 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     Opti_DG_my::ParamArray
     CapEx_DG::ParamArray
     CapEx_DG_my::ParamArray
+    ITC_DER::ParamArray
+    ITC_DER_my::ParamArray
     FOM_DG::ParamArray
     FOM_DG_my::ParamArray
     rho_DG::ParamArray
@@ -491,6 +493,14 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             index_m,
             [model_data.index_y, model_data.index_z, model_data.index_h],
         ),
+        read_param("ITC_DER", input_filename, "DER_ITCNew", index_m),
+        read_param(
+            "ITC_DER_my",
+            input_filename,
+            "DER_ITCNewmy",
+            index_m,
+            [model_data.index_y],
+        ),
         read_param("FOM_DG", input_filename, "FOMDER", index_m, [model_data.index_z, model_data.index_h]),
         read_param(
             "FOM_DG_my",
@@ -683,6 +693,7 @@ function solve_agent_problem!(
         customers.Opti_DG(z, h, m, :) .= customers.Opti_DG_my(reg_year_index, z, h, m)
         customers.FOM_DG(z, h, m, :) .= customers.FOM_DG_my(reg_year_index, z, h, m)
         customers.CapEx_DG(z, h, m, :) .= customers.CapEx_DG_my(reg_year_index, z, h, m)
+        customers.ITC_DER(m, :) .= customers.ITC_DER_my(reg_year_index, m)
         if w_iter >= 2
             customers.x_DG_E(h, z, m, :) .=
                 customers.x_DG_E_my(reg_year_index, h, m) + sum(
@@ -725,7 +736,7 @@ function solve_agent_problem!(
     for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
         if NetProfit(z, h, m) >= 0.0
             customers.Payback(z, h, m, :) .=
-                customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) / NetProfit(z, h, m)
+                (1.0 - customers.ITC_DG(m)) * customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) / NetProfit(z, h, m)
             # Calculate maximum market share and maximum DG potential (based on WTP curve)
             customers.MarketShare(z, h, m, :) .= get_max_market_share(
                 adopt_model,
@@ -821,6 +832,7 @@ function solve_agent_problem!(
         customers.Opti_DG(z, h, m, :) .= customers.Opti_DG_my(reg_year_index, z, h, m)
         customers.FOM_DG(z, h, m, :) .= customers.FOM_DG_my(reg_year_index, z, h, m)
         customers.CapEx_DG(z, h, m, :) .= customers.CapEx_DG_my(reg_year_index, z, h, m)
+        customers.ITC_DER(m, :) .= customers.ITC_DER_my(reg_year_index, m)
         if w_iter >= 2
             customers.x_DG_E(h, z, m, :) .=
                 customers.x_DG_E_my(reg_year_index, h, z, m) + sum(
@@ -1062,8 +1074,9 @@ function solve_agent_problem!(
     for z in model_data.index_z, h in model_data.index_h
         if customer_opts isa CustomerOptions{SolarPlusStorageOnly}
             if NetProfit_pv_stor(z, h) > 0.0
-                customers.Payback_pv_stor(z, h, :) .=
-                    sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit_pv_stor(z, h)
+                customers.Payback_pv_stor(z, h, :) .= sum(
+                    (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) 
+                    for m in customers.index_m) / NetProfit_pv_stor(z, h)
                 # Calculate maximum market share and maximum DG potential (based on WTP curve)
                 customers.MarketShare_pv_stor(z, h, :) .= get_max_market_share(
                     adopt_model,
@@ -1095,9 +1108,12 @@ function solve_agent_problem!(
             @assert customer_opts isa CustomerOptions{CompeteDERConfigs}
 
             if (NetProfit_pv_stor(z, h) > 0.0) && (NetProfit_PV_only(z, h) > 0.0)
-                customers.Payback_pv_stor(z, h, :) .=
-                        sum(customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m) / NetProfit_pv_stor(z, h)
-                customers.Payback_pv_only(z, h, :) .= customers.CapEx_DG(z, h, :BTMPV) * customers.Opti_DG(z, h, :BTMPV) / NetProfit_PV_only(z, h)
+                customers.Payback_pv_stor(z, h, :) .= sum(
+                    (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) 
+                    for m in customers.index_m) / NetProfit_pv_stor(z, h)
+                customers.Payback_pv_only(z, h, :) .= (
+                    (1.0 - customers.ITC_DER(:BTMPV)) * customers.CapEx_DG(z, h, :BTMPV) * 
+                    customers.Opti_DG(z, h, :BTMPV)) / NetProfit_PV_only(z, h)
                 if customers.Payback_pv_stor(z, h) <= customers.Payback_pv_only(z, h)
                     # Solar plus storage is most attractive
 
@@ -1402,6 +1418,7 @@ function solve_agent_problem!(
         customers.Opti_DG(h, m, :) .= customers.Opti_DG_my(reg_year_index, h, m)
         customers.FOM_DG(h, m, :) .= customers.FOM_DG_my(reg_year_index, h, m)
         customers.CapEx_DG(h, m, :) .= customers.CapEx_DG_my(reg_year_index, h, m)
+        customers.ITC_DER(m, :) .= customers.ITC_DER_my(reg_year_index, m)
         if w_iter >= 2
             customers.x_DG_E(h, m, :) .=
                 customers.x_DG_E_my(reg_year_index, h, m) + sum(
@@ -1443,8 +1460,9 @@ function solve_agent_problem!(
 
     for h in model_data.index_h, m in customers.index_m
         if NetProfit(h, m) >= 0.0
-            customers.Payback(h, m, :) .=
-                customers.CapEx_DG(h, m) * customers.Opti_DG(h, m) / NetProfit(h, m)
+            customers.Payback(h, m, :) .= (
+                (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG(h, m) * 
+                customers.Opti_DG(h, m)) / NetProfit(h, m)
             # Calculate maximum market share and maximum DG potential (based on WTP curve)
             customers.MarketShare(h, m, :) .=
                 1.0 - Distributions.cdf(
@@ -1723,8 +1741,8 @@ function welfare_calculation!(
                                 x,
                             )
                         ),
-                    customers.CapEx_DG_my(y, h, m),
-                    100 * customers.CapEx_DG_my(y, h, m),
+                    (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG_my(y, h, m),
+                    100 * (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG_my(y, h, m),
                     rtol = 1e-8,
                 ),
             )
@@ -2131,8 +2149,8 @@ function welfare_calculation!(
                                 x,
                             )
                         ),
-                    customers.CapEx_DG_my(y, h, m),
-                    100 * customers.CapEx_DG_my(y, h, m),
+                    (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG_my(y, h, m),
+                    100 * (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG_my(y, h, m),
                     rtol = 1e-8,
                 ),
             )
