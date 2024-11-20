@@ -4716,14 +4716,14 @@ function solve_agent_problem_ipp_cap(
         optimize!(WMDER_IPP)
     end
 
+    if termination_status(WMDER_IPP) != OPTIMAL
+        @error "MPPDC upper level did not solve to optimality and terminated as $(termination_status(WMDER_IPP)). Calling compute_conflict! and outputting information to iis_model.txt."
+        compute_conflict!(WMDER_IPP)
+        iis_model, _ = copy_conflict(WMDER_IPP)
+        print(iis_model)
+        f = open("iis_model.txt","w"); print(f, iis_model); close(f)
+    end
     objective_value(WMDER_IPP)
-
-    # compute_conflict!(WMDER_IPP)
-    # iis_model, _ = copy_conflict(WMDER_IPP)
-    # print(iis_model)
-
-    # f = open("iis_model.txt","w"); print(f, iis_model); close(f)
-
 
     for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z
         ipp.x_R_my(y, p_star, k, z, :) .= value.(x_R[y, k, z])

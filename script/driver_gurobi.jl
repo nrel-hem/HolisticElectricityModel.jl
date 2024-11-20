@@ -30,7 +30,7 @@ future_years_len = length(future_years)
 ipp_number = 1                                   # 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
-inputs_date = "20241111"
+inputs_date = "20241120-ba"
 input_dir_name = "$inputs_date"*"_ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 # input_dir = joinpath(test_data_dir, input_dir_name)
@@ -40,16 +40,16 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    VIU(),    # VIU(), WM()
+    WM(),                             # VIU(), WM()
     DERAdoption(),                    # DERAdoption(), NullUseCase()
     NullUseCase(),                    # SupplyChoice(), NullUseCase()
     DERAggregation(),                 # DERAggregation(), NullUseCase()
 )
 
 regulator_opts = RegulatorOptions(
-    TOU(),                            # FlatRate(), TOU()
+    FlatRate(),                       # FlatRate(), TOU()
     ExcessRetailRate();               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
-    tou_suffix="NE2025",
+    tou_suffix="NE2035",
     planning_reserve_margin=0.129     # Value for New England from ReEDS-2.0/inputs/reserves/prm_annual.csv
 )
 
@@ -111,7 +111,7 @@ green_developer_opts = GreenDeveloperOptions(
 )
 
 customer_opts = CustomerOptions(
-    SolarPlusStorageOnly(),
+    CompeteDERConfigs(),
     JuMP.optimizer_with_attributes(
         () -> Gurobi.Optimizer(GUROBI_ENV),
         # "OUTPUTLOG" => 0,
