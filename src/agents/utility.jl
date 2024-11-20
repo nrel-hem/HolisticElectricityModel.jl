@@ -76,6 +76,7 @@ mutable struct Utility <: AbstractUtility
     AnnualAccoutDepre_existing::ParamArray # annual accounting depreciation of existing capacity (%)
     ITC_existing::ParamArray # ITC of existing capacity (%)
     CumuITCAmort_existing::ParamArray # ITC amortization of existing capacity (%)
+    PTC_existing::ParamArray # PTC of existing capacity ($/MWh)
     ADIT_existing::ParamArray # accumulated deferred income taxes ($/MW)
     RateBaseNoWC_existing::ParamArray # rate base (excluding working capital) ($/MW)
 
@@ -84,6 +85,7 @@ mutable struct Utility <: AbstractUtility
     CumuAccoutDepre_new::ParamArray # cumulative accounting depreciation of new capacity (%)
     ITC_new::ParamArray # ITC of new capacity (%)
     CumuITCAmort_new::ParamArray # ITC amortization of new capacity (%)
+    PTC_new::ParamArray # PTC of new capacity ($/MWh)
     ADIT_new::ParamArray # accumulated deferred income taxes ($/MW)
     FOM_new::ParamArray # fixed O&M of new capacity ($/MW-yr)
     Lifetime_new::ParamArray # lifetime of new capacity (yrs)
@@ -153,6 +155,7 @@ mutable struct Utility <: AbstractUtility
     CumuITCAmortStor_existing_my::ParamArray # ITC amortization of existing capacity (%)
     AnnualITCAmort_existing_my::ParamArray # ITC amortization of existing capacity (%)
     AnnualITCAmortStor_existing_my::ParamArray # ITC amortization of existing capacity (%)
+    PTC_existing_my::ParamArray # PTC of existing capacity ($/MWh)
     ADIT_existing_my::ParamArray # accumulated deferred income taxes ($/MW)
     RateBaseNoWC_existing_my::ParamArray # rate base (excluding working capital) ($/MW)
     ADITStor_existing_my::ParamArray # accumulated deferred income taxes ($/MW)
@@ -168,6 +171,7 @@ mutable struct Utility <: AbstractUtility
     CumuITCAmortStor_new_my::ParamArray # ITC amortization of new capacity (%)
     AnnualITCAmort_new_my::ParamArray # ITC amortization of new capacity (%)
     AnnualITCAmortStor_new_my::ParamArray # ITC amortization of new capacity (%)
+    PTC_new_my::ParamArray # PTC of new capacity ($/MWh)
     AnnualAccoutDepre_new_my::ParamArray # annual accounting depreciation of new capacity (%)
     AnnualAccoutDepreStor_new_my::ParamArray # annual accounting depreciation of new capacity (%)
     AnnualTaxDepre_new_my::ParamArray # annual tax depreciation of new capacity (%)
@@ -299,12 +303,13 @@ function Utility(
         "CumuITCAmortOld",
         index_k_existing,
     )
+    PTCOld = read_param("PTC_existing", input_filename, "PTCOld", index_k_existing)
 
 
     ADITOld = make_keyed_array(model_data.index_z, index_k_existing)
     for z in model_data.index_z, k in index_k_existing
         ADITOld(z, k, :) .= CapExOld(z, k) * (CumuTaxDepreOld(k) - CumuAccoutDepreOld(k)) * tax_rate +
-        ITCOld(k) * CapExOld(z, k) * (1 - CumuITCAmortOld(k))
+                            ITCOld(k) * CapExOld(z, k) * (1 - CumuITCAmortOld(k))
     end
 
     RateBaseNoWCOld = make_keyed_array(model_data.index_z, index_k_existing)
@@ -319,11 +324,12 @@ function Utility(
     ITCNew = read_param("ITC_new", input_filename, "ITCNew", index_k_new)
     CumuITCAmortNew =
         read_param("CumuITCAmort_new", input_filename, "CumuITCAmortNew", index_k_new)
+    PTCNew = read_param("PTC_new", input_filename, "PTCNew", index_k_new)
 
     ADITNew = make_keyed_array(model_data.index_z, index_k_new)
     for z in model_data.index_z, k in index_k_new
         ADITNew(z, k, :) .= CapExNew(z, k) * (CumuTaxDepreNew(k) - CumuAccoutDepreNew(k)) * tax_rate +
-        ITCNew(k) * CapExNew(z, k) * (1 - CumuITCAmortNew(k))
+                            ITCNew(k) * CapExNew(z, k) * (1 - CumuITCAmortNew(k))
     end
 
     RateBaseNoWCNew = make_keyed_array(model_data.index_z, index_k_new)
@@ -450,13 +456,14 @@ function Utility(
         index_stor_existing,
         [model_data.index_y],
     )
+    # PTC of existing units ($/MWh)
+    PTCOld_my = read_param("PTC_existing_my", input_filename, "PTCOld", index_k_existing)
     # accumulative deferred income tax of existing units ($/MW)
     ADITOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_k_existing)
     for y in model_data.index_y, z in model_data.index_z, k in index_k_existing
         ADITOld_my(y, z, k, :) .=
-            CapExOld_my(z, k) *
-            (CumuTaxDepreOld_my(y, k) - CumuAccoutDepreOld_my(y, k)) *
-            tax_rate + ITCOld_my(k) * CapExOld_my(z, k) * (1 - CumuITCAmortOld_my(y, k))
+            CapExOld_my(z, k) * (CumuTaxDepreOld_my(y, k) - CumuAccoutDepreOld_my(y, k)) * tax_rate + 
+            ITCOld_my(k) * CapExOld_my(z, k) * (1 - CumuITCAmortOld_my(y, k))
     end
     # rate base (without working capital) ($/MW)
     RateBaseNoWCOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_k_existing)
@@ -468,9 +475,8 @@ function Utility(
     ADITStorOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_stor_existing)
     for y in model_data.index_y, z in model_data.index_z, s in index_stor_existing
         ADITStorOld_my(y, z, s, :) .=
-            CapExStorOld_my(z, s) *
-            (CumuTaxDepreStorOld_my(y, s) - CumuAccoutDepreStorOld_my(y, s)) *
-            tax_rate + ITCStorOld_my(s) * CapExStorOld_my(z, s) * (1 - CumuITCAmortStorOld_my(y, s))
+            CapExStorOld_my(z, s) * (CumuTaxDepreStorOld_my(y, s) - CumuAccoutDepreStorOld_my(y, s)) * tax_rate + 
+            ITCStorOld_my(s) * CapExStorOld_my(z, s) * (1 - CumuITCAmortStorOld_my(y, s))
     end
     # rate base (without working capital) ($/MW)
     RateBaseNoWCStorOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_stor_existing)
@@ -552,6 +558,14 @@ function Utility(
         "AnnualITCAmortStorNewmy",
         index_stor_new,
         [model_data.index_s],
+    )
+    # PTC of new units ($/MWh)
+    PTCNew_my = read_param(
+        "PTC_new_my",
+        input_filename,
+        "PTCNewmy",
+        index_k_new,
+        [model_data.index_y],
     )
     # annual accounting depreciation of new units (%)
     AnnualAccoutDepreNew_my = read_param(
@@ -664,6 +678,7 @@ function Utility(
         AnnualAccoutDepreOld,
         ITCOld,
         CumuITCAmortOld,
+        PTCOld,
         ParamArray("ADIT_existing", (index_k_existing,), ADITOld),
         ParamArray("RateBaseNoWC_existing", (index_k_existing,), RateBaseNoWCOld),
         CapExNew,
@@ -671,6 +686,7 @@ function Utility(
         CumuAccoutDepreNew,
         ITCNew,
         CumuITCAmortNew,
+        PTCNew,
         ParamArray("ADIT_new", (index_k_existing,), ADITNew),
         FOMNew,
         LifetimeNew,
@@ -855,6 +871,7 @@ function Utility(
         CumuITCAmortStorOld_my,
         AnnualITCAmortOld_my,
         AnnualITCAmortStorOld_my,
+        PTCOld_my,
         ParamArray(
             "ADIT_existing_my",
             Tuple(push!(copy([model_data.index_y]), index_k_existing)),
@@ -885,6 +902,7 @@ function Utility(
         CumuITCAmortStorNew_my,
         AnnualITCAmortNew_my,
         AnnualITCAmortStorNew_my,
+        PTCNew_my,
         AnnualAccoutDepreNew_my,
         AnnualAccoutDepreStorNew_my,
         AnnualTaxDepreNew_my,
@@ -1156,12 +1174,12 @@ function solve_agent_problem!(
             utility.pvf_onm(y) * (
                 sum(
                     model_data.omega(d) * delta_t *
-                    (utility.v_E_my(y, k, z, d, t) * y_E[y, k, z, d, t]) for
+                    ((utility.v_E_my(y, k, z, d, t) - utility.PTC_existing(k)) * y_E[y, k, z, d, t]) for
                     d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in utility.index_k_existing
                 ) + 
                 sum(
                     model_data.omega(d) * delta_t *
-                    (utility.v_C_my(y, k, z, d, t) * y_C[y, k, z, d, t]) for
+                    ((utility.v_C_my(y, k, z, d, t) - utility.PTC_new_my(y, k)) * y_C[y, k, z, d, t]) for
                     d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in utility.index_k_new
                 )
             ) +
@@ -1187,9 +1205,10 @@ function solve_agent_problem!(
             ) +
             # capital costs
             #   capex * cap new for gen type
-            # the discout factor is applied to new capacity for the year it is built
-            utility.pvf_cap(y) *
-            sum(utility.CapEx_my(y, z, k) * x_C[y, k, z] for k in utility.index_k_new, z in model_data.index_z) +
+            # the discount factor is applied to new capacity for the year it is built
+            utility.pvf_cap(y) * sum(
+                (1.0 - utility.ITC_new_my(y, k)) * utility.CapEx_my(y, z, k) * x_C[y, k, z] 
+                 for k in utility.index_k_new, z in model_data.index_z) + 
             # fixed costs
             #   fom * (cap exist - cap retiring) for stor type
             utility.pvf_onm(y) * sum(
@@ -1212,8 +1231,10 @@ function solve_agent_problem!(
             ) +
             # fixed costs
             #   capex * cap new for stor type
-            utility.pvf_cap(y) *
-            sum(utility.CapEx_stor_my(y, z, s) * x_stor_C[y, s, z] for s in utility.index_stor_new, z in model_data.index_z)
+            utility.pvf_cap(y) * sum(
+                (1.0 - utility.ITCStor_new_my(y, s)) * utility.CapEx_stor_my(y, z, s) * x_stor_C[y, s, z] 
+                for s in utility.index_stor_new, z in model_data.index_z
+            )
             for y in model_data.index_y
         )
     end
@@ -2102,10 +2123,10 @@ function solve_agent_problem_decomposition_by_year(
         #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
         utility.pvf_onm(y) * (
             sum(
-                model_data.omega(t) * (utility.v_E_my(y, k, t) * y_E[k, t]) for
+                model_data.omega(t) * ((utility.v_E_my(y, k, t) - utility.PTC_existing(k)) * y_E[k, t]) for
                 t in model_data.index_t, k in utility.index_k_existing
             ) + sum(
-                model_data.omega(t) * (utility.v_C_my(y, k, t) * y_C[k, t]) for
+                model_data.omega(t) * ((utility.v_C_my(y, k, t) - utility.PTC_new_my(y, k)) * y_C[k, t]) for
                 t in model_data.index_t, k in utility.index_k_new
             )
         ) +
@@ -2132,7 +2153,7 @@ function solve_agent_problem_decomposition_by_year(
         # capital costs
         # the discout factor is applied to new capacity for the year it is built
         utility.pvf_cap(y) *
-        sum(utility.CapEx_my(y, k) * x_C[y, k] for k in utility.index_k_new) +
+        sum((1.0 - utility.ITC_new_my(y, k)) * utility.CapEx_my(y, k) * x_C[y, k] for k in utility.index_k_new) +
         # lagrange multiplier
         Lagrange_terms
     end
@@ -2464,10 +2485,10 @@ function solve_agent_problem_decomposition_by_year_feasible(
         #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
         utility.pvf_onm(y) * (
             sum(
-                model_data.omega(t) * (utility.v_E_my(y, k, t) * y_E[k, t]) for
+                model_data.omega(t) * ((utility.v_E_my(y, k, t) - utility.PTC_existing(k)) * y_E[k, t]) for
                 t in model_data.index_t, k in utility.index_k_existing
             ) + sum(
-                model_data.omega(t) * (utility.v_C_my(y, k, t) * y_C[k, t]) for
+                model_data.omega(t) * ((utility.v_C_my(y, k, t) - utility.PTC_new_my(y, k)) * y_C[k, t]) for
                 t in model_data.index_t, k in utility.index_k_new
             )
         ) +
@@ -2494,7 +2515,7 @@ function solve_agent_problem_decomposition_by_year_feasible(
         # capital costs
         # the discout factor is applied to new capacity for the year it is built
         utility.pvf_cap(y) *
-        sum(utility.CapEx_my(y, k) * x_C[y, k] for k in utility.index_k_new) +
+        sum((1.0 - utility.ITC_new_my(y, k)) * utility.CapEx_my(y, k) * x_C[y, k] for k in utility.index_k_new) +
         # lagrange multiplier
         Lagrange_terms
     end
@@ -2680,10 +2701,10 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
             #   num hrs * ((fuel + vom) * gen existing + (fuel + vom) * gen new) for t and gen type
             utility.pvf_onm(y) * (
                 sum(
-                    model_data.omega(t) * (utility.v_E_my(y, k, t) * y_E[y, k, t]) for
+                    model_data.omega(t) * ((utility.v_E_my(y, k, t) - utility.PTC_existing(k)) * y_E[y, k, t]) for
                     t in model_data.index_t, k in utility.index_k_existing
                 ) + sum(
-                    model_data.omega(t) * (utility.v_C_my(y, k, t) * y_C[y, k, t]) for
+                    model_data.omega(t) * ((utility.v_C_my(y, k, t) - utility.PTC_new_my(y, k)) * y_C[y, k, t]) for
                     t in model_data.index_t, k in utility.index_k_new
                 )
             ) +
@@ -2710,7 +2731,7 @@ function solve_agent_problem_decomposition_by_year_feasible_obj(
             # capital costs
             # the discout factor is applied to new capacity for the year it is built
             utility.pvf_cap(y) * sum(
-                utility.CapEx_my(y, k) * utility.x_C_feasible(y, k) for
+                (1.0 - utility.ITC_new_my(y, k)) * utility.CapEx_my(y, k) * utility.x_C_feasible(y, k) for
                 k in utility.index_k_new
             )
 
