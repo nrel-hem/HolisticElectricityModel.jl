@@ -2,47 +2,9 @@
 # Data Selection
 # ------------------------------------------------------------------------------
 
-data_selection: 
+data_selection:
 
-# Geography --------------------------------------------------------------------
-# Currently, geography is tied to ReEDS balancing areas (BAs). Valid values are
-# "p1", "p2", ..., "p134". This map shows where the BAs are located: 
-# https://www.nrel.gov/analysis/assets/pdfs/reeds-model-regions-map.pdf.
-
-# HEM analyses have been conducted for:
-#     Nevada: "p13", "p14"
-#     New England: "p129", "p130", "p131", "p132", "p133", "p134"
-
-  balancing_areas:
-    - "p129"
-    - "p130"
-    - "p131"
-    - "p132"
-    - "p133"
-    - "p134"
-
-# Time -------------------------------------------------------------------------
-
-  base_year: 2020
-  num_future_years: 2
-
-# Agent Resolution--------------------------------------------------------------
-
-  num_ipps: 1
-
-# Run Details ------------------------------------------------------------------
-
-# String used to distinguish the input data folder from others
-  folder_suffix: "20240806"
-
-# Parse options-----------------------------------------------------------------
-  
-  der_aggregator: true
-  set_nuclear_varcost_negative: true
-  load_profiles_subdir: "NewEngland"
-
-# Whether the input folder needs to be (re)created
-  skip_parse: false
+  input_path: "../HolisticElectricityModelData.jl/runs/20241111_ba_6_base_2020_future_2_ipps_1/"
 
 # ------------------------------------------------------------------------------
 # Simulation Parameters

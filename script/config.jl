@@ -15,7 +15,7 @@ end
 function validate(section::String, validator::FieldValidator, value::Any)
     ret, msg_or_value = validator.func(value)
     if !ret
-        error("Error in $section, $validator.name: $msg_or_value")
+        error("Error in $section, $(validator.name): $msg_or_value")
     end
     return msg_or_value
 end
@@ -63,7 +63,7 @@ function check_bool(value)
     return true, Bool(value)
 end
 
-function parse(config::Dict{Any,Any}, section::String, validators::Dict{String,Vector})
+function parse(config::Dict{Any,Any}, section::String, validators::Dict{String,Vector{T}}) where T<: FieldValidator
     if !(section in keys(config))
         error("Invalid config section: $section.")
     end
@@ -101,4 +101,11 @@ end
 function check_and_return_from_map(value::AbstractString, mapping::Dict)
     check_in_collection(value, keys(mapping))
     return true, mapping[value]
+end
+
+function check_path(value)
+    if !(isdir(value))
+        return false, "$(value) not a valid path"
+    end
+    return true, value
 end
