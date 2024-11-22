@@ -460,7 +460,13 @@ function solve_agent_problem!(
                 # set der aggregation level to points on the curve before running CEM
                 der_aggregator.aggregation_level(reg_year_index_dera, z, :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"]
                 utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) for h in model_data.index_h)
-                utility.x_E_my(z, Symbol("dera_pv"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV) for h in model_data.index_h)
+                utility.x_E_my(z, Symbol("dera_pv"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * 
+                sum(
+                    customers.Opti_DG_E(z, h, :BTMStorage) == 0 || customers.Opti_DG_E(z, h, :BTMPV) == 0 ? 0.0 : 
+                    total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
+                    for h in model_data.index_h
+                )
+            
 
                 diff_one = solve_agent_problem!(
                             utility,
@@ -681,7 +687,8 @@ function solve_agent_problem!(
     dera_agg_pv_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
         dera_agg_stor_capacity_h(z, h, :) .= der_aggregator.aggregation_level(reg_year_index, z) * total_der_stor_capacity(z, h)
-        dera_agg_pv_capacity_h(z, h, :) .= dera_agg_stor_capacity_h(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
+        dera_agg_pv_capacity_h(z, h, :) .= customers.Opti_DG_E(z, h, :BTMStorage) == 0 || customers.Opti_DG_E(z, h, :BTMPV) == 0 ? 
+        0.0 : dera_agg_stor_capacity_h(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)   
         der_aggregator.dera_stor_my(reg_year_index, z, h, :) .= dera_agg_stor_capacity_h(z, h)
         der_aggregator.dera_pv_my(reg_year_index, z, h, :) .= dera_agg_pv_capacity_h(z, h)
     end
