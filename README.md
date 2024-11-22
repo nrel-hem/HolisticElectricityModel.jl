@@ -5,38 +5,36 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
 ## Start-Up Instructions
 
 - Clone this repository
-- Clone the [HolisticElectricityModelData.jl repository](https://github.nrel.gov/HEM/HolisticElectricityModelData.jl)
+- Prepare the model input data by cloning the [HolisticElectricityModelData.jl repository](https://github.nrel.gov/HEM/HolisticElectricityModelData.jl) and following the instructions. (Users can also generate their own input data as long as it is in a compatible format.)
 
 
 ### Installation
 
 #### NREL HPC Instructions
 (* Skip this step if Julia is already installed in the HPC *)
-- Go to https://julialang.org/downloads and copy the link to the latest supported Julia Linux image.
+- Go to https://julialang.org/downloads and copy the link to the latest supported Julia Linux image (currently Julia 1.10.0).
 - ssh to NREL HPC (currently Kestrel) and download the image.
     ```bash
     $ ssh kestrel.hpc.nrel.gov
-    $ wget https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-<x.y.z>-linux-x86_64.tar.gz
-    $ tar -xzf julia-<x.y.z>-linux-x86_64.tar.gz
+    $ wget https://julialang-s3.julialang.org/bin/linux/x64/1.8/julia-1.10.0-linux-x86_64.tar.gz
+    $ tar -xzf julia-1.10.0-linux-x86_64.tar.gz
     ```
 - Add lines analogous to these to your ~/.bashrc file on the HPC:
     ```
     # User specific aliases and functions
-    alias julia="/home/<user_name>/julia-<x.y.z>/bin/julia"
+    alias julia="/home/<user_name>/julia-1.10.0/bin/julia"
     ```
 - Reload the file so that you can run `julia`.
     ```bash
     $ source ~/.bashrc
     ```
-- Once on a login node, make it so the required packages will load:
+- Once on a login node, make it so the required packages will load. Also, load the latest suported Gurobi solver (currently 11.0.0):
     ```bash
-    > module load gurobi
+    > module load gurobi/11.0.0
     > julia --project=runner/Gurobi
     ```
 
     ```julia
-    julia> ]
-    pkg> dev --local ../HolisticElectricityModelData.jl
     pkg> instantiate
     pkg> build Gurobi
     ```
@@ -52,8 +50,6 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
     ```
 
     ```julia
-    julia> ]
-    pkg> dev --local ../HolisticElectricityModelData.jl
     pkg> instantiate
     ```
 
@@ -70,7 +66,7 @@ based on one of the environments under [runner](https://github.com/nrel-hem/Holi
 - Load the Gurobi module
 
     ```
-    module load gurobi
+    module load gurobi/11.0.0
     ```
     and then use the `hem.jl` script for your model runs.
   
@@ -79,7 +75,7 @@ based on one of the environments under [runner](https://github.com/nrel-hem/Holi
     > salloc -N 1 -t 60 --account=hem --partition=debug
     # ... Wait for a compute node
     > cd HolisticElectricityModel.jl
-    > module load gurobi
+    > module load gurobi/11.0.0
     > julia --project=runner/Gurobi script/hem.jl
     ```
 
@@ -93,7 +89,6 @@ based on one of the environments under [runner](https://github.com/nrel-hem/Holi
 
     ```bash
     > cd HolisticElectricityModel.jl
-    > module load gurobi
     > julia --project=runner/Xpress script/hem.jl
     ```
 
@@ -120,7 +115,7 @@ interesting or would like to make a contribution.
 
 ### Running Tests
 
-Specify a scenario you want to test by setting `driver_name` as desired at the top of `test/test_driver.jl` and then editing the driver file accordingly. Currently the model outputs available to test against are in the `test/driver_outputs/ba_1_base_2018_future_2_ipps_1` directory created with input parameters:
+Specify a scenario you want to test by modifying hem_config.yaml file accordingly. Currently the model outputs available to test against need to be generated in the `test/driver_outputs/ba_1_base_2018_future_2_ipps_1` directory by running the create_run_inputs.jl script in HolisticElectricityModelData.jl. The output_path would need to be uppdated to the appropriate location along with input parameters:
 
 ```
 ba = ["p13"]
@@ -136,10 +131,7 @@ The option names printed in the `test/driver_outputs/ba_1_base_2018_future_2_ipp
 Then, to run all tests:
 ```bash
 > julia --project=test
-julia> ]
-pkg> dev . ../HolisticElectricityModelData.jl
-# Hit Backspace
-julia> include("test/runtests.jl")
+julia> include("test/test_hem.jl")
 ```
 
 NREL Software Record SWR-21-62 "HEM (HolisticElectricityModel.jl)"
