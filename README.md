@@ -101,7 +101,7 @@ Xpress or Gurobi. If you would prefer to use a different solver, please let us
 know and/or try implementing on your own. The key steps to supporting another 
 solver are:
 
-- Add a new environment specification under [runner](https://github.com/nrel-hem/HolisticElectricityModel.jl/tree/main/runner)
+- Add a new environment specification under [runner](https://github.com/nrel-hem/HolisticElectricityModel.jl/tree/main/runner) following the Gurobi and Xpress examples.
 - Create a new `HEMSolver` in [src/solvers.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/src/solvers.jl)
 - Add an entry to the get_optimizer_for_solver in [src/solvers.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/src/solvers.jl)
 - Edit `script/hem.jl` accordingly
