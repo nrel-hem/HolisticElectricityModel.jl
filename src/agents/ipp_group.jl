@@ -838,7 +838,7 @@ Lower level optimization results are used to set variable bounds for McCormick-e
 """
 function ipp_cap_lower(
     ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre, 
-    customers, der_aggregator, green_developer
+    customers, der_aggregator, green_developer; first_update=true
 )
     MPPDCMER_lower = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"])
 
@@ -917,13 +917,14 @@ function ipp_cap_lower(
             ipp.eximport_my(y, z, d, t) +
             # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(reg_year_index_dera_pre, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
             ) - 
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera_pre, z) *
-                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                customers.total_pv_stor_capacity_my(reg_year_index_dera_pre, z, h, m) 
+                for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             ) +
             # green technology subscription at time t
             sum(
@@ -950,7 +951,10 @@ function ipp_cap_lower(
             t in model_data.index_t,
         ],
         ipp.rho_E_my(p, k, z, d, t) * (
-            ipp.x_E_my(p, z, k) - ipp.x_R_cumu(p, k, z)
+            ipp.x_E_my(p, z, k) - sum(
+                ipp.x_R_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) - y_E_bounds[y, p, k, z, d, t] >= 0
     )
 
@@ -965,7 +969,10 @@ function ipp_cap_lower(
             t in model_data.index_t,
         ],
         ipp.rho_C_my(p, k, z, d, t) * (
-            ipp.x_C_cumu(p, k, z)
+            sum(
+                ipp.x_C_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) - y_C_bounds[y, p, k, z, d, t] >= 0
     )
 
@@ -1030,7 +1037,10 @@ function ipp_cap_lower(
             t in model_data.index_t,
         ],
         ipp.stor_duration_existing(s) * (
-            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
+            ipp.x_stor_E_my(p, z, s) - sum(
+                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) - energy_E_bounds[y, p, s, z, d, t] >= 0
     )
 
@@ -1045,7 +1055,10 @@ function ipp_cap_lower(
             t in model_data.index_t,
         ],
         ipp.rte_stor_E_my(y, p, z, s) * (
-            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
+            ipp.x_stor_E_my(p, z, s) - sum(
+                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) - discharge_E_bounds[y, p, s, z, d, t] >= 0
     )
 
@@ -1059,7 +1072,10 @@ function ipp_cap_lower(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z) - charge_E_bounds[y, p, s, z, d, t] >= 0
+        ipp.x_stor_E_my(p, z, s) - sum(
+            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+        ) - charge_E_bounds[y, p, s, z, d, t] >= 0
     )
 
     @constraint(
@@ -1099,7 +1115,10 @@ function ipp_cap_lower(
             t in model_data.index_t.elements[2:end],
         ],
         ipp.stor_duration_existing(s) * (
-            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
+            ipp.x_stor_E_my(p, z, s) - sum(
+                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) -
         energy_E_bounds[y, p, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] -
         charge_E_bounds[y, p, s, z, d, t] * delta_t >= 0
@@ -1116,7 +1135,10 @@ function ipp_cap_lower(
             t in [model_data.index_t.elements[1]],
         ],
         ipp.stor_duration_existing(s) * (
-            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
+            ipp.x_stor_E_my(p, z, s) - sum(
+                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) -
         ipp.initial_energy_existing_my(y, p, s, z, d) - charge_E_bounds[y, p, s, z, d, t] * delta_t >= 0
     )
@@ -1131,8 +1153,11 @@ function ipp_cap_lower(
             d in model_data.index_d,
             t in model_data.index_t.elements,
         ],
-            ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z) -  
-            charge_E_bounds[y, p, s, z, d, t] - discharge_E_bounds[y, p, s, z, d, t] / ipp.rte_stor_E_my(y, p, z, s) >= 0
+        ipp.x_stor_E_my(p, z, s) - sum(
+                ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+        ) - 
+        charge_E_bounds[y, p, s, z, d, t] - discharge_E_bounds[y, p, s, z, d, t] / ipp.rte_stor_E_my(y, p, z, s) >= 0
     )
 
     @constraint(
@@ -1174,7 +1199,10 @@ function ipp_cap_lower(
             t in model_data.index_t,
         ],
         ipp.stor_duration_new(s) * (
-            ipp.x_stor_C_cumu(p, s, z)
+            sum(
+                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) - energy_C_bounds[y, p, s, z, d, t] >= 0
     )
 
@@ -1189,7 +1217,10 @@ function ipp_cap_lower(
             t in model_data.index_t,
         ],
         ipp.rte_stor_C_my(y, p, z, s) * (
-            ipp.x_stor_C_cumu(p, s, z)
+            sum(
+                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) - discharge_C_bounds[y, p, s, z, d, t] >= 0
     )
 
@@ -1203,7 +1234,10 @@ function ipp_cap_lower(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        ipp.x_stor_C_cumu(p, s, z) - charge_C_bounds[y, p, s, z, d, t] >= 0
+        sum(
+            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+        ) - charge_C_bounds[y, p, s, z, d, t] >= 0
     )
 
     @constraint(
@@ -1243,7 +1277,10 @@ function ipp_cap_lower(
             t in model_data.index_t.elements[2:end],
         ],
         ipp.stor_duration_new(s) * (
-            ipp.x_stor_C_cumu(p, s, z)
+            sum(
+                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) -
         energy_C_bounds[y, p, s, z, d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] -
         charge_C_bounds[y, p, s, z, d, t] * delta_t >= 0
@@ -1260,7 +1297,10 @@ function ipp_cap_lower(
             t in [model_data.index_t.elements[1]],
         ],
         ipp.stor_duration_new(s) * (
-            ipp.x_stor_C_cumu(p, s, z)
+            sum(
+                ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+            )
         ) -
         ipp.initial_energy_new_my(y, p, s, z, d) - charge_C_bounds[y, p, s, z, d, t] * delta_t >= 0
     )
@@ -1275,7 +1315,10 @@ function ipp_cap_lower(
             d in model_data.index_d,
             t in model_data.index_t.elements,
         ],
-        ipp.x_stor_C_cumu(p, s, z) - charge_C_bounds[y, p, s, z, d, t] - discharge_C_bounds[y, p, s, z, d, t] / ipp.rte_stor_C_my(y, p, z, s) >= 0
+        sum(
+            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+        ) - charge_C_bounds[y, p, s, z, d, t] - discharge_C_bounds[y, p, s, z, d, t] / ipp.rte_stor_C_my(y, p, z, s) >= 0
     )
 
     @info("MPPDC lower level primal")
@@ -1384,13 +1427,13 @@ function ipp_cap_lower_dual(
                     ) + ipp.eximport_my(y, z, d, t) -
                     # total DG generation at time t
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
+                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(reg_year_index_dera_pre, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
                     ) +
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
                         customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera_pre, z) * 
-                        customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                        customers.total_pv_stor_capacity_my(reg_year_index_dera_pre, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                     ) -
                     # green technology subscription at time t
                     sum(
@@ -1404,7 +1447,10 @@ function ipp_cap_lower_dual(
                 sum(
                     eta_lower[y, p, k, z, d, t] *
                     ipp.rho_E_my(p, k, z, d, t) * (
-                        ipp.x_E_my(p, z, k) - ipp.x_R_cumu(p, k, z)
+                        ipp.x_E_my(p, z, k) - sum(
+                            ipp.x_R_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) for p in ipp.index_p, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -1412,7 +1458,10 @@ function ipp_cap_lower_dual(
                 sum(
                     lambda_lower[y, p, k, z, d, t] *
                     ipp.rho_C_my(p, k, z, d, t) * (
-                        ipp.x_C_cumu(p, k, z)
+                        sum(
+                            ipp.x_C_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) for p in ipp.index_p, k in ipp.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) + 
@@ -1424,7 +1473,10 @@ function ipp_cap_lower_dual(
                 sum(
                     theta_E_energy_lower[y, p, s, z, d, t] *
                     ipp.stor_duration_existing(s) * (
-                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - sum(
+                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -1432,7 +1484,10 @@ function ipp_cap_lower_dual(
                 sum(
                     theta_E_discharge_lower[y, p, s, z, d, t] *
                     ipp.rte_stor_E_my(y, p, z, s) * (
-                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - sum(
+                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -1440,7 +1495,10 @@ function ipp_cap_lower_dual(
                 sum(
                     theta_E_charge_lower[y, p, s, z, d, t] *
                     (
-                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - sum(
+                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -1448,7 +1506,10 @@ function ipp_cap_lower_dual(
                 sum(
                     pi_E_charge_lower[y, p, s, z, d, t] *
                     ipp.stor_duration_existing(s) * (
-                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - sum(
+                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -1456,7 +1517,10 @@ function ipp_cap_lower_dual(
                 sum(
                     kappa_E_lower[y, p, s, z, d, t] *
                     (
-                        ipp.x_stor_E_my(p, z, s) - ipp.x_stor_R_cumu(p, s, z)
+                        ipp.x_stor_E_my(p, z, s) - sum(
+                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) for p in ipp.index_p, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
@@ -1464,7 +1528,10 @@ function ipp_cap_lower_dual(
                 sum(
                     theta_C_energy_lower[y, p, s, z, d, t] *
                     ipp.stor_duration_new(s) * (
-                        ipp.x_stor_C_cumu(p, s, z)
+                        sum(
+                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     )
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -1473,7 +1540,10 @@ function ipp_cap_lower_dual(
                 sum(
                     theta_C_discharge_lower[y, p, s, z, d, t] *
                     ipp.rte_stor_C_my(y, p, z, s) * (
-                        ipp.x_stor_C_cumu(p, s, z)
+                        sum(
+                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) 
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -1481,7 +1551,10 @@ function ipp_cap_lower_dual(
             (
                 sum(
                     theta_C_charge_lower[y, p, s, z, d, t] * (
-                        ipp.x_stor_C_cumu(p, s, z)
+                        sum(
+                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) 
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -1490,7 +1563,10 @@ function ipp_cap_lower_dual(
                 sum(
                     pi_C_charge_lower[y, p, s, z, d, t] *
                     ipp.stor_duration_new(s) * (
-                        ipp.x_stor_C_cumu(p, s, z)
+                        sum(
+                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) 
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -1498,7 +1574,10 @@ function ipp_cap_lower_dual(
             (
                 sum(
                     kappa_C_lower[y, p, s, z, d, t] * (
-                        ipp.x_stor_C_cumu(p, s, z)
+                        sum(
+                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
+                        )
                     ) 
                     for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
@@ -1876,6 +1955,9 @@ function get_mccormick_bounds(
     # a bigger bound_size makes the problem easier to solve, but also hurts the duality gap.
     @info("Calcuate McCormick Bounds using bound_size $(bound_size)")
 
+    U_if_zero = 100.0
+    L_if_zero = 0.0
+
     eta_L = initialize_param("eta_L", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
     eta_U = initialize_param("eta_U", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
 
@@ -1884,8 +1966,8 @@ function get_mccormick_bounds(
             for z in model_data.index_z
                 for d in model_data.index_d
                     for t in model_data.index_t
-                        eta_U(y, k, z, d, t, :) .= eta_param(y, k, z, d, t) * (1.0 + bound_size)
-                        eta_L(y, k, z, d, t, :) .= eta_param(y, k, z, d, t) * (1.0 - bound_size)
+                        eta_U(y, k, z, d, t, :) .= eta_param(y, k, z, d, t) == 0.0 ? U_if_zero : eta_param(y, k, z, d, t) * (1.0 + bound_size)
+                        eta_L(y, k, z, d, t, :) .= eta_param(y, k, z, d, t) == 0.0 ? L_if_zero : eta_param(y, k, z, d, t) * (1.0 - bound_size)
                     end
                 end
             end
@@ -1900,8 +1982,8 @@ function get_mccormick_bounds(
             for z in model_data.index_z
                 for d in model_data.index_d
                     for t in model_data.index_t
-                        lambda_U(y, k, z, d, t, :) .= lambda_param(y, k, z, d, t) * (1.0 + bound_size)
-                        lambda_L(y, k, z, d, t, :) .= lambda_param(y, k, z, d, t) * (1.0 - bound_size)
+                        lambda_U(y, k, z, d, t, :) .= lambda_param(y, k, z, d, t) == 0.0 ? U_if_zero : lambda_param(y, k, z, d, t) * (1.0 + bound_size)
+                        lambda_L(y, k, z, d, t, :) .= lambda_param(y, k, z, d, t) == 0.0 ? L_if_zero : lambda_param(y, k, z, d, t) * (1.0 - bound_size)
                     end
                 end
             end
@@ -1924,16 +2006,16 @@ function get_mccormick_bounds(
             for z in model_data.index_z
                 for d in model_data.index_d
                     for t in model_data.index_t
-                        theta_E_energy_U(y, k, z, d, t, :) .= theta_E_energy_param(y, k, z, d, t) * (1.0 + bound_size)
-                        theta_E_energy_L(y, k, z, d, t, :) .= theta_E_energy_param(y, k, z, d, t) * (1.0 - bound_size)
-                        theta_E_discharge_U(y, k, z, d, t, :) .= theta_E_discharge_param(y, k, z, d, t) * (1.0 + bound_size)
-                        theta_E_discharge_L(y, k, z, d, t, :) .= theta_E_discharge_param(y, k, z, d, t) * (1.0 - bound_size)
-                        theta_E_charge_U(y, k, z, d, t, :) .= theta_E_charge_param(y, k, z, d, t) * (1.0 + bound_size)
-                        theta_E_charge_L(y, k, z, d, t, :) .= theta_E_charge_param(y, k, z, d, t) * (1.0 - bound_size)
-                        pi_E_charge_U(y, k, z, d, t, :) .= pi_E_charge_param(y, k, z, d, t) * (1.0 + bound_size)
-                        pi_E_charge_L(y, k, z, d, t, :) .= pi_E_charge_param(y, k, z, d, t) * (1.0 - bound_size)
-                        kappa_E_U(y, k, z, d, t, :) .= kappa_E_param(y, k, z, d, t) * (1.0 + bound_size)
-                        kappa_E_L(y, k, z, d, t, :) .= kappa_E_param(y, k, z, d, t) * (1.0 - bound_size)
+                        theta_E_energy_U(y, k, z, d, t, :) .= theta_E_energy_param(y, k, z, d, t) == 0.0 ? U_if_zero : theta_E_energy_param(y, k, z, d, t) * (1.0 + bound_size)
+                        theta_E_energy_L(y, k, z, d, t, :) .= theta_E_energy_param(y, k, z, d, t) == 0.0 ? L_if_zero : theta_E_energy_param(y, k, z, d, t) * (1.0 - bound_size)
+                        theta_E_discharge_U(y, k, z, d, t, :) .= theta_E_discharge_param(y, k, z, d, t) == 0.0 ? U_if_zero : theta_E_discharge_param(y, k, z, d, t) * (1.0 + bound_size)
+                        theta_E_discharge_L(y, k, z, d, t, :) .= theta_E_discharge_param(y, k, z, d, t) == 0.0 ? L_if_zero : theta_E_discharge_param(y, k, z, d, t) * (1.0 - bound_size)
+                        theta_E_charge_U(y, k, z, d, t, :) .= theta_E_charge_param(y, k, z, d, t) == 0.0 ? U_if_zero : theta_E_charge_param(y, k, z, d, t) * (1.0 + bound_size)
+                        theta_E_charge_L(y, k, z, d, t, :) .= theta_E_charge_param(y, k, z, d, t) == 0.0 ? L_if_zero : theta_E_charge_param(y, k, z, d, t) * (1.0 - bound_size)
+                        pi_E_charge_U(y, k, z, d, t, :) .= pi_E_charge_param(y, k, z, d, t) == 0.0 ? U_if_zero : pi_E_charge_param(y, k, z, d, t) * (1.0 + bound_size)
+                        pi_E_charge_L(y, k, z, d, t, :) .= pi_E_charge_param(y, k, z, d, t) == 0.0 ? L_if_zero : pi_E_charge_param(y, k, z, d, t) * (1.0 - bound_size)
+                        kappa_E_U(y, k, z, d, t, :) .= kappa_E_param(y, k, z, d, t) == 0.0 ? U_if_zero : kappa_E_param(y, k, z, d, t) * (1.0 + bound_size)
+                        kappa_E_L(y, k, z, d, t, :) .= kappa_E_param(y, k, z, d, t) == 0.0 ? L_if_zero : kappa_E_param(y, k, z, d, t) * (1.0 - bound_size)
                     end
                 end
             end
@@ -1956,16 +2038,16 @@ function get_mccormick_bounds(
             for z in model_data.index_z
                 for d in model_data.index_d
                     for t in model_data.index_t
-                        theta_C_energy_U(y, k, z, d, t, :) .= theta_C_energy_param(y, k, z, d, t) * (1.0 + bound_size)
-                        theta_C_energy_L(y, k, z, d, t, :) .= theta_C_energy_param(y, k, z, d, t) * (1.0 - bound_size)
-                        theta_C_discharge_U(y, k, z, d, t, :) .= theta_C_discharge_param(y, k, z, d, t) * (1.0 + bound_size)
-                        theta_C_discharge_L(y, k, z, d, t, :) .= theta_C_discharge_param(y, k, z, d, t) * (1.0 - bound_size)
-                        theta_C_charge_U(y, k, z, d, t, :) .= theta_C_charge_param(y, k, z, d, t) * (1.0 + bound_size)
-                        theta_C_charge_L(y, k, z, d, t, :) .= theta_C_charge_param(y, k, z, d, t) * (1.0 - bound_size)
-                        pi_C_charge_U(y, k, z, d, t, :) .= pi_C_charge_param(y, k, z, d, t) * (1.0 + bound_size)
-                        pi_C_charge_L(y, k, z, d, t, :) .= pi_C_charge_param(y, k, z, d, t) * (1.0 - bound_size)
-                        kappa_C_U(y, k, z, d, t, :) .= kappa_C_param(y, k, z, d, t) * (1.0 + bound_size)
-                        kappa_C_L(y, k, z, d, t, :) .= kappa_C_param(y, k, z, d, t) * (1.0 - bound_size)
+                        theta_C_energy_U(y, k, z, d, t, :) .= theta_C_energy_param(y, k, z, d, t) == 0.0 ? U_if_zero : theta_C_energy_param(y, k, z, d, t) * (1.0 + bound_size)
+                        theta_C_energy_L(y, k, z, d, t, :) .= theta_C_energy_param(y, k, z, d, t) == 0.0 ? L_if_zero : theta_C_energy_param(y, k, z, d, t) * (1.0 - bound_size)
+                        theta_C_discharge_U(y, k, z, d, t, :) .= theta_C_discharge_param(y, k, z, d, t) == 0.0 ? U_if_zero : theta_C_discharge_param(y, k, z, d, t) * (1.0 + bound_size)
+                        theta_C_discharge_L(y, k, z, d, t, :) .= theta_C_discharge_param(y, k, z, d, t) == 0.0 ? L_if_zero : theta_C_discharge_param(y, k, z, d, t) * (1.0 - bound_size)
+                        theta_C_charge_U(y, k, z, d, t, :) .= theta_C_charge_param(y, k, z, d, t) == 0.0 ? U_if_zero : theta_C_charge_param(y, k, z, d, t) * (1.0 + bound_size)
+                        theta_C_charge_L(y, k, z, d, t, :) .= theta_C_charge_param(y, k, z, d, t) == 0.0 ? L_if_zero : theta_C_charge_param(y, k, z, d, t) * (1.0 - bound_size)
+                        pi_C_charge_U(y, k, z, d, t, :) .= pi_C_charge_param(y, k, z, d, t) == 0.0 ? U_if_zero : pi_C_charge_param(y, k, z, d, t) * (1.0 + bound_size)
+                        pi_C_charge_L(y, k, z, d, t, :) .= pi_C_charge_param(y, k, z, d, t) == 0.0 ? L_if_zero : pi_C_charge_param(y, k, z, d, t) * (1.0 - bound_size)
+                        kappa_C_U(y, k, z, d, t, :) .= kappa_C_param(y, k, z, d, t) == 0.0 ? U_if_zero : kappa_C_param(y, k, z, d, t) * (1.0 + bound_size)
+                        kappa_C_L(y, k, z, d, t, :) .= kappa_C_param(y, k, z, d, t) == 0.0 ? L_if_zero : kappa_C_param(y, k, z, d, t) * (1.0 - bound_size)
                     end
                 end
             end
@@ -1991,7 +2073,7 @@ end
 function ipp_cap_upper(
     mcbnds, ipp, ipp_opts, p_star, model_data, delta_t, reg_year_index_dera,
     regulator, customers, der_aggregator, green_developer; 
-    max_build=5000.0, constraint_scaling = 1.0
+    max_build=500.0, constraint_scaling = 1.0
 )
     WMDER_IPP = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc"])
 
@@ -5235,7 +5317,17 @@ function solve_agent_problem_ipp_cap(
         @info("initializing IPP lower level with previous year's results")
         model_data.index_y.elements =
                 model_data.index_y_fix.elements[w_iter-1:(w_iter-1 + window_length - 1)]
-    end    
+    end
+
+    for z in model_data.index_z
+        # simply assign DERAggregator to a random ipp (ipp1)
+        ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(der_aggregator.dera_stor_my(reg_year_index_dera_pre, z, h) for h in model_data.index_h)
+        ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(der_aggregator.dera_pv_my(reg_year_index_dera_pre, z, h) for h in model_data.index_h)
+    end
+
+    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+        customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(reg_year_index_dera_pre, h, :BTMStorage, z, d, t)
+    end
 
     for iter in 1:max_iter
         @info "IPP Problem Iteration $(iteration_year) - $(iter)"
@@ -5257,7 +5349,7 @@ function solve_agent_problem_ipp_cap(
                 ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre,
                 customers, der_aggregator, green_developer
             )
-            jump_model[end] = MPPDCMER_lower_dual
+            # jump_model[end] = MPPDCMER_lower_dual
         end
 
         # TEMPORARY CODE FOR TESTING
@@ -5267,6 +5359,16 @@ function solve_agent_problem_ipp_cap(
 
         model_data.index_y.elements =
                     model_data.index_y_fix.elements[w_iter:(w_iter + window_length - 1)]
+
+        for z in model_data.index_z
+            # simply assign DERAggregator to a random ipp (ipp1)
+            ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(der_aggregator.dera_stor_my(reg_year_index_dera, z, h) for h in model_data.index_h)
+            ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(der_aggregator.dera_pv_my(reg_year_index_dera, z, h) for h in model_data.index_h)
+        end
+    
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(reg_year_index_dera, h, :BTMStorage, z, d, t)
+        end
 
         mcbnds, first_update = get_mccormick_bounds(
             MPPDCMER_lower, ipp, p_star, model_data, w_iter; 
@@ -5279,7 +5381,7 @@ function solve_agent_problem_ipp_cap(
         )
         jump_model[end] = WMDER_IPP
 
-        if termination_status(WMDER_IPP) != OPTIMAL
+        if (termination_status(WMDER_IPP) != OPTIMAL) && (termination_status(WMDER_IPP) != LOCALLY_SOLVED)
             bound_size = min(bound_size * (1.0 + bound_adjust), 0.9)
             @info("Upper-level problem terminated as $(termination_status(WMDER_IPP)). Loosening McCormick bounds to $(bound_size).")
             skip_lower = true

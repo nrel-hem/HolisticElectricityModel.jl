@@ -1119,7 +1119,7 @@ function solve_agent_problem!(
 
     ####### fix variables to reasonable range #######
     for y in model_data.index_y, z in model_data.index_z
-        set_upper_bound(x_R[y, Symbol("nuclear"), z], 1.0)
+        set_upper_bound(x_R[y, Symbol("nuclear"), z], 0.0)
         # fix(x_R[y, :nuclear, z], 0.0, force=true)
         # set_upper_bound(x_C[y, Symbol("lfill-gas"), z], 10.0)
         # set_upper_bound(x_C[y, Symbol("coaloldscr"), z], 10.0)
