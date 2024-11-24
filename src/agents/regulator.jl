@@ -2772,8 +2772,8 @@ function solve_agent_problem!(
 
     # @info "Original retail price" p_before
     # @info "Original DER excess rate" p_ex_before
-    @info "New retail price" regulator.p
-    @info "New DER excess rate" regulator.p_ex
+    # @info "New retail price" regulator.p
+    # @info "New DER excess rate" regulator.p_ex
 
     # return compute_difference_percentage_one_norm([
     #     (p_before_wavg.values, p_after_wavg.values),

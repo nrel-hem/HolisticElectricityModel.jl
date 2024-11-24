@@ -809,7 +809,7 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
             model_data.index_t,
         ),
         Dict(),
-        repeat([[]], 12)...
+        [], [], [], [], [], [], [], [], [], [], [], [], 
     )
 end
 
@@ -1748,10 +1748,10 @@ function get_mccormick_bounds(
     bound_size=0.1, first_update=true, skip_lower=false
 )
 
-    if !skip_lower & (termination_status(MPPDCMER_lower) == OPTIMAL)
+    if !skip_lower && ((termination_status(MPPDCMER_lower) == OPTIMAL) || (termination_status(MPPDCMER_lower) == LOCALLY_SOLVED))
         @info("Lower-level problem completed successfully. Calculate and save McCormick bound parameters.")
 
-        eta_param = initialize_param("eta_param", model_data.index_y, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        eta_param = initialize_param("eta_param", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(eta_param, NaN)
         for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1759,7 +1759,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.eta_param_vec, eta_param) : ipp.eta_param_vec[end] = eta_param
 
-        lambda_param = initialize_param("lambda_param", model_data.index_y, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        lambda_param = initialize_param("lambda_param", deepcopy(model_data.index_y), ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(lambda_param, NaN)
         for y in model_data.index_y, k in ipp.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1767,7 +1767,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.lambda_param_vec, lambda_param) : ipp.lambda_param_vec[end] = lambda_param
 
-        theta_E_energy_param = initialize_param("theta_E_energy_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_energy_param = initialize_param("theta_E_energy_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_E_energy_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1775,7 +1775,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.theta_E_energy_param_vec, theta_E_energy_param) : ipp.theta_E_energy_param_vec[end] = theta_E_energy_param
 
-        theta_E_discharge_param = initialize_param("theta_E_discharge_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_discharge_param = initialize_param("theta_E_discharge_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_E_discharge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1783,7 +1783,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.theta_E_discharge_param_vec, theta_E_discharge_param) : ipp.theta_E_discharge_param_vec[end] = theta_E_discharge_param
 
-        theta_E_charge_param = initialize_param("theta_E_charge_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_E_charge_param = initialize_param("theta_E_charge_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_E_charge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1791,7 +1791,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.theta_E_charge_param_vec, theta_E_charge_param) : ipp.theta_E_charge_param_vec[end] = theta_E_charge_param
 
-        pi_E_charge_param = initialize_param("pi_E_charge_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_E_charge_param = initialize_param("pi_E_charge_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(pi_E_charge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t.elements[2:end]
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1803,7 +1803,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.pi_E_charge_param_vec, pi_E_charge_param) : ipp.pi_E_charge_param_vec[end] = pi_E_charge_param
 
-        kappa_E_param = initialize_param("kappa_E_param", model_data.index_y, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_E_param = initialize_param("kappa_E_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(kappa_E_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1811,7 +1811,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.kappa_E_param_vec, kappa_E_param) : ipp.kappa_E_param_vec[end] = kappa_E_param
 
-        theta_C_energy_param = initialize_param("theta_C_energy_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_energy_param = initialize_param("theta_C_energy_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_C_energy_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1819,7 +1819,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.theta_C_energy_param_vec, theta_C_energy_param) : ipp.theta_C_energy_param_vec[end] = theta_C_energy_param
 
-        theta_C_discharge_param = initialize_param("theta_C_discharge_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_discharge_param = initialize_param("theta_C_discharge_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_C_discharge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1827,7 +1827,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.theta_C_discharge_param_vec, theta_C_discharge_param) : ipp.theta_C_discharge_param_vec[end] = theta_C_discharge_param
 
-        theta_C_charge_param = initialize_param("theta_C_charge_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        theta_C_charge_param = initialize_param("theta_C_charge_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_C_charge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1835,7 +1835,7 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.theta_C_charge_param_vec, theta_C_charge_param) : ipp.theta_C_charge_param_vec[end] = theta_C_charge_param
 
-        pi_C_charge_param = initialize_param("pi_C_charge_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        pi_C_charge_param = initialize_param("pi_C_charge_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(pi_C_charge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t.elements[2:end]
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
@@ -1847,41 +1847,45 @@ function get_mccormick_bounds(
         end
         first_update ? push!(ipp.pi_C_charge_param_vec, pi_C_charge_param) : ipp.pi_C_charge_param_vec[end] = pi_C_charge_param
 
-        kappa_C_param = initialize_param("kappa_C_param", model_data.index_y, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
+        kappa_C_param = initialize_param("kappa_C_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(kappa_C_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
             kappa_C_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_discharge_upper_bound_C_lower][Symbol(y_minus), p_star, s, z, d, t]))
         end
-        first_update ? push!(ipp.kappa_C_param_vec, kappa_C_param) : ipp.pi_C_charge_param_vec[end] = pi_C_charge_param
+        first_update ? push!(ipp.kappa_C_param_vec, kappa_C_param) : ipp.kappa_C_param_vec[end] = kappa_C_param
 
         first_update = false
     else
         why = skip_lower ? "skipped" : "failed"
         @info("Lower-level problem $(why). Use previous McCormick bound parameters.")
 
-        eta_param = initialize_param("eta_param", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
+        eta_param = initialize_param(
+            "eta_param", deepcopy(model_data.index_y), 
+            ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t
+        )
 
-        for y in model_data.index_y
-            i = 1
+        for (i, y) in enumerate(model_data.index_y)
             y_before = ipp.eta_param_vec[end].dims[1][i]
+            @show(i, y, y_before)
 
             for k in ipp.index_k_existing
                 for z in model_data.index_z
                     for d in model_data.index_d
                         for t in model_data.index_t
+                            # @info "Currently " eta_val=eta_param(y, k, z, d, t, :) y k z d t
+                            # @info "For z, d, t " saved_data=ipp.eta_param_vec[end](:, :, z, d, t) y_before k z d t
+                            # @info "Saved data " saved_data_type=typeof(ipp.eta_param_vec[end]) y_axiskeys=AxisKeys.axiskeys(ipp.eta_param_vec[end],1) y_dim=ipp.eta_param_vec[end].dims[1]
                             eta_param(y, k, z, d, t, :) .= ipp.eta_param_vec[end](y_before, k, z, d, t)
                         end
                     end
                 end
             end
-            i += 1
         end
 
         lambda_param = initialize_param("lambda_param", deepcopy(model_data.index_y), ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
 
-        for y in model_data.index_y
-            i = 1
+        for (i, y) in enumerate(model_data.index_y)
             y_before = ipp.eta_param_vec[end].dims[1][i]
 
             for k in ipp.index_k_new
@@ -1893,8 +1897,6 @@ function get_mccormick_bounds(
                     end
                 end
             end
-
-            i += 1
         end
 
         theta_E_energy_param = initialize_param("theta_E_energy_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
@@ -1903,8 +1905,7 @@ function get_mccormick_bounds(
         pi_E_charge_param = initialize_param("pi_E_charge_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         kappa_E_param = initialize_param("kappa_E_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         
-        for y in model_data.index_y
-            i = 1
+        for (i, y) in enumerate(model_data.index_y)
             y_before = ipp.eta_param_vec[end].dims[1][i]
 
             for k in ipp.index_stor_existing
@@ -1920,8 +1921,6 @@ function get_mccormick_bounds(
                     end
                 end
             end
-
-            i += 1
         end
 
         theta_C_energy_param = initialize_param("theta_C_energy_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
@@ -1930,8 +1929,7 @@ function get_mccormick_bounds(
         pi_C_charge_param = initialize_param("pi_C_charge_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         kappa_C_param = initialize_param("kappa_C_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
 
-        for y in model_data.index_y
-            i = 1
+        for (i, y) in enumerate(model_data.index_y)
             y_before = ipp.eta_param_vec[end].dims[1][i]
 
             for k in ipp.index_stor_new
@@ -1947,8 +1945,6 @@ function get_mccormick_bounds(
                     end
                 end
             end
-
-            i += 1
         end
     end
 
@@ -2078,11 +2074,11 @@ function ipp_cap_upper(
     WMDER_IPP = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc"])
 
     # Prepare cumulative parameters
-    X_R_cumu_L = initialize_param("x_R_L", model_data.index_y, ipp.index_k_existing, model_data.index_z)
-    X_R_cumu_U = initialize_param("x_R_U", model_data.index_y, ipp.index_k_existing, model_data.index_z)
+    X_R_cumu_L = initialize_param("x_R_L", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z)
+    X_R_cumu_U = initialize_param("x_R_U", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z)
     fill!(X_R_cumu_U, NaN)
-    X_R_stor_cumu_L = initialize_param("x_R_stor_L", model_data.index_y, ipp.index_stor_existing, model_data.index_z)
-    X_R_stor_cumu_U = initialize_param("x_R_stor_U", model_data.index_y, ipp.index_stor_existing, model_data.index_z)
+    X_R_stor_cumu_L = initialize_param("x_R_stor_L", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z)
+    X_R_stor_cumu_U = initialize_param("x_R_stor_U", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z)
     fill!(X_R_stor_cumu_U, NaN)
     for y in model_data.index_y
         for k in ipp.index_k_existing
@@ -2106,10 +2102,10 @@ function ipp_cap_upper(
         end
     end
 
-    X_C_cumu_L = initialize_param("x_C_L", model_data.index_y, ipp.index_k_new, model_data.index_z)
-    X_C_cumu_U = initialize_param("x_C_U", model_data.index_y, ipp.index_k_new, model_data.index_z)
-    X_C_stor_cumu_L = initialize_param("x_C_stor_L", model_data.index_y, ipp.index_stor_new, model_data.index_z)
-    X_C_stor_cumu_U = initialize_param("x_C_stor_U", model_data.index_y, ipp.index_stor_new, model_data.index_z)
+    X_C_cumu_L = initialize_param("x_C_L", deepcopy(model_data.index_y), ipp.index_k_new, model_data.index_z)
+    X_C_cumu_U = initialize_param("x_C_U", deepcopy(model_data.index_y), ipp.index_k_new, model_data.index_z)
+    X_C_stor_cumu_L = initialize_param("x_C_stor_L", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z)
+    X_C_stor_cumu_U = initialize_param("x_C_stor_U", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z)
     for y in model_data.index_y
         for k in ipp.index_k_new
             for z in model_data.index_z
@@ -5331,7 +5327,9 @@ function solve_agent_problem_ipp_cap(
 
     for iter in 1:max_iter
         @info "IPP Problem Iteration $(iteration_year) - $(iter)"
+        @info "" eta_param_vec_length=length(ipp.eta_param_vec) first_update bound_size lower_level_duality_gap skip_lower
 
+        MPPDCMER_lower = nothing
         if !skip_lower
             MPPDCMER_lower = ipp_cap_lower(
                 ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre,
@@ -5394,7 +5392,9 @@ function solve_agent_problem_ipp_cap(
             customers, der_aggregator, green_developer
         )
         if lower_level_duality_gap > preferred_duality_gap
-            bound_size = bound_size * bound_adjust
+            # tighten the bound if have successfully run the lower level problem at least once 
+            # for this solve year
+            bound_size = first_update ? bound_size : bound_size * bound_adjust
             @info("Duality gap $(lower_level_duality_gap) is greater than $(preferred_duality_gap). "*
                   "Re-running lower level problem and applying McCormick bounds with $(bound_size)")
             skip_lower = false
