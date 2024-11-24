@@ -5331,6 +5331,8 @@ function solve_agent_problem_ipp_cap(
 
         MPPDCMER_lower = nothing
         if !skip_lower
+            # HERE - Need to update year in some places if MPPDCMER_lower failed but the upper level 
+            # succeeded?
             MPPDCMER_lower = ipp_cap_lower(
                 ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre,
                 customers, der_aggregator, green_developer
