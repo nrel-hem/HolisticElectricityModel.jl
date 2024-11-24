@@ -1559,70 +1559,85 @@ function solve_agent_problem!(
     # the script here assumes these DER tech m are adopted by different customers
     # need information on how many households adopt stand-alone tech, and how many adopt multiple techs?
     # TODO: we might want to iterate on regulator's module a few times since regulator.p_ex is used as inputs to calculate the rates.
+    # Define a safe division function
+    safe_div(numerator, denominator) = denominator == 0 ? 0 : numerator / denominator
+
+    # Initialize the keyed array
     der_excess_cost_h = make_keyed_array(model_data.index_z, model_data.index_h)
 
     for z in model_data.index_z, h in model_data.index_h
         der_excess_cost_h(z, h, :) .= 
-        # der excess for pv-only customers
+        # DER excess for PV-only customers
         sum(
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
             (
-                max(
-                    0,
-                    customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 : 
-                    customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                    customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                # First term with safe division
+                safe_div(
                     max(
                         0,
-                        customers.rho_DG(h, :BTMPV, z, d, t) *
-                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
                         customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 : 
-                        customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                    y in model_data.year(first(model_data.index_y_fix)):reg_year
-                ) - 
-                # minus pv portion of pv_storage tech
-                max(
-                    0,
-                    customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 : 
-                    total_der_pv_capacity(z, h) /
-                    customers.Opti_DG_E(z, h, :BTMPV))
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                ) +
+                # Sum over years with safe division
+                sum(
+                    safe_div(
+                        max(
+                            0,
+                            customers.rho_DG(h, :BTMPV, z, d, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                    ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                ) -
+                # Minus PV portion with safe division
+                safe_div(
+                    max(
+                        0,
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * total_der_pv_capacity(z, h),
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                )
             )
             for d in model_data.index_d, t in model_data.index_t
-        ) + 
-        # der excess for pv+storage customers who did not participate in aggregation
+        ) +
+        # DER excess for PV+Storage customers not in aggregation
         sum(
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
             (
-                max(
-                    0,
-                    sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 : 
-                    customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                    customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+                # First term with safe division
+                safe_div(
                     max(
                         0,
-                        sum(customers.rho_DG(h, m, z, d, t) *
-                        customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist), 
-                    ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 : 
-                        customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                    y in model_data.year(first(model_data.index_y_fix)):reg_year
+                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                    customers.Opti_DG_E(z, h, :BTMStorage)
+                ) +
+                # Sum over years with safe division
+                sum(
+                    safe_div(
+                        max(
+                            0,
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) *
+                                customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                for m in customers.index_m
+                            ) - customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                    ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
             ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
             for d in model_data.index_d, t in model_data.index_t
         )
     end
-    
+
     net_demand_h_w_loss = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
         # Demand
@@ -1650,143 +1665,168 @@ function solve_agent_problem!(
                 for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
             )
     end
-    
 
+    # Initialize the keyed array
     net_demand_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
 
     for z in model_data.index_z, h in model_data.index_h
         net_demand_h_wo_loss(z, h, :) .= 
             # Demand without loss
             sum(
-                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
-                d in model_data.index_d, t in model_data.index_t
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) 
+                for d in model_data.index_d, t in model_data.index_t
             ) -
-            # DG
             # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                         customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+             
+                    safe_div(
                         min(
-                            customers.rho_DG(h, :BTMPV, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    ) - 
-                    # Minus PV portion of PV-storage tech
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         total_der_pv_capacity(z, h) /
-                         customers.Opti_DG_E(z, h, :BTMPV))
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    ) +
+              
+                    sum(
+                        safe_div(
+                            min(
+                                customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) -
+           
+                    safe_div(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * total_der_pv_capacity(z, h),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    )
                 )
                 for d in model_data.index_d, t in model_data.index_t
             ) - 
-            # Behind-the-meter generation for PV+storage customers who did not participate in aggregation
+            # Behind-the-meter generation for PV+Storage customers not in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                         customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+             
+                    safe_div(
                         min(
-                            sum(customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+                            sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                        customers.Opti_DG_E(z, h, :BTMStorage)
+                    ) +
+            
+                    sum(
+                        safe_div(
+                            min(
+                                sum(
+                                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                    for m in customers.index_m
+                                ),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
                 for d in model_data.index_d, t in model_data.index_t
             ) -
-            # Green technology subscription
+
             sum(
-                model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(
-                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):reg_year
+                model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) *
+                sum(
+                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
+                    for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
                 for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
             )
     end
-    
-    net_demand_wo_green_tech_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
 
+    net_demand_wo_green_tech_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
         net_demand_wo_green_tech_h_wo_loss(z, h, :) .= 
-            # Demand without loss
+            # Demand with loss
             sum(
-                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
-                d in model_data.index_d, t in model_data.index_t
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                for d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
+            # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # For example, two households with 100 MW load each (without loss); if one has DER generating
+            # 120 MW of energy, they do not need to pay for energy, but the other still has to pay 100 MW instead of 80 MW.
             # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                         customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            customers.rho_DG(h, :BTMPV, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                customers.rho_DG(h, :BTMPV, z, d, t) *
+                                customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) -
+                    # Minus PV portion with safe division
+                    safe_div(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    ) - 
-                    # Minus PV portion of PV-storage tech
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         total_der_pv_capacity(z, h) /
-                         customers.Opti_DG_E(z, h, :BTMPV))
+                        ) * total_der_pv_capacity(z, h),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    )
                 )
                 for d in model_data.index_d, t in model_data.index_t
-            ) - 
-            # Behind-the-meter generation for PV+storage customers who did not participate in aggregation
+            ) -
+            # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                         customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            sum(customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m)
+                                for m in customers.index_m
+                            ),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                        customers.Opti_DG_E(z, h, :BTMStorage)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                sum(
+                                    customers.rho_DG(h, m, z, d, t) *
+                                    customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                    for m in customers.index_m
+                                ),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
                 for d in model_data.index_d, t in model_data.index_t
             )
     end
-    
-
     #=
     energy_cost_t = Dict(t => sum(utility.v_E(k, t)*utility.y_E(k, t) for k in utility.index_k_existing) +
         sum(utility.v_C(k, t)*utility.y_C(k, t) for k in utility.index_k_new) for t in model_data.index_t)
@@ -1966,72 +2006,82 @@ function solve_agent_problem!(
     end
 
     der_excess_cost_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         der_excess_cost_h_t_temp = 0.0
-    
         for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :])[1]
             d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_d][i])
             t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_t][i])
-    
             der_excess_cost_h_t_temp += 
-                # DER excess for PV-only customers
-                model_data.omega(d) * delta_t *
-                regulator.p_ex(z, h, d, t) *
-                (
+            # DER excess for PV-only customers
+            model_data.omega(d) * delta_t *
+            regulator.p_ex(z, h, d, t) *
+            (
+                # First term with safe division
+                safe_div(
                     max(
                         0,
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                         customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                ) +
+                # Sum over years with safe division
+                sum(
+                    safe_div(
                         max(
                             0,
                             customers.rho_DG(h, :BTMPV, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    ) - 
-                    # Minus PV portion of PV-storage tech
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                    ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                ) - 
+                # Minus PV portion of PV-storage tech with safe division
+                safe_div(
                     max(
                         0,
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         total_der_pv_capacity(z, h) /
-                         customers.Opti_DG_E(z, h, :BTMPV))
-                ) + 
-                # DER excess for PV+storage customers who did not participate in aggregation
-                model_data.omega(d) * delta_t *
-                regulator.p_ex(z, h, d, t) *
-                (
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * total_der_pv_capacity(z, h),
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                )
+            ) + 
+            # DER excess for PV+Storage customers who did not participate in aggregation
+            model_data.omega(d) * delta_t *
+            regulator.p_ex(z, h, d, t) *
+            (
+                # First term with safe division
+                safe_div(
                     max(
                         0,
-                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                         customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+                        sum(
+                            customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m)
+                            for m in customers.index_m
+                        ) -
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                    customers.Opti_DG_E(z, h, :BTMStorage)
+                ) +
+                # Sum over years with safe division
+                sum(
+                    safe_div(
                         max(
                             0,
-                            sum(customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    )
-                ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) *
+                                customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                for m in customers.index_m
+                            ) -
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                    ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                )
+            ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
         end
-    
         der_excess_cost_h_t(z, h, tou, :) .= der_excess_cost_h_t_temp
     end
-    
 
     net_demand_h_t_w_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
@@ -2067,78 +2117,87 @@ function solve_agent_problem!(
     end
 
     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_wo_loss_temp = 0.0
-    
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_t][i])
-    
-            net_demand_h_t_wo_loss_temp += 
+        # Filter the mapping for the current TOU period
+        mapping_indices = findall(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou))
+        for i in mapping_indices
+            d = Symbol(regulator.rep_day_time_tou_mapping[!, :index_d][i])
+            t = Symbol(regulator.rep_day_time_tou_mapping[!, :index_t][i])
+            
+            net_demand_h_t_wo_loss_temp +=
                 # Demand without loss
-                sum(
-                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) -
+                # DG (Behind-the-meter generation for PV-only customers)
+                model_data.omega(d) * delta_t *
+                (
+                    # First term with safe division
+                    safe_div(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) -
+                    # Minus PV portion of PV-storage tech with safe division
+                    safe_div(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * total_der_pv_capacity(z, h),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    )
                 ) -
-                # DG
-                # Behind-the-meter generation for PV-only customers
+                # Behind-the-meter generation for PV+Storage customers not participating in aggregation
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                         customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            customers.rho_DG(h, :BTMPV, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m)
+                                for m in customers.index_m
+                            ),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    ) - 
-                    # Minus PV portion of PV-storage tech
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         total_der_pv_capacity(z, h) /
-                         customers.Opti_DG_E(z, h, :BTMPV))
-                ) - 
-                # Behind-the-meter generation for PV+storage customers who did not participate in aggregation
-                model_data.omega(d) * delta_t *
-                (
-                    min(
-                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                         customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
-                        min(
-                            sum(customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                        customers.Opti_DG_E(z, h, :BTMStorage)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                sum(
+                                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                    for m in customers.index_m
+                                ),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z)) -
                 # Green technology subscription
                 sum(
-                    model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(
-                        green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):reg_year
+                    model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) *
+                    sum(
+                        green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
+                        for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                     for j in model_data.index_j
                 )
         end
-    
         net_demand_h_t_wo_loss(z, h, tou, :) .= net_demand_h_t_wo_loss_temp
     end
-    
 
     # for the purpose of calculating net peak load, use load including distribution loss
     # green tech offset is included here because these investments are paid for by corresponding load (treated in the same way as DPV)
@@ -2210,16 +2269,27 @@ function solve_agent_problem!(
             findmax(Dict((d, t) => utility.trans_topology(l, z) * utility.flow_my(reg_year_index, l, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
 
-
-
-    # allocate (revenue_requirement - energy_cost + net_eximport_cost) by net peak load with green tech generation offset;
-    # allocate regulator.othercost (T&D costs) by net peak load without green tech generation offset;
+    # Cost Classification/Allocation
     energy_cost_allocation_h = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
         energy_cost_allocation_h(z, h, :) .=
             (energy_cost(z) - net_eximport_cost(z)) * net_demand_h_w_loss(z, h) / net_demand_w_loss_no_eximport(z) + der_excess_cost_h(z, h)
     end
     replace!(energy_cost_allocation_h, NaN => 0.0)
+
+    # allocate (revenue_requirement - energy_cost + net_eximport_cost) by net peak load with green tech generation offset;
+    # allocate regulator.othercost (T&D costs) by net peak load without green tech generation offset;
+    demand_cost_allocation_h = make_keyed_array(model_data.index_z, model_data.index_h)
+    for z in model_data.index_z, h in model_data.index_h
+        demand_cost_allocation_h(z, h, :) .=
+            (revenue_requirement(z) - energy_cost(z) + net_eximport_cost(z)) * net_peak_load_h(z, h) / (
+                sum(net_peak_load_h(z, h) for h in model_data.index_h)
+            ) + 
+            regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
+                sum(net_peak_load_wo_green_tech_h(z, h) for h in model_data.index_h)
+            )
+    end
+    replace!(demand_cost_allocation_h, NaN => 0.0)
 
     demand_cost_allocation_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
@@ -2285,14 +2355,50 @@ function solve_agent_problem!(
                                               (numerator_other_cost / denominator_net_demand_wo_green)
 
         end
-    
-        # Assign sector-level rates to each customer type in the sector
+
+        valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
+
+        for (county_fips, ba) in model_data.county_to_ba
+            h = Symbol("Res_$county_fips")  
+            z = Symbol(ba)                
+            valid_combinations[(z, h)] = true
+        end       
+        
+        # Assign rates to customers
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]
-            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
-        end
-    
+            sector = model_data.h_to_sector[h]  
+            if sector == :Residential
+                if get(valid_combinations, (z, h), false)
+                    rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
+                    if haskey(sector_rates, rate_key)
+                        rate = sector_rates[rate_key]
+                        regulator.p(z, h, d, t, :) .= rate
+                    else
+                        @warn "Rate not found for Residential: z=$(z), h=$(h), d=$(d), t=$(t)"
+                        regulator.p(z, h, d, t, :) .= 0.0 
+                    end
+                else
+                    # Invalid combination - assign zero rate
+                    regulator.p(z, h, d, t, :) .= 0.0
+                end
+            elseif sector == :Commercial || sector == :Industrial
+                rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
+                if haskey(sector_rates, rate_key)
+                    rate = sector_rates[rate_key]
+                    regulator.p(z, h, d, t, :) .= rate
+                else
+                    @warn "Rate not found for Commercial/Industrial: z=$(z), h=$(h), d=$(d), t=$(t)"
+                    regulator.p(z, h, d, t, :) .= 0.0
+                end
+            else
+                @warn "Unknown sector $(sector) for customer $(h)"
+                regulator.p(z, h, d, t, :) .= 0.0
+            end
+        end      
+
+        # Replace NaN values with 0.0
         replace!(regulator.p.values, NaN => 0.0)
+
     
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
@@ -2320,13 +2426,50 @@ function solve_agent_problem!(
         end
     
         # Assign TOU sector rates to each customer type in the sector
+        valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
+
+        for (county_fips, ba) in model_data.county_to_ba
+            h = Symbol("Res_$county_fips")  
+            z = Symbol(ba)                
+            valid_combinations[(z, h)] = true
+        end       
+        
+        # Assign rates to customers
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]
-            regulator.p(z, h, d, t, :) .= sector_tou_rates[(z, sector, d, t)]
-        end
-    
+            sector = model_data.h_to_sector[h]  
+            if sector == :Residential
+                if get(valid_combinations, (z, h), false)
+                    rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
+                    if haskey(sector_tou_rates, rate_key)
+                        rate = sector_tou_rates[rate_key]
+                        regulator.p(z, h, d, t, :) .= rate
+                    else
+                        @warn "Rate not found for Residential: z=$(z), h=$(h), d=$(d), t=$(t)"
+                        regulator.p(z, h, d, t, :) .= 0.0 
+                    end
+                else
+                    # Invalid combination - assign zero rate
+                    regulator.p(z, h, d, t, :) .= 0.0
+                end
+            elseif sector == :Commercial || sector == :Industrial
+                rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
+                if haskey(sector_tou_rates, rate_key)
+                    rate = sector_tou_rates[rate_key]
+                    regulator.p(z, h, d, t, :) .= rate
+                else
+                    @warn "Rate not found for Commercial/Industrial: z=$(z), h=$(h), d=$(d), t=$(t)"
+                    regulator.p(z, h, d, t, :) .= 0.0
+                end
+            else
+                @warn "Unknown sector $(sector) for customer $(h)"
+                regulator.p(z, h, d, t, :) .= 0.0
+            end
+        end      
+
+        # Replace NaN values with 0.0
         replace!(regulator.p.values, NaN => 0.0)
-    end    
+    
+    end
 
     # fill!(regulator.p_regression, NaN)
     # for h in model_data.index_h
@@ -2997,6 +3140,9 @@ function solve_agent_problem!(
     green_developer = get_agent(GreenDeveloper, agent_store)
     der_aggregator = get_agent(DERAggregator, agent_store)
 
+    index_rps_existing = deepcopy(ipp.index_rps)
+    push!(index_rps_existing.elements, Symbol("dera_pv"))
+
     # the year regulator is making a rate case
     reg_year, reg_year_index = get_reg_year(model_data)
 
@@ -3033,7 +3179,6 @@ function solve_agent_problem!(
         end
     end
     
-
     net_demand_w_loss = make_keyed_array(model_data.index_z)
     for z in model_data.index_z
         net_demand_w_loss(z, :) .= 
@@ -3134,8 +3279,10 @@ function solve_agent_problem!(
     # from both BTM PV and BTM Storage, and customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) / customers.Opti_DG_E(z, h, :BTMPV) and 
     # customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) / customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) denoting how many households are there.
     # need to think more broadly about number of households when adopting multiple DERs.
-    der_excess_cost_h = make_keyed_array(model_data.index_z, model_data.index_h)
 
+    safe_div(numerator, denominator) = denominator == 0 ? 0 : numerator / denominator
+
+    der_excess_cost_h = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
         der_excess_cost_h(z, h, :) .= 
         # DER excess for PV-only customers
@@ -3143,61 +3290,76 @@ function solve_agent_problem!(
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
             (
-                max(
-                    0,
-                    customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                     customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                     customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                # First term with safe_div
+                safe_div(
                     max(
                         0,
-                        customers.rho_DG(h, :BTMPV, z, d, t) *
-                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
                         customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                    y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                ) +
+                # Sum over years with safe_div
+                sum(
+                    safe_div(
+                        max(
+                            0,
+                            customers.rho_DG(h, :BTMPV, z, d, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                    ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) - 
-                # Minus PV portion of PV-storage tech
-                max(
-                    0,
-                    customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                     total_der_pv_capacity(z, h) /
-                     customers.Opti_DG_E(z, h, :BTMPV))
+                # Minus PV portion of PV-storage tech with safe_div
+                safe_div(
+                    max(
+                        0,
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * total_der_pv_capacity(z, h),
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                )
             )
             for d in model_data.index_d, t in model_data.index_t
         ) + 
-        # DER excess for PV+storage customers who did not participate in aggregation
+        # DER excess for PV+Storage customers who did not participate in aggregation
         sum(
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
             (
-                max(
-                    0,
-                    sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                     customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                     customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+          
+                safe_div(
                     max(
                         0,
-                        sum(customers.rho_DG(h, m, z, d, t) *
-                        customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
+                        sum(
+                            customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m)
+                            for m in customers.index_m
+                        ) -
                         customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                    y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                    customers.Opti_DG_E(z, h, :BTMStorage)
+                ) +
+  
+                sum(
+                    safe_div(
+                        max(
+                            0,
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) *
+                                customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                for m in customers.index_m
+                            ) -
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                    ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
             ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
             for d in model_data.index_d, t in model_data.index_t
         )
     end
-    
+
 
     net_demand_h_w_loss = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
@@ -3228,140 +3390,186 @@ function solve_agent_problem!(
     end
 
     net_demand_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
-
     for z in model_data.index_z, h in model_data.index_h
         net_demand_h_wo_loss(z, h, :) .= 
             # Demand without loss
             sum(
-                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
-                d in model_data.index_d, t in model_data.index_t
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                for d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
+            # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
             # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                         customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            customers.rho_DG(h, :BTMPV, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) -
+                    # Minus PV portion of PV-storage tech with safe division
+                    safe_div(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    ) - 
-                    # Minus PV portion of PV-storage tech
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         total_der_pv_capacity(z, h) /
-                         customers.Opti_DG_E(z, h, :BTMPV))
+                        ) * total_der_pv_capacity(z, h),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    )
                 )
                 for d in model_data.index_d, t in model_data.index_t
-            ) - 
-            # Behind-the-meter generation for PV+storage customers who did not participate in aggregation
+            ) -
+            # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                         customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            sum(customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m)
+                                for m in customers.index_m
+                            ),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                        customers.Opti_DG_E(z, h, :BTMStorage)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                sum(
+                                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                    for m in customers.index_m
+                                ),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
                 for d in model_data.index_d, t in model_data.index_t
             ) -
             # Green technology subscription
             sum(
-                model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(
-                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):reg_year
+                model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) *
+                sum(
+                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
+                    for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
                 for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
             )
     end
-    
 
     net_demand_wo_green_tech_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
-
     for z in model_data.index_z, h in model_data.index_h
         net_demand_wo_green_tech_h_wo_loss(z, h, :) .= 
             # Demand with loss
             sum(
-                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
-                d in model_data.index_d, t in model_data.index_t
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                for d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
+            # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
             # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                         customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            customers.rho_DG(h, :BTMPV, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                customers.rho_DG(h, :BTMPV, z, d, t) *
+                                customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                        )
+                        for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) -
+                    # Minus PV portion of PV-storage tech with safe division
+                    safe_div(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    ) - 
-                    # Minus PV portion of PV-storage tech
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         total_der_pv_capacity(z, h) /
-                         customers.Opti_DG_E(z, h, :BTMPV))
+                        ) * total_der_pv_capacity(z, h),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    )
                 )
                 for d in model_data.index_d, t in model_data.index_t
             ) -
-            # Behind-the-meter generation for PV+storage customers who did not participate in aggregation
+            # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                         customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            sum(customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m)
+                                for m in customers.index_m
+                            ),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                        customers.Opti_DG_E(z, h, :BTMStorage)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                sum(
+                                    customers.rho_DG(h, m, z, d, t) *
+                                    customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                    for m in customers.index_m
+                                ),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                        )
+                        for y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
                 for d in model_data.index_d, t in model_data.index_t
             )
+            # sum(
+            #     model_data.omega(d) * delta_t * (
+            #         min(
+            #             sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
+            #             customers.d(h, z, d, t) * (1 - utility.loss_dist),
+            #         ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
+            #         customers.Opti_DG_E(z, h, :BTMPV) + sum(
+            #             min(
+            #                 sum(customers.rho_DG(h, m, z, d, t) *
+            #                 customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+            #                 customers.d(h, z, d, t) * (1 - utility.loss_dist),
+            #             ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
+            #             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
+            #             y in model_data.year(first(model_data.index_y_fix)):reg_year
+            #         )
+            #     ) for d in model_data.index_d, t in model_data.index_t
+            # )
     end
-    
 
     net_demand_t_w_loss = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
@@ -3497,72 +3705,101 @@ function solve_agent_problem!(
     end
 
     der_excess_cost_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         der_excess_cost_h_t_temp = 0.0
-    
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_t][i])
-    
+        # Filter the mapping indices for the current TOU period
+        mapping_indices = findall(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou))
+        for i in mapping_indices
+            d = Symbol(regulator.rep_day_time_tou_mapping[!, :index_d][i])
+            t = Symbol(regulator.rep_day_time_tou_mapping[!, :index_t][i])
             der_excess_cost_h_t_temp += 
             # DER excess for PV-only customers
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
             (
-                max(
-                    0,
-                    customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                     customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                     customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                # First term with safe division
+                safe_div(
                     max(
                         0,
-                        customers.rho_DG(h, :BTMPV, z, d, t) *
-                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
                         customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                    y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                ) +
+                # Sum over years with safe division
+                sum(
+                    safe_div(
+                        max(
+                            0,
+                            customers.rho_DG(h, :BTMPV, z, d, t) *
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                    ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                 ) - 
-                # Minus PV portion of PV-storage tech
-                max(
-                    0,
-                    customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                     total_der_pv_capacity(z, h) /
-                     customers.Opti_DG_E(z, h, :BTMPV))
-            ) +
-            # DER excess for PV+storage customers who did not participate in aggregation
+                # Minus PV portion of PV-storage tech with safe division
+                safe_div(
+                    max(
+                        0,
+                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
+                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    ) * total_der_pv_capacity(z, h),
+                    customers.Opti_DG_E(z, h, :BTMPV)
+                )
+            ) + 
+            # DER excess for PV+Storage customers who did not participate in aggregation
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
             (
-                max(
-                    0,
-                    sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                     customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                     customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+                # First term with safe division
+                safe_div(
                     max(
                         0,
-                        sum(customers.rho_DG(h, m, z, d, t) *
-                        customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
+                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
                         customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                    y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                    customers.Opti_DG_E(z, h, :BTMStorage)
+                ) +
+                # Sum over years with safe division
+                sum(
+                    safe_div(
+                        max(
+                            0,
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) *
+                                customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                for m in customers.index_m
+                            ) -
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                        customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                    ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
             ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
+            # der_excess_cost_h_t_temp = der_excess_cost_h_t_temp + 
+            #     model_data.omega(d) * delta_t *
+            #     regulator.p_ex(z, h, d, t) *
+            #     (
+            #         max(
+            #             0,
+            #             sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
+            #             customers.d(h, z, d, t) * (1 - utility.loss_dist),
+            #         ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
+            #         customers.Opti_DG_E(z, h, :BTMPV) + sum(
+            #             max(
+            #                 0,
+            #                 sum(customers.rho_DG(h, m, z, d, t) *
+            #                 customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
+            #                 customers.d(h, z, d, t) * (1 - utility.loss_dist),
+            #             ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
+            #             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
+            #             y in model_data.year(first(model_data.index_y_fix)):reg_year
+            #         )
+            #     )
         end
-    
         der_excess_cost_h_t(z, h, tou, :) .= der_excess_cost_h_t_temp
     end
-    
 
     net_demand_h_t_w_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
@@ -3596,138 +3833,171 @@ function solve_agent_problem!(
         end
         net_demand_h_t_w_loss(z, h, tou, :) .= net_demand_h_t_w_loss_temp
     end
-
+   
     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_wo_loss_temp = 0.0
-    
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_t][i])
-    
-            net_demand_h_t_wo_loss_temp += 
+        # Filter the mapping indices for the current TOU period
+        mapping_indices = findall(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou))
+        for i in mapping_indices
+            d = Symbol(regulator.rep_day_time_tou_mapping[!, :index_d][i])
+            t = Symbol(regulator.rep_day_time_tou_mapping[!, :index_t][i])
+            net_demand_h_t_wo_loss_temp +=
                 # Demand without loss
-                sum(
-                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                ) -
-                # Behind the meter generation for PV-only customers
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) -
+                # DG
+                # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
+                # For example, two households with 100 MW load each (without loss). If one has DER generating 
+                # 120 MW of energy, they do not need to pay for energy, but the other still has to pay 
+                # 100 MW instead of 80 MW.
+    
+                # Behind-the-meter generation for PV-only customers
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                         customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            customers.rho_DG(h, :BTMPV, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    ) - 
-                    # Minus PV portion of PV-storage tech
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         total_der_pv_capacity(z, h) /
-                         customers.Opti_DG_E(z, h, :BTMPV))
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                customers.rho_DG(h, :BTMPV, z, d, t) *
+                                customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) -
+                    # Minus PV portion of PV-storage tech with safe division
+                    safe_div(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * total_der_pv_capacity(z, h),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    )
                 ) -
-                # Behind the meter generation for PV+storage customers who did not participate in aggregation
+                # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                         customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            sum(customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m)
+                                for m in customers.index_m
+                            ),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                        customers.Opti_DG_E(z, h, :BTMStorage)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                sum(
+                                    customers.rho_DG(h, m, z, d, t) *
+                                    customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                    for m in customers.index_m
+                                ),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                        ) for y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z)) -
                 # Green technology subscription
                 sum(
-                    model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):reg_year)
+                    model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) *
+                    sum(
+                        green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
+                        for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
+                    )
                     for j in model_data.index_j
                 )
         end
-    
         net_demand_h_t_wo_loss(z, h, tou, :) .= net_demand_h_t_wo_loss_temp
     end
-   
-    net_demand_wo_green_tech_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
 
+    net_demand_wo_green_tech_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_wo_green_tech_h_t_wo_loss_temp = 0.0
-    
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou)), :index_t][i])
-    
-            net_demand_wo_green_tech_h_t_wo_loss_temp += 
+        # Filter the mapping indices for the current TOU period
+        mapping_indices = findall(regulator.rep_day_time_tou_mapping.index_rate_tou .== String(tou))
+        for i in mapping_indices
+            d = Symbol(regulator.rep_day_time_tou_mapping[!, :index_d][i])
+            t = Symbol(regulator.rep_day_time_tou_mapping[!, :index_t][i])
+            net_demand_wo_green_tech_h_t_wo_loss_temp +=
                 # Demand without loss
-                sum(
-                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                ) -
-                # Behind the meter generation for PV-only customers
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) -
+                # DG
+                # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
+                # Behind-the-meter generation for PV-only customers
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                         customers.Opti_DG_E(z, h, :BTMPV)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            customers.rho_DG(h, :BTMPV, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
-                    ) - 
-                    # Minus PV portion of PV-storage tech
-                    min(
-                        customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMPV) == 0.0 ? 0.0 :
-                         total_der_pv_capacity(z, h) /
-                         customers.Opti_DG_E(z, h, :BTMPV))
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV)
+                        )
+                        for y in model_data.year(first(model_data.index_y_fix)):reg_year
+                    ) -
+                    # Minus PV portion of PV-storage tech with safe division
+                    safe_div(
+                        min(
+                            customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
+                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        ) * total_der_pv_capacity(z, h),
+                        customers.Opti_DG_E(z, h, :BTMPV)
+                    )
                 ) -
-                # Behind the meter generation for PV+storage customers who did not participate in aggregation
+                # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
                 model_data.omega(d) * delta_t *
                 (
-                    min(
-                        sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                    ) * (customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 ? 0.0 :
-                         customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
-                         customers.Opti_DG_E(z, h, :BTMStorage)) + sum(
+                    # First term with safe division
+                    safe_div(
                         min(
-                            sum(customers.rho_DG(h, m, z, d, t) *
-                            customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
+                            sum(
+                                customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m)
+                                for m in customers.index_m
+                            ),
                             customers.d(h, z, d, t) * (1 - utility.loss_dist)
-                        ) * (customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) == 0.0 ? 0.0 :
-                             customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
-                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)) for
-                        y in model_data.year(first(model_data.index_y_fix)):reg_year
+                        ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage),
+                        customers.Opti_DG_E(z, h, :BTMStorage)
+                    ) +
+                    # Sum over years with safe division
+                    sum(
+                        safe_div(
+                            min(
+                                sum(
+                                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_my(Symbol(Int(y)), z, h, m)
+                                    for m in customers.index_m
+                                ),
+                                customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage),
+                            customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage)
+                        )
+                        for y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
         end
-    
         net_demand_wo_green_tech_h_t_wo_loss(z, h, tou, :) .= net_demand_wo_green_tech_h_t_wo_loss_temp
     end
 
@@ -3917,7 +4187,7 @@ function solve_agent_problem!(
                 model_data.omega(d) * delta_t *
                 (
                     sum(
-                        ipp.y_E_my(reg_year_index, p, rps, z, d, t) for rps in ipp.index_rps,
+                        ipp.y_E_my(reg_year_index, p, rps, z, d, t) for rps in index_rps_existing,
                         p in ipp.index_p
                     ) + sum(
                         ipp.y_C_my(reg_year_index, p, rps, z, d, t) for rps in ipp.index_rps,
@@ -3954,7 +4224,7 @@ function solve_agent_problem!(
                 model_data.omega(d) * delta_t *
                 (
                     sum(
-                        ipp.y_E_my(reg_year_index, p, rps, z, d, t) for rps in ipp.index_rps,
+                        ipp.y_E_my(reg_year_index, p, rps, z, d, t) for rps in index_rps_existing,
                         p in ipp.index_p
                     ) + sum(
                         ipp.y_C_my(reg_year_index, p, rps, z, d, t) for rps in ipp.index_rps,
@@ -4037,7 +4307,6 @@ function solve_agent_problem!(
     end
     replace!(energy_cost_allocation_h_t, NaN => 0.0)
 
-
     p_before = ParamArray(regulator.p, "p_before")
     fill!(p_before, NaN)
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
@@ -4071,11 +4340,47 @@ function solve_agent_problem!(
 
         end
             
+        valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
+
+        for (county_fips, ba) in model_data.county_to_ba
+            h = Symbol("Res_$county_fips")  
+            z = Symbol(ba)                
+            valid_combinations[(z, h)] = true
+        end       
+        
+        # Assign rates to customers
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]
-            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
-        end
-            
+            sector = model_data.h_to_sector[h]  
+            if sector == :Residential
+                if get(valid_combinations, (z, h), false)
+                    rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
+                    if haskey(sector_rates, rate_key)
+                        rate = sector_rates[rate_key]
+                        regulator.p(z, h, d, t, :) .= rate
+                    else
+                        @warn "Rate not found for Residential: z=$(z), h=$(h), d=$(d), t=$(t)"
+                        regulator.p(z, h, d, t, :) .= 0.0 
+                    end
+                else
+                    # Invalid combination - assign zero rate
+                    regulator.p(z, h, d, t, :) .= 0.0
+                end
+            elseif sector == :Commercial || sector == :Industrial
+                rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
+                if haskey(sector_rates, rate_key)
+                    rate = sector_rates[rate_key]
+                    regulator.p(z, h, d, t, :) .= rate
+                else
+                    @warn "Rate not found for Commercial/Industrial: z=$(z), h=$(h), d=$(d), t=$(t)"
+                    regulator.p(z, h, d, t, :) .= 0.0
+                end
+            else
+                @warn "Unknown sector $(sector) for customer $(h)"
+                regulator.p(z, h, d, t, :) .= 0.0
+            end
+        end      
+
+        # Replace NaN values with 0.0
         replace!(regulator.p.values, NaN => 0.0)
         
     elseif regulator_opts.rate_design isa TOU
@@ -4098,12 +4403,49 @@ function solve_agent_problem!(
 
         end
             
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]
-            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
-        end
+        valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
+
+        for (county_fips, ba) in model_data.county_to_ba
+            h = Symbol("Res_$county_fips")  
+            z = Symbol(ba)                
+            valid_combinations[(z, h)] = true
+        end       
         
+        # Assign rates to customers
+        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+            sector = model_data.h_to_sector[h]  
+            if sector == :Residential
+                if get(valid_combinations, (z, h), false)
+                    rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
+                    if haskey(sector_rates, rate_key)
+                        rate = sector_rates[rate_key]
+                        regulator.p(z, h, d, t, :) .= rate
+                    else
+                        @warn "Rate not found for Residential: z=$(z), h=$(h), d=$(d), t=$(t)"
+                        regulator.p(z, h, d, t, :) .= 0.0 
+                    end
+                else
+                    # Invalid combination - assign zero rate
+                    regulator.p(z, h, d, t, :) .= 0.0
+                end
+            elseif sector == :Commercial || sector == :Industrial
+                rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
+                if haskey(sector_rates, rate_key)
+                    rate = sector_rates[rate_key]
+                    regulator.p(z, h, d, t, :) .= rate
+                else
+                    @warn "Rate not found for Commercial/Industrial: z=$(z), h=$(h), d=$(d), t=$(t)"
+                    regulator.p(z, h, d, t, :) .= 0.0
+                end
+            else
+                @warn "Unknown sector $(sector) for customer $(h)"
+                regulator.p(z, h, d, t, :) .= 0.0
+            end
+        end      
+
+        # Replace NaN values with 0.0
         replace!(regulator.p.values, NaN => 0.0)
+    
     end
 
 

@@ -40,14 +40,14 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    WholesaleMarket(),    # VerticallyIntegratedUtility(), WholesaleMarket()
     DERAdoption(),                    # DERAdoption(), NullUseCase()
     NullUseCase(),                    # SupplyChoice(), NullUseCase()
-    NullUseCase(),                    # DERAggregation(), NullUseCase()
+    DERAggregation(),                 # DERAggregation(), NullUseCase()
 )
 
 regulator_opts = RegulatorOptions(
-    FlatRate(),                            # FlatRate(), TOU()
+    FlatRate(),                       # FlatRate(), TOU()
     ExcessRetailRate();               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
     planning_reserve_margin=0.129     # Value for New England from ReEDS-2.0/inputs/reserves/prm_annual.csv
 )

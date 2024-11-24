@@ -5132,6 +5132,62 @@ function solve_agent_problem_ipp_cap(
         supply_demand_balance_lower(y, z, d, t) == 0
     )
 
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        k in ipp.index_k_existing,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+    
+        # Retrieve parameter values
+        x_E = ipp.x_E_my(p, z, k)
+        x_R_cumu = ipp.x_R_cumu(p, k, z)
+        rho_E = ipp.rho_E_my(p, k, z, d, t)
+        y_E_bound = y_E_bounds[y, p, k, z, d, t]  # Assuming y_E_bounds is a JuMP variable
+    
+        # Initialize a flag to indicate if a non-finite value was found
+        non_finite_found = false
+    
+        # Check for non-finite values in parameters
+        if !isfinite(x_E)
+            println("Non-finite x_E_my at indices p=$p, z=$z, k=$k: x_E_my=$x_E")
+            non_finite_found = true
+        end
+        if !isfinite(x_R_cumu)
+            println("Non-finite x_R_cumu at indices p=$p, k=$k, z=$z: x_R_cumu=$x_R_cumu")
+            non_finite_found = true
+        end
+        if !isfinite(rho_E)
+            println("Non-finite rho_E_my at indices p=$p, k=$k, z=$z, d=$d, t=$t: rho_E_my=$rho_E")
+            non_finite_found = true
+        end
+    
+        # Compute the difference and product
+        diff = x_E - x_R_cumu
+        if !isfinite(diff)
+            println("Non-finite difference x_E_my - x_R_cumu at indices p=$p, k=$k, z=$z: diff=$diff")
+            non_finite_found = true
+        end
+    
+        product = rho_E * diff
+        if !isfinite(product)
+            println("Non-finite product rho_E_my * (x_E_my - x_R_cumu) at indices p=$p, k=$k, z=$z, d=$d, t=$t: product=$product")
+            non_finite_found = true
+        end
+    
+        # If any non-finite value was found, print all the values for this index combination
+        if non_finite_found
+            println("Full parameter values at indices y=$y, p=$p, k=$k, z=$z, d=$d, t=$t:")
+            println("x_E_my: $x_E")
+            println("x_R_cumu: $x_R_cumu")
+            println("rho_E_my: $rho_E")
+            # We cannot get the value of y_E_bound before optimization, but we can note that it's a variable
+            println("y_E_bound is a JuMP variable and its value is not known before optimization.")
+            println("Computed diff: $diff")
+            println("Computed product: $product")
+        end
+    end
+
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_gen_max_E_lower[

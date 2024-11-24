@@ -18,7 +18,7 @@ mutable struct HEMData
     index_z::Dimension # zone index
     index_sector::Dimension # zone index
     h_to_sector::Dict{Symbol, Symbol}
-
+    county_to_ba::Dict{String, String}
     # Parameters
     omega::ParamArray # number of hours per timeslice
     year::ParamArray
@@ -135,6 +135,28 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         error("index_h_sector_mapping.csv not found in $index_h_sector_mapping_file")
     end
 
+
+    county_id_mapping_path = joinpath(input_filename, "county_id_mapping.csv")
+
+    if isfile(county_id_mapping_path)
+        county_id_mapping = CSV.read(county_id_mapping_path, DataFrame)
+
+
+        county_id_mapping.County_FIPS = map(x -> lpad(string(x), 5, '0'), county_id_mapping.County_FIPS)
+        county_id_mapping.BA = map(x -> "p$x", county_id_mapping.PCA_ID)
+
+        prefix = "Res"
+        county_id_mapping[!, :index_h] = string.(prefix, "_", county_id_mapping.County_FIPS)
+
+        county_id_mapping[!, :index_z] = county_id_mapping.BA
+
+        county_to_ba = Dict(county_id_mapping.County_FIPS .=> county_id_mapping.BA)
+    else
+        error("county_id_mapping.csv not found at $county_id_mapping_path")
+    end
+
+
+
     omega = read_param(
         "omega",
         input_filename,
@@ -171,6 +193,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         index_z,
         index_sector,
         h_to_sector, 
+        county_to_ba,
         omega,
         year,
         time,
@@ -398,7 +421,7 @@ function solve_equilibrium_problem!(
     export_file_path::AbstractString,
     max_iter::Int64,
     window_length::Int64,
-    jump_model::Any,
+    jump_model::Any
 )
     store = AgentStore(agents_and_opts)
     TimerOutputs.reset_timer!(HEM_TIMER)
