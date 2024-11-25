@@ -30,6 +30,8 @@ end
 
 mutable struct Utility <: AbstractUtility
     id::String
+    current_year::Symbol
+
     # Sets
     "existing bulk generation technologies"
     index_k_existing::Dimension
@@ -602,6 +604,7 @@ function Utility(
 
     return Utility(
         id,
+        first(model_data.index_y),
         index_k_existing,
         index_k_new,
         index_rps,
@@ -1032,6 +1035,7 @@ function solve_agent_problem!(
     export_file_path,
     update_results::Bool
 )
+    utility.current_year = first(model_data.index_y)
     return 0.0
 end
 
@@ -1816,6 +1820,8 @@ function solve_agent_problem!(
             utility.discharge_C_my(y, s, z, d, t, :) .= value.(discharge_C[y, s, z, d, t])
             utility.energy_C_my(y, s, z, d, t, :) .= value.(energy_C[y, s, z, d, t])
         end
+
+        utility.current_year = first(model_data.index_y)
     end
 
     utility._obj_value.value = objective_value(VIUDER_Utility)

@@ -116,6 +116,7 @@ abstract type AbstractCustomerGroup <: AgentGroup end
 
 mutable struct CustomerGroup <: AbstractCustomerGroup
     id::String
+    current_year::Symbol
     # Sets
     index_m::Dimension # behind-the-meter technologies
 
@@ -473,6 +474,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
 
     result = CustomerGroup(
         id,
+        first(model_data.index_y),
         index_m,
         gamma,
         demand,
@@ -770,6 +772,8 @@ function solve_agent_problem!(
         end
         update_total_capacity_pv_only_builds!(customers, model_data, reg_year, z, h) 
     end
+
+    customers.current_year = reg_year_index
 
     # x_DG_aggregate_after = initialize_param("x_DG_aggregate_after", model_data.index_h, customers.index_m)
     # for h in model_data.index_h, m in customers.index_m
@@ -1284,6 +1288,8 @@ function solve_agent_problem!(
         end
     end
 
+    customers.current_year = reg_year_index
+
     # @info "Original new DG" x_DG_before
     # @info "New new DG" customers.x_DG_new
 
@@ -1377,6 +1383,8 @@ function solve_agent_problem!(
             customers.x_green_sub_incremental_my(reg_year_index, h, :) .= GreenSubMWh(h)
         end
     end
+
+    customers.current_year = reg_year_index
 
     return compute_difference_percentage_one_norm([(x_green_sub_before, GreenSubMWh)])
 
@@ -1577,6 +1585,8 @@ function solve_agent_problem!(
             customers.x_green_sub_incremental_my(reg_year_index, h, :) .= GreenSubMWh(h)
         end
     end
+
+    customers.current_year = reg_year_index
 
     return compute_difference_percentage_one_norm([
         (x_green_sub_before, GreenSubMWh), 

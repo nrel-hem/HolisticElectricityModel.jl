@@ -56,6 +56,8 @@ abstract type AbstractIPPGroup <: AgentGroup end
 
 mutable struct IPPGroup <: AbstractIPPGroup
     id::String
+    current_year::Symbol
+
     # Sets
     index_k_existing::Dimension # existing bulk generation technologies
     index_k_new::Dimension # potential bulk generation technologies
@@ -320,6 +322,7 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
 
     return IPPGroup(
         id,
+        first(model_data.index_y),
         index_k_existing,
         index_k_new,
         index_stor_existing,
@@ -833,51 +836,62 @@ end
 
 ##################### add transmission and storage #####################
 
+function get_index_y(ipp, model_data, window_length)
+    current_year, _ = get_current_year(ipp, model_data)
+    return [Symbol(Int(yr)) for yr in current_year:(current_year + window_length - 1)]
+end
+
 """
 Lower level optimization results are used to set variable bounds for McCormick-envelope Relaxation
 """
 function ipp_cap_lower(
-    ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre, 
+    ipp, ipp_opts, model_data, delta_t, window_length, 
     customers, der_aggregator, green_developer; first_update=true
 )
+    cust_year = customers.current_year
+    dera_year = der_aggregator.current_year
+    gd_year = green_developer.current_year
+
+    index_y = get_index_y(ipp, model_data, window_length)
+
     MPPDCMER_lower = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"])
 
     # Variables
     @variable(
         MPPDCMER_lower,
-        y_E_bounds[model_data.index_y, ipp.index_p, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        y_E_bounds[index_y, ipp.index_p, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower,
-        y_C_bounds[model_data.index_y, ipp.index_p, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        y_C_bounds[index_y, ipp.index_p, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower,
-        charge_E_bounds[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        charge_E_bounds[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower,
-        discharge_E_bounds[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        discharge_E_bounds[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower,
-        charge_C_bounds[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        charge_C_bounds[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower,
-        discharge_C_bounds[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        discharge_C_bounds[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower,
-        energy_E_bounds[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        energy_E_bounds[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower,
-        energy_C_bounds[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        energy_C_bounds[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower,
-        flow_bounds[model_data.index_y, ipp.index_l, model_data.index_d, model_data.index_t]
+        flow_bounds[index_y, ipp.index_l, model_data.index_d, model_data.index_t]
     )
 
     # Objective Function
@@ -893,7 +907,7 @@ function ipp_cap_lower(
                 ((ipp.v_C_my(y, p, k, z, d, t) - ipp.PTC_new_my(y, k)) * y_C_bounds[y, p, k, z, d, t]) for
                 d in model_data.index_d, t in model_data.index_t, z in model_data.index_z, k in ipp.index_k_new, p in ipp.index_p
             )
-            for y in model_data.index_y
+            for y in index_y
         )
     end
     @objective(MPPDCMER_lower, Min, objective_function_lower)
@@ -917,13 +931,13 @@ function ipp_cap_lower(
             ipp.eximport_my(y, z, d, t) +
             # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(reg_year_index_dera_pre, z, h, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
             ) - 
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
-                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera_pre, z) *
-                customers.total_pv_stor_capacity_my(reg_year_index_dera_pre, z, h, m) 
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
+                customers.total_pv_stor_capacity_my(cust_year, z, h, m) 
                 for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             ) +
             # green technology subscription at time t
@@ -936,14 +950,14 @@ function ipp_cap_lower(
 
     @constraint(
         MPPDCMER_lower,
-        Eq_primal_feasible_supplydemandbalance_lower[y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t],
+        Eq_primal_feasible_supplydemandbalance_lower[y in index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t],
         supply_demand_balance_lower(y, z, d, t) == 0
     )
 
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_gen_max_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             k in ipp.index_k_existing,
             z in model_data.index_z,
@@ -961,7 +975,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_gen_max_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             k in ipp.index_k_new,
             z in model_data.index_z,
@@ -979,7 +993,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_flow_lower_lower[
-            y in model_data.index_y,
+            y in index_y,
             l in ipp.index_l,
             d in model_data.index_d,
             t in model_data.index_t,
@@ -990,7 +1004,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_flow_upper_lower[
-            y in model_data.index_y,
+            y in index_y,
             l in ipp.index_l,
             d in model_data.index_d,
             t in model_data.index_t,
@@ -1001,7 +1015,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_energy_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1015,7 +1029,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_energy_E_0_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1029,7 +1043,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_energy_upper_bound_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1047,7 +1061,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_discharge_upper_bound_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1065,7 +1079,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_charge_upper_bound_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1081,7 +1095,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_discharge_energy_upper_bound_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1094,7 +1108,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_discharge_energy_upper_bound_E_0_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1107,7 +1121,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_charge_energy_upper_bound_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1127,7 +1141,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_charge_energy_upper_bound_E_0_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1146,7 +1160,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_charge_discharge_upper_bound_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1163,7 +1177,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_energy_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1177,7 +1191,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_energy_C_0_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1191,7 +1205,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_energy_upper_bound_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1209,7 +1223,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_discharge_upper_bound_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1227,7 +1241,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_charge_upper_bound_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1243,7 +1257,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_discharge_energy_upper_bound_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1256,7 +1270,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_discharge_energy_upper_bound_C_0_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1269,7 +1283,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_charge_energy_upper_bound_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1289,7 +1303,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_charge_energy_upper_bound_C_0_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1308,7 +1322,7 @@ function ipp_cap_lower(
     @constraint(
         MPPDCMER_lower,
         Eq_primal_feasible_charge_discharge_upper_bound_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1333,88 +1347,94 @@ end
 Lower level dual optimization results are used to set variable bounds for McCormick-envelope Relaxation
 """
 function ipp_cap_lower_dual(
-    ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre, 
+    ipp, ipp_opts, model_data, delta_t, window_length, 
     customers, der_aggregator, green_developer
 )
+    cust_year = customers.current_year
+    dera_year = der_aggregator.current_year
+    gd_year = green_developer.current_year
+
+    index_y = get_index_y(ipp, model_data, window_length)
+
     MPPDCMER_lower_dual = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"])
 
     # Variables
     @variable(
         MPPDCMER_lower_dual, 
-        miu_lower[model_data.index_y, model_data.index_z, model_data.index_d, model_data.index_t]
+        miu_lower[index_y, model_data.index_z, model_data.index_d, model_data.index_t]
     )
     @variable(
         MPPDCMER_lower_dual,
-        eta_lower[model_data.index_y, ipp.index_p, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        eta_lower[index_y, ipp.index_p, ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        lambda_lower[model_data.index_y, ipp.index_p, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        lambda_lower[index_y, ipp.index_p, ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
 
     @variable(
         MPPDCMER_lower_dual,
-        iota_min_lower[model_data.index_y, ipp.index_l, model_data.index_d, model_data.index_t] >= 0
+        iota_min_lower[index_y, ipp.index_l, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        iota_max_lower[model_data.index_y, ipp.index_l, model_data.index_d, model_data.index_t] >= 0
+        iota_max_lower[index_y, ipp.index_l, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        psi_E_lower[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t]
+        psi_E_lower[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t]
     )
     @variable(
         MPPDCMER_lower_dual,
-        theta_E_energy_lower[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        theta_E_energy_lower[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        theta_E_discharge_lower[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        theta_E_discharge_lower[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        theta_E_charge_lower[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        theta_E_charge_lower[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        pi_E_discharge_lower[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        pi_E_discharge_lower[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        pi_E_charge_lower[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        pi_E_charge_lower[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        kappa_E_lower[model_data.index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        kappa_E_lower[index_y, ipp.index_p, ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        psi_C_lower[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t]
+        psi_C_lower[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t]
     )
     @variable(
         MPPDCMER_lower_dual,
-        theta_C_energy_lower[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        theta_C_energy_lower[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        theta_C_discharge_lower[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        theta_C_discharge_lower[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        theta_C_charge_lower[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        theta_C_charge_lower[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        pi_C_discharge_lower[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        pi_C_discharge_lower[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        pi_C_charge_lower[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        pi_C_charge_lower[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
     @variable(
         MPPDCMER_lower_dual,
-        kappa_C_lower[model_data.index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
+        kappa_C_lower[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
 
     # Objective
@@ -1427,13 +1447,13 @@ function ipp_cap_lower_dual(
                     ) + ipp.eximport_my(y, z, d, t) -
                     # total DG generation at time t
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(reg_year_index_dera_pre, z, h, m) for
+                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
                     ) +
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera_pre, z) * 
-                        customers.total_pv_stor_capacity_my(reg_year_index_dera_pre, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) * 
+                        customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                     ) -
                     # green technology subscription at time t
                     sum(
@@ -1594,7 +1614,7 @@ function ipp_cap_lower_dual(
                 for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d) + 
             sum(pi_C_charge_lower[y, p, s, z, d, model_data.index_t.elements[1]] * ipp.initial_energy_new_my(y, p, s, z, d)
                 for p in ipp.index_p, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d)
-            for y in model_data.index_y
+            for y in index_y
         )
     end
     @objective(MPPDCMER_lower_dual, Max, objective_function_lower_dual)
@@ -1603,7 +1623,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_y_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             k in ipp.index_k_existing,
             z in model_data.index_z,
@@ -1615,7 +1635,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_y_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             k in ipp.index_k_new,
             z in model_data.index_z,
@@ -1627,7 +1647,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_flow_lower[
-            y in model_data.index_y,
+            y in index_y,
             l in ipp.index_l,
             d in model_data.index_d,
             t in model_data.index_t,
@@ -1637,7 +1657,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_discharge_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1649,7 +1669,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_charge_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1661,7 +1681,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_energy_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1675,7 +1695,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_energy_last_E_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_existing,
             z in model_data.index_z,
@@ -1687,7 +1707,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_discharge_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1699,7 +1719,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_charge_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1711,7 +1731,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_energy_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1725,7 +1745,7 @@ function ipp_cap_lower_dual(
     @constraint(
         MPPDCMER_lower_dual,
         Eq_dual_feasible_energy_last_C_lower[
-            y in model_data.index_y,
+            y in index_y,
             p in ipp.index_p,
             s in ipp.index_stor_new,
             z in model_data.index_z,
@@ -1751,107 +1771,109 @@ function get_mccormick_bounds(
     if !skip_lower && ((termination_status(MPPDCMER_lower) == OPTIMAL) || (termination_status(MPPDCMER_lower) == LOCALLY_SOLVED))
         @info("Lower-level problem completed successfully. Calculate and save McCormick bound parameters.")
 
+        diff = model_data.year(axes(MPPDCMER_lower[:y_E_bounds])[1][1]) - model_data.year(first(model_data.index_y))
+
         eta_param = initialize_param("eta_param", deepcopy(model_data.index_y), ipp.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(eta_param, NaN)
         for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            eta_param(y, k, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_gen_max_E_lower][Symbol(y_minus), p_star, k, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            eta_param(y, k, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_gen_max_E_lower][y_minus, p_star, k, z, d, t]))
         end
         first_update ? push!(ipp.eta_param_vec, eta_param) : ipp.eta_param_vec[end] = eta_param
 
         lambda_param = initialize_param("lambda_param", deepcopy(model_data.index_y), ipp.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(lambda_param, NaN)
         for y in model_data.index_y, k in ipp.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            lambda_param(y, k, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_gen_max_C_lower][Symbol(y_minus), p_star, k, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            lambda_param(y, k, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_gen_max_C_lower][y_minus, p_star, k, z, d, t]))
         end
         first_update ? push!(ipp.lambda_param_vec, lambda_param) : ipp.lambda_param_vec[end] = lambda_param
 
         theta_E_energy_param = initialize_param("theta_E_energy_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_E_energy_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            theta_E_energy_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_energy_upper_bound_E_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            theta_E_energy_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_energy_upper_bound_E_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.theta_E_energy_param_vec, theta_E_energy_param) : ipp.theta_E_energy_param_vec[end] = theta_E_energy_param
 
         theta_E_discharge_param = initialize_param("theta_E_discharge_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_E_discharge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            theta_E_discharge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_discharge_upper_bound_E_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            theta_E_discharge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_discharge_upper_bound_E_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.theta_E_discharge_param_vec, theta_E_discharge_param) : ipp.theta_E_discharge_param_vec[end] = theta_E_discharge_param
 
         theta_E_charge_param = initialize_param("theta_E_charge_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_E_charge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            theta_E_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_upper_bound_E_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            theta_E_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_upper_bound_E_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.theta_E_charge_param_vec, theta_E_charge_param) : ipp.theta_E_charge_param_vec[end] = theta_E_charge_param
 
         pi_E_charge_param = initialize_param("pi_E_charge_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(pi_E_charge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t.elements[2:end]
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            pi_E_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_energy_upper_bound_E_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            pi_E_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_energy_upper_bound_E_lower][y_minus, p_star, s, z, d, t]))
         end
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in [model_data.index_t.elements[1]]
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            pi_E_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_energy_upper_bound_E_0_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            pi_E_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_energy_upper_bound_E_0_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.pi_E_charge_param_vec, pi_E_charge_param) : ipp.pi_E_charge_param_vec[end] = pi_E_charge_param
 
         kappa_E_param = initialize_param("kappa_E_param", deepcopy(model_data.index_y), ipp.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(kappa_E_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            kappa_E_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_discharge_upper_bound_E_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            kappa_E_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_discharge_upper_bound_E_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.kappa_E_param_vec, kappa_E_param) : ipp.kappa_E_param_vec[end] = kappa_E_param
 
         theta_C_energy_param = initialize_param("theta_C_energy_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_C_energy_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            theta_C_energy_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_energy_upper_bound_C_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            theta_C_energy_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_energy_upper_bound_C_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.theta_C_energy_param_vec, theta_C_energy_param) : ipp.theta_C_energy_param_vec[end] = theta_C_energy_param
 
         theta_C_discharge_param = initialize_param("theta_C_discharge_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_C_discharge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            theta_C_discharge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_discharge_upper_bound_C_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            theta_C_discharge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_discharge_upper_bound_C_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.theta_C_discharge_param_vec, theta_C_discharge_param) : ipp.theta_C_discharge_param_vec[end] = theta_C_discharge_param
 
         theta_C_charge_param = initialize_param("theta_C_charge_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(theta_C_charge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            theta_C_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_upper_bound_C_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            theta_C_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_upper_bound_C_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.theta_C_charge_param_vec, theta_C_charge_param) : ipp.theta_C_charge_param_vec[end] = theta_C_charge_param
 
         pi_C_charge_param = initialize_param("pi_C_charge_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(pi_C_charge_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t.elements[2:end]
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            pi_C_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_energy_upper_bound_C_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            pi_C_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_energy_upper_bound_C_lower][y_minus, p_star, s, z, d, t]))
         end
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in [model_data.index_t.elements[1]]
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            pi_C_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_energy_upper_bound_C_0_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            pi_C_charge_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_energy_upper_bound_C_0_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.pi_C_charge_param_vec, pi_C_charge_param) : ipp.pi_C_charge_param_vec[end] = pi_C_charge_param
 
         kappa_C_param = initialize_param("kappa_C_param", deepcopy(model_data.index_y), ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t)
         fill!(kappa_C_param, NaN)
         for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-            y_minus = (w_iter >= 2) ? model_data.year(y) - 1 : model_data.year(y)
-            kappa_C_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_discharge_upper_bound_C_lower][Symbol(y_minus), p_star, s, z, d, t]))
+            y_minus = Symbol(model_data.year(y) + diff)
+            kappa_C_param(y, s, z, d, t, :) .= abs(dual.(MPPDCMER_lower[:Eq_primal_feasible_charge_discharge_upper_bound_C_lower][y_minus, p_star, s, z, d, t]))
         end
         first_update ? push!(ipp.kappa_C_param_vec, kappa_C_param) : ipp.kappa_C_param_vec[end] = kappa_C_param
 
@@ -2067,10 +2089,15 @@ function get_mccormick_bounds(
 end
 
 function ipp_cap_upper(
-    mcbnds, ipp, ipp_opts, p_star, model_data, delta_t, reg_year_index_dera,
+    mcbnds, ipp, ipp_opts, p_star, model_data, delta_t,
     regulator, customers, der_aggregator, green_developer; 
     max_build=500.0, constraint_scaling = 1.0
 )
+    reg_year = regulator.current_year
+    cust_year = customers.current_year
+    dera_year = der_aggregator.current_year
+    gd_year = green_developer.current_year
+
     WMDER_IPP = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc"])
 
     # Prepare cumulative parameters
@@ -2354,13 +2381,13 @@ function ipp_cap_upper(
             sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - 
             # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
             ) +
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
-                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
-                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
+                customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             )
     end
     fill!(ipp.Max_Net_Load_my, NaN)
@@ -2582,13 +2609,13 @@ function ipp_cap_upper(
                         ipp.eximport_my(y, z, d, t) -
                         # total DG generation at time t
                         sum(
-                            customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
+                            customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                             h in model_data.index_h, m in customers.index_m
                         ) +
                         # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                         sum(
-                            customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * 
-                            customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                            customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) * 
+                            customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                         ) -
                         # green technology subscription at time t
                         sum(
@@ -3047,13 +3074,13 @@ function ipp_cap_upper(
             sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - ipp.eximport_my(y, z, d, t) +
             # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
             ) -
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
-                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
-                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
+                customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             ) +
             # green technology subscription at time t
             sum(
@@ -3807,13 +3834,13 @@ function ipp_cap_upper(
                     ) + ipp.eximport_my(y, z, d, t) -
                     # total DG generation at time t
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
+                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
                     ) + 
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
-                        customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
+                        customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                     ) -
                     # green technology subscription at time t
                     sum(
@@ -4768,9 +4795,13 @@ function ipp_cap_upper(
 end
 
 function ipp_cap_save_results_calc_duality_gap(
-    WMDER_IPP, ipp, p_star, model_data, delta_t, reg_year_index_dera,
+    WMDER_IPP, ipp, p_star, model_data, delta_t,
     customers, der_aggregator, green_developer
 )
+    cust_year = customers.current_year
+    dera_year = der_aggregator.current_year
+    gd_year = green_developer.current_year
+
     # Save Results
     for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z
         ipp.x_R_my(y, p_star, k, z, :) .= value.(WMDER_IPP[:x_R][y, k, z])
@@ -5094,13 +5125,13 @@ function ipp_cap_save_results_calc_duality_gap(
                     ) + ipp.eximport_my(y, z, d, t) -
                     # total DG generation at time t
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
+                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
                     ) + 
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
-                        customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                        customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
+                        customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
                     ) -
                     # green technology subscription at time t
                     sum(
@@ -5269,6 +5300,8 @@ function ipp_cap_save_results_calc_duality_gap(
     @info "lower level dual obj is $(lower_level_dual_obj)"
     @info "lower level duality gap is $(lower_level_duality_gap)"
 
+    ipp.current_year = first(model_data.index_y)
+
     return maximum.(vec(Matrix(lower_level_duality_gap)))[1]
 end
 
@@ -5286,9 +5319,6 @@ function solve_agent_problem_ipp_cap(
     x_R_before = ParamArray(ipp.x_R_my)
     x_C_before = ParamArray(ipp.x_C_my)
     delta_t = get_delta_t(model_data)
-    # the aggregator problem hasn't solved yet, so use last year's participation rates
-    reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
-    reg_year_dera_pre, reg_year_index_dera_pre = get_prev_two_reg_year(model_data, w_iter)
 
     # utility = get_agent(Utility, agent_store)
     regulator = get_agent(Regulator, agent_store)
@@ -5309,20 +5339,23 @@ function solve_agent_problem_ipp_cap(
     skip_lower = false
     WMDER_IPP = nothing
 
-    if w_iter >= 2
-        @info("initializing IPP lower level with previous year's results")
-        model_data.index_y.elements =
-                model_data.index_y_fix.elements[w_iter-1:(w_iter-1 + window_length - 1)]
-    end
+    cust_year = customers.current_year
+    dera_year = der_aggregator.current_year
 
+    # TODO: Only update here on first year? Or find a better place to initialize?
     for z in model_data.index_z
         # simply assign DERAggregator to a random ipp (ipp1)
-        ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(der_aggregator.dera_stor_my(reg_year_index_dera_pre, z, h) for h in model_data.index_h)
-        ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(der_aggregator.dera_pv_my(reg_year_index_dera_pre, z, h) for h in model_data.index_h)
+        ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(
+            der_aggregator.dera_stor_my(dera_year, z, h) for h in model_data.index_h
+        )
+        ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(
+            der_aggregator.dera_pv_my(dera_year, z, h) for h in model_data.index_h
+        )
     end
 
+    # TODO: Only update in customers
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-        customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(reg_year_index_dera_pre, h, :BTMStorage, z, d, t)
+        customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(cust_year, h, :BTMStorage, z, d, t)
     end
 
     for iter in 1:max_iter
@@ -5334,7 +5367,7 @@ function solve_agent_problem_ipp_cap(
             # HERE - Need to update year in some places if MPPDCMER_lower failed but the upper level 
             # succeeded?
             MPPDCMER_lower = ipp_cap_lower(
-                ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre,
+                ipp, ipp_opts, model_data, delta_t, window_length,
                 customers, der_aggregator, green_developer
             )
             push!(jump_model, MPPDCMER_lower)
@@ -5346,7 +5379,7 @@ function solve_agent_problem_ipp_cap(
 
             ############ lower-level dual problem ############
             MPPDCMER_lower_dual = ipp_cap_lower_dual(
-                ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre,
+                ipp, ipp_opts, model_data, delta_t, window_length,
                 customers, der_aggregator, green_developer
             )
             # jump_model[end] = MPPDCMER_lower_dual
@@ -5357,17 +5390,14 @@ function solve_agent_problem_ipp_cap(
         # f = open("lower_level_dual_my_version.txt","w"); print(f, MPPDCMER_lower_dual); close(f)
         # abs.(value.(miu_lower).data) .- abs.(dual.(Eq_primal_feasible_supplydemandbalance_lower).data)
 
-        model_data.index_y.elements =
-                    model_data.index_y_fix.elements[w_iter:(w_iter + window_length - 1)]
-
         for z in model_data.index_z
             # simply assign DERAggregator to a random ipp (ipp1)
-            ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(der_aggregator.dera_stor_my(reg_year_index_dera, z, h) for h in model_data.index_h)
-            ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(der_aggregator.dera_pv_my(reg_year_index_dera, z, h) for h in model_data.index_h)
+            ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(der_aggregator.dera_stor_my(dera_year, z, h) for h in model_data.index_h)
+            ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(der_aggregator.dera_pv_my(dera_year, z, h) for h in model_data.index_h)
         end
     
         for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(reg_year_index_dera, h, :BTMStorage, z, d, t)
+            customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(cust_year, h, :BTMStorage, z, d, t)
         end
 
         mcbnds, first_update = get_mccormick_bounds(
@@ -5376,7 +5406,7 @@ function solve_agent_problem_ipp_cap(
         )
 
         WMDER_IPP = ipp_cap_upper(
-            mcbnds, ipp, ipp_opts, p_star, model_data, delta_t, reg_year_index_dera,
+            mcbnds, ipp, ipp_opts, p_star, model_data, delta_t,
             regulator, customers, der_aggregator, green_developer
         )
         jump_model[end] = WMDER_IPP
@@ -5390,7 +5420,7 @@ function solve_agent_problem_ipp_cap(
 
         objective_value(WMDER_IPP)
         lower_level_duality_gap = ipp_cap_save_results_calc_duality_gap(
-            WMDER_IPP, ipp, p_star, model_data, delta_t, reg_year_index_dera,
+            WMDER_IPP, ipp, p_star, model_data, delta_t,
             customers, der_aggregator, green_developer
         )
         if lower_level_duality_gap > preferred_duality_gap

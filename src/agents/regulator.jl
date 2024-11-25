@@ -47,6 +47,8 @@ abstract type AbstractRegulator <: Agent end
 
 mutable struct Regulator <: AbstractRegulator
     id::String
+    current_year::Symbol
+
     index_rate_tou::Dimension
     tou_rate_structure::DataFrame
     # Parameters
@@ -162,6 +164,7 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
 
     return Regulator(
         id,
+        first(model_data.index_y),
         index_rate_tou,
         tou_rate_structure,
         initialize_param(
@@ -1613,6 +1616,8 @@ function solve_agent_problem!(
     # @info "New retail price" regulator.p
     # @info "New DER excess rate" regulator.p_ex
 
+    regulator.current_year = reg_year_index
+
     return compute_difference_percentage_maximum_one_norm([
         (p_before.values, regulator.p.values),
     ])
@@ -2769,6 +2774,8 @@ function solve_agent_problem!(
             sum(regulator.p_my(reg_year_index, z, h, d, t) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for d in model_data.index_d, t in model_data.index_t) / 
             sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) for d in model_data.index_d, t in model_data.index_t)
     end
+
+    regulator.current_year = reg_year_index
 
     # @info "Original retail price" p_before
     # @info "Original DER excess rate" p_ex_before
