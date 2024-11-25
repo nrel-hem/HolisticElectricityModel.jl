@@ -838,9 +838,9 @@ Lower level optimization results are used to set variable bounds for McCormick-e
 """
 function ipp_cap_lower(
     ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre, 
-    customers, der_aggregator, green_developer; first_update=true
+    customers, der_aggregator, green_developer, solver; first_update=true
 )
-    MPPDCMER_lower = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"])
+    MPPDCMER_lower = get_new_jump_model(solver)
 
     # Variables
     @variable(
@@ -917,13 +917,13 @@ function ipp_cap_lower(
             ipp.eximport_my(y, z, d, t) +
             # total DG generation at time t
             sum(
-                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(reg_year_index_dera_pre, z, h, m) for
+                customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my_delay_update(y, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
             ) - 
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera_pre, z) *
-                customers.total_pv_stor_capacity_my(reg_year_index_dera_pre, z, h, m) 
+                customers.total_pv_stor_capacity_my(reg_year_index_dera_pre, z, h, m) # this actually needs to be a delayed update as well, but all the if-else in customer_group function makes this difficult. However, as long as the initial capacity does not change year over year for the simulation period this is fine (such as in this case).
                 for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
             ) +
             # green technology subscription at time t
@@ -950,12 +950,13 @@ function ipp_cap_lower(
             d in model_data.index_d,
             t in model_data.index_t,
         ],
-        ipp.rho_E_my(p, k, z, d, t) * (
+        # adding this max to avoid rounding errors
+        max(0.0, ipp.rho_E_my(p, k, z, d, t) * (
             ipp.x_E_my(p, z, k) - sum(
                 ipp.x_R_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y)
             )
-        ) - y_E_bounds[y, p, k, z, d, t] >= 0
+        )) - y_E_bounds[y, p, k, z, d, t] >= 0
     )
 
     @constraint(
@@ -1334,9 +1335,9 @@ Lower level dual optimization results are used to set variable bounds for McCorm
 """
 function ipp_cap_lower_dual(
     ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre, 
-    customers, der_aggregator, green_developer
+    customers, der_aggregator, green_developer, solver
 )
-    MPPDCMER_lower_dual = get_new_jump_model(ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"])
+    MPPDCMER_lower_dual = get_new_jump_model(solver)
 
     # Variables
     @variable(
@@ -1427,7 +1428,7 @@ function ipp_cap_lower_dual(
                     ) + ipp.eximport_my(y, z, d, t) -
                     # total DG generation at time t
                     sum(
-                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(reg_year_index_dera_pre, z, h, m) for
+                        customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my_delay_update(y, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
                     ) +
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
@@ -1446,12 +1447,13 @@ function ipp_cap_lower_dual(
             (
                 sum(
                     eta_lower[y, p, k, z, d, t] *
-                    ipp.rho_E_my(p, k, z, d, t) * (
+                    # adding this max to avoid rounding errors
+                    max(0.0, ipp.rho_E_my(p, k, z, d, t) * (
                         ipp.x_E_my(p, z, k) - sum(
                             ipp.x_R_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
                             model_data.year(first(model_data.index_y_fix)):model_data.year(y)
                         )
-                    ) for p in ipp.index_p, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+                    )) for p in ipp.index_p, k in ipp.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 )
             ) - 
             (
@@ -2086,9 +2088,9 @@ function ipp_cap_upper(
                 # need to have constraints in the optimization as well
                 if k == Symbol("nuclear")
                     # X_R_cumu_U(y, k, z, :) .= min(ipp.x_E_my(p_star, z, k) - ipp.x_R_cumu(p_star, k, z), 1.0)
-                    X_R_cumu_U(y, k, z, :) .= ipp.x_E_my(p_star, z, k) - ipp.x_R_cumu(p_star, k, z)
+                    X_R_cumu_U(y, k, z, :) .= max(ipp.x_E_my(p_star, z, k) - ipp.x_R_cumu(p_star, k, z), 0.0)
                 else
-                    X_R_cumu_U(y, k, z, :) .= ipp.x_E_my(p_star, z, k) - ipp.x_R_cumu(p_star, k, z)
+                    X_R_cumu_U(y, k, z, :) .= max(ipp.x_E_my(p_star, z, k) - ipp.x_R_cumu(p_star, k, z), 0.0)
                 end
             end
         end
@@ -5283,18 +5285,25 @@ function solve_agent_problem_ipp_cap(
     window_length,
     jump_model
 )
+    # utility = get_agent(Utility, agent_store)
+    regulator = get_agent(Regulator, agent_store)
+    customers = get_agent(CustomerGroup, agent_store)
+    der_aggregator = get_agent(DERAggregator, agent_store)
+    green_developer = get_agent(GreenDeveloper, agent_store)
+
+    reg_year, reg_year_index = get_reg_year(model_data)
+    #### !!!! we also need to do delayed update for customers.total_pv_stor_capacity_my, but need to figure out all the if-else in customer_group !!!! ####
+    # as long as the existing capacity for customers.total_pv_stor_capacity_my does not change from year to year for the simulation period this is fine (such as in this case).
+    for z in model_data.index_z, h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+        update_total_capacity!(customers.total_der_capacity_my_delay_update, customers.x_DG_new, model_data, reg_year, z, h, m)
+    end
+
     x_R_before = ParamArray(ipp.x_R_my)
     x_C_before = ParamArray(ipp.x_C_my)
     delta_t = get_delta_t(model_data)
     # the aggregator problem hasn't solved yet, so use last year's participation rates
     reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
     reg_year_dera_pre, reg_year_index_dera_pre = get_prev_two_reg_year(model_data, w_iter)
-
-    # utility = get_agent(Utility, agent_store)
-    regulator = get_agent(Regulator, agent_store)
-    customers = get_agent(CustomerGroup, agent_store)
-    der_aggregator = get_agent(DERAggregator, agent_store)
-    green_developer = get_agent(GreenDeveloper, agent_store)
 
     iteration_year = model_data.index_y_fix.elements[w_iter]
 
@@ -5333,11 +5342,20 @@ function solve_agent_problem_ipp_cap(
         if !skip_lower
             # HERE - Need to update year in some places if MPPDCMER_lower failed but the upper level 
             # succeeded?
+            solver = ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"]
             MPPDCMER_lower = ipp_cap_lower(
                 ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre,
-                customers, der_aggregator, green_developer
+                customers, der_aggregator, green_developer, solver
             )
             push!(jump_model, MPPDCMER_lower)
+            if termination_status(MPPDCMER_lower) != OPTIMAL
+                solver = ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower_presolve"]
+                MPPDCMER_lower = ipp_cap_lower(
+                    ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre,
+                    customers, der_aggregator, green_developer, solver
+                )
+                jump_model[end] = MPPDCMER_lower
+            end
 
             # TEMPORARY CODE FOR TESTING
             # objective_value(MPPDCMER_lower) # calling this errors the program if the optimization failed
@@ -5347,7 +5365,7 @@ function solve_agent_problem_ipp_cap(
             ############ lower-level dual problem ############
             MPPDCMER_lower_dual = ipp_cap_lower_dual(
                 ipp, ipp_opts, model_data, delta_t, reg_year_index_dera_pre,
-                customers, der_aggregator, green_developer
+                customers, der_aggregator, green_developer, solver
             )
             # jump_model[end] = MPPDCMER_lower_dual
         end
@@ -5379,7 +5397,7 @@ function solve_agent_problem_ipp_cap(
             mcbnds, ipp, ipp_opts, p_star, model_data, delta_t, reg_year_index_dera,
             regulator, customers, der_aggregator, green_developer
         )
-        jump_model[end] = WMDER_IPP
+        push!(jump_model, WMDER_IPP)
 
         if (termination_status(WMDER_IPP) != OPTIMAL) && (termination_status(WMDER_IPP) != LOCALLY_SOLVED)
             bound_size = min(bound_size * (1.0 + bound_adjust), 0.9)

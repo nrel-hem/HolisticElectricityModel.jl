@@ -217,6 +217,13 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     total_pv_only_capacity_my::ParamArray
     "Cumulative PV plus Storage capacity"
     total_pv_stor_capacity_my::ParamArray
+
+    "Cumulative DER capacity, total PV and storage regardless of how they are grouped"
+    total_der_capacity_my_delay_update::ParamArray
+    "Cumulative PV only capacity"
+    total_pv_only_capacity_my_delay_update::ParamArray
+    "Cumulative PV plus Storage capacity"
+    total_pv_stor_capacity_my_delay_update::ParamArray
 end
 
 
@@ -598,6 +605,9 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("total_der_capacity_my",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         initialize_param("total_pv_only_capacity_my",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         initialize_param("total_pv_stor_capacity_my",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
+        initialize_param("total_der_capacity_my_delay_update",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
+        initialize_param("total_pv_only_capacity_my_delay_update",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
+        initialize_param("total_pv_stor_capacity_my_delay_update",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
     )
 
     # populate total_*_capacity_my variables for DER with all existing/prescribed capacity for all years
@@ -606,8 +616,11 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             for m in index_m
                 result.total_der_capacity_my(y, z, h, m, :) .= x_DG_E_my(y, h, z, m)
                 result.total_pv_stor_capacity_my(y, z, h, m, :) .= existing_pv_stor_capacity_my(y, h, z, m)
+                result.total_der_capacity_my_delay_update(y, z, h, m, :) .= x_DG_E_my(y, h, z, m)
+                result.total_pv_stor_capacity_my_delay_update(y, z, h, m, :) .= existing_pv_stor_capacity_my(y, h, z, m)
             end
             result.total_pv_only_capacity_my(y, z, h, :BTMPV, :) .= existing_pv_only_capacity_my(y, h, z, :BTMPV)
+            result.total_pv_only_capacity_my_delay_update(y, z, h, :BTMPV, :) .= existing_pv_only_capacity_my(y, h, z, :BTMPV)
         end
     end
 
