@@ -27,6 +27,8 @@ end
 
 mutable struct DERAggregator <: AbstractDERAggregator
     id::String
+    current_year::Symbol
+
     # incentive function for DER aggregation (piece-wise linear function: incentive (x) vs participation (y))
     dera_stor_incentive_function::DataFrame
     # parameters applied to aggregated capacities of DER to represent potential friction of aggregation
@@ -54,6 +56,7 @@ function DERAggregator(input_filename::AbstractString, model_data::HEMData, opts
 
     return DERAggregator(
         id,
+        first(model_data.index_y),
         dera_stor_incentive_function,
         initialize_param("aggregation_friction", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
         initialize_param("incentive_level", model_data.index_y, model_data.index_z, value = 0.0),
@@ -100,6 +103,8 @@ function solve_agent_problem!(
         ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= 0.0
     end
 
+    der_aggregator.current_year = reg_year_index
+
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
     return 0.0
@@ -136,6 +141,8 @@ function solve_agent_problem!(
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= 0.0
         utility.x_E_my(z, Symbol("dera_pv"), :) .= 0.0
     end
+
+    der_aggregator.current_year = reg_year_index
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
@@ -379,16 +386,18 @@ function solve_agent_problem!(
         der_aggregator.dera_pv_my(reg_year_index, z, h, :) .= dera_agg_pv_capacity_h(z, h)
     end
 
+    # TODO: I think this might also be happening in the IPPGroup right now. Choose one location?
     for z in model_data.index_z
         # simply assign DERAggregator to a random ipp (ipp1)
         ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
         ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
     end
 
+    der_aggregator.current_year = reg_year_index
+
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
-    return 0.0
-    
+    return 0.0    
 end
 
 function solve_agent_problem!(
@@ -454,16 +463,16 @@ function solve_agent_problem!(
     end
 
     diff_one_base = solve_agent_problem!(
-                            utility,
-                            utility_opts,
-                            model_data,
-                            hem_opts,
-                            agent_store,
-                            w_iter,
-                            window_length,
-                            jump_model,
-                            export_file_path,
-                            false
+        utility,
+        utility_opts,
+        model_data,
+        hem_opts,
+        agent_store,
+        w_iter,
+        window_length,
+        jump_model,
+        export_file_path,
+        false
     )
     viu_obj_value_base = deepcopy(utility._obj_value)
 
@@ -476,16 +485,16 @@ function solve_agent_problem!(
                 utility.x_E_my(z, Symbol("dera_pv"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV) for h in model_data.index_h)
 
                 diff_one = solve_agent_problem!(
-                            utility,
-                            utility_opts,
-                            model_data,
-                            hem_opts,
-                            agent_store,
-                            w_iter,
-                            window_length,
-                            jump_model,
-                            export_file_path,
-                            false
+                    utility,
+                    utility_opts,
+                    model_data,
+                    hem_opts,
+                    agent_store,
+                    w_iter,
+                    window_length,
+                    jump_model,
+                    export_file_path,
+                    false
                 )
                 viu_obj_value = deepcopy(utility._obj_value)
 
@@ -703,6 +712,8 @@ function solve_agent_problem!(
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
         utility.x_E_my(z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
     end
+
+    der_aggregator.current_year = reg_year_index
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
