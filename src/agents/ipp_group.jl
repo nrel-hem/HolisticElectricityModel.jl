@@ -5424,9 +5424,8 @@ function solve_agent_problem_ipp_cap(
             customers, der_aggregator, green_developer
         )
         if lower_level_duality_gap > preferred_duality_gap
-            # tighten the bound if have successfully run the lower level problem at least once 
-            # for this solve year
-            bound_size = first_update ? bound_size : bound_size * bound_adjust
+            # tighten the bound
+            bound_size = bound_size * bound_adjust
             @info("Duality gap $(lower_level_duality_gap) is greater than $(preferred_duality_gap). "*
                   "Re-running lower level problem and applying McCormick bounds with $(bound_size)")
             skip_lower = false
