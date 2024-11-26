@@ -361,7 +361,11 @@ function solve_agent_problem!(
     dera_agg_pv_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
         dera_agg_stor_capacity_h(z, h, :) .= der_aggregator.aggregation_level(reg_year_index, z) * total_der_stor_capacity(z, h)
-        dera_agg_pv_capacity_h(z, h, :) .= dera_agg_stor_capacity_h(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
+        if customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 || customers.Opti_DG_E(z, h, :BTMPV) == 0.0
+            dera_agg_pv_capacity_h(z, h, :) .= 0.0
+        else
+            dera_agg_pv_capacity_h(z, h, :) .= dera_agg_stor_capacity_h(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
+        end
         der_aggregator.dera_stor_my(reg_year_index, z, h, :) .= dera_agg_stor_capacity_h(z, h)
         der_aggregator.dera_pv_my(reg_year_index, z, h, :) .= dera_agg_pv_capacity_h(z, h)
     end
