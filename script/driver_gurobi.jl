@@ -89,10 +89,16 @@ ipp_opts = IPPOptions(
         ),
         "solve_agent_problem_ipp_mppdc_mccormic_lower" => JuMP.optimizer_with_attributes(
             () -> Gurobi.Optimizer(GUROBI_ENV),
+            "Presolve" => 0,
+            "BarHomogeneous" => 1,
+            # "OUTPUTLOG" => 0,
+        ),
+        "solve_agent_problem_ipp_mppdc_mccormic_lower_presolve" => JuMP.optimizer_with_attributes(
+            () -> Gurobi.Optimizer(GUROBI_ENV),
             "Presolve" => 1,
             "BarHomogeneous" => 1,
             # "OUTPUTLOG" => 0,
-        )
+        ),
     )
 )
 
