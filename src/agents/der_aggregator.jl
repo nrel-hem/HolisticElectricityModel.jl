@@ -2,18 +2,33 @@ abstract type AbstractDERAggregator <: Agent end
 
 struct DERAggregatorOptions <: AgentOptions
     solvers::HEMSolver
-    # solvers::Union{HEMSolver, Dict{String, <:HEMSolver}}
+    
+    incentive_curve::Int
+    frac_viu_cost_savings_as_revenue::AbstractFloat
 end
 
 """
 Construct DERAggregatorOptions with an MOI.OptimizerWithAttributes instance.
 """
-function DERAggregatorOptions(attributes::MOI.OptimizerWithAttributes)
-    return DERAggregatorOptions(AnySolver(attributes))
+function DERAggregatorOptions(
+    attributes::MOI.OptimizerWithAttributes; 
+    incentive_curve::Int = 1, 
+    frac_viu_cost_savings_as_revenue::AbstractFloat = 0.1
+)
+    @assert (incentive_curve >= 1) && (incentive_curve <= 5) "dera_stor_incenctive_function_{x} is available for 1 <= x <= 5, was passed $(incentive_curve)"
+    @assert (frac_viu_cost_savings_as_revenue > 0.0) && (frac_viu_cost_savings_as_revenue <= 1.0) "Expected fraction > 0 and <= 1, got $(frac_viu_cost_savings_as_revenue)"
+    return DERAggregatorOptions(AnySolver(attributes), incentive_curve, frac_viu_cost_savings_as_revenue)
+end
+
+function get_file_prefix(options::DERAggregatorOptions)
+    return join(["IncentiveCurve$(options.incentive_curve)",
+                 "VIURevenueFrac$(options.frac_viu_cost_savings_as_revenue)"], "_")
 end
 
 mutable struct DERAggregator <: AbstractDERAggregator
     id::String
+    current_year::Symbol
+
     # incentive function for DER aggregation (piece-wise linear function: incentive (x) vs participation (y))
     dera_stor_incentive_function::DataFrame
     # parameters applied to aggregated capacities of DER to represent potential friction of aggregation
@@ -34,20 +49,21 @@ mutable struct DERAggregator <: AbstractDERAggregator
     dera_pv_my::ParamArray
 end
 
-function DERAggregator(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function DERAggregator(input_filename::AbstractString, model_data::HEMData, opts::DERAggregatorOptions; id = DEFAULT_ID)
 
     # need to have the incentive function for each customer type
-    dera_stor_incentive_function = CSV.read(joinpath(input_filename, "dera_stor_incentive_function.csv"), DataFrame)
+    dera_stor_incentive_function = CSV.read(joinpath(input_filename, "dera_stor_incentive_function_$(opts.incentive_curve).csv"), DataFrame)
 
     return DERAggregator(
         id,
+        first(model_data.index_y),
         dera_stor_incentive_function,
         initialize_param("aggregation_friction", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
         initialize_param("incentive_level", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("revenue", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("aggregation_level", model_data.index_y, model_data.index_z, value = 0.0),
         initialize_param("aggregation_level_output", model_data.index_y, model_data.index_z, value = 0.0),
-        initialize_param("rev_perc_cost_saving_viu", model_data.index_y, model_data.index_z, value = 0.1),
+        initialize_param("rev_perc_cost_saving_viu", model_data.index_y, model_data.index_z, value = opts.frac_viu_cost_savings_as_revenue),
         initialize_param("dera_stor_my", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
         initialize_param("dera_pv_my", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
     )
@@ -59,7 +75,7 @@ function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::DERAggregatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase, <:UseCase, NullUseCase},
+    hem_opts::HEMOptions{WM, <:UseCase, <:UseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -87,6 +103,8 @@ function solve_agent_problem!(
         ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= 0.0
     end
 
+    der_aggregator.current_year = reg_year_index
+
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
     return 0.0
@@ -97,7 +115,7 @@ function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase, <:UseCase, NullUseCase},
+    hem_opts::HEMOptions{VIU, <:UseCase, <:UseCase, NullUseCase},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -124,6 +142,8 @@ function solve_agent_problem!(
         utility.x_E_my(z, Symbol("dera_pv"), :) .= 0.0
     end
 
+    der_aggregator.current_year = reg_year_index
+
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
     return 0.0
@@ -134,7 +154,7 @@ function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::AgentOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket, <:UseCase, <:UseCase, DERAggregation},
+    hem_opts::HEMOptions{WM, <:UseCase, <:UseCase, DERAggregation},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -366,23 +386,25 @@ function solve_agent_problem!(
         der_aggregator.dera_pv_my(reg_year_index, z, h, :) .= dera_agg_pv_capacity_h(z, h)
     end
 
+    # TODO: I think this might also be happening in the IPPGroup right now. Choose one location?
     for z in model_data.index_z
         # simply assign DERAggregator to a random ipp (ipp1)
         ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
         ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
     end
 
+    der_aggregator.current_year = reg_year_index
+
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
-    return 0.0
-    
+    return 0.0    
 end
 
 function solve_agent_problem!(
     der_aggregator::DERAggregator,
     dera_opts::DERAggregatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility, <:UseCase, <:UseCase, DERAggregation},
+    hem_opts::HEMOptions{VIU, <:UseCase, <:UseCase, DERAggregation},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -441,16 +463,16 @@ function solve_agent_problem!(
     end
 
     diff_one_base = solve_agent_problem!(
-                            utility,
-                            utility_opts,
-                            model_data,
-                            hem_opts,
-                            agent_store,
-                            w_iter,
-                            window_length,
-                            jump_model,
-                            export_file_path,
-                            false
+        utility,
+        utility_opts,
+        model_data,
+        hem_opts,
+        agent_store,
+        w_iter,
+        window_length,
+        jump_model,
+        export_file_path,
+        false
     )
     viu_obj_value_base = deepcopy(utility._obj_value)
 
@@ -469,16 +491,16 @@ function solve_agent_problem!(
             
 
                 diff_one = solve_agent_problem!(
-                            utility,
-                            utility_opts,
-                            model_data,
-                            hem_opts,
-                            agent_store,
-                            w_iter,
-                            window_length,
-                            jump_model,
-                            export_file_path,
-                            false
+                    utility,
+                    utility_opts,
+                    model_data,
+                    hem_opts,
+                    agent_store,
+                    w_iter,
+                    window_length,
+                    jump_model,
+                    export_file_path,
+                    false
                 )
                 viu_obj_value = deepcopy(utility._obj_value)
 
@@ -697,6 +719,8 @@ function solve_agent_problem!(
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
         utility.x_E_my(z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
     end
+
+    der_aggregator.current_year = reg_year_index
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 

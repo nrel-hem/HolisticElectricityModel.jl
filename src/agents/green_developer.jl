@@ -16,6 +16,8 @@ end
 
 mutable struct GreenDeveloper <: AbstractGreenDeveloper
     id::String
+    current_year::Symbol
+
     "internal rate of return"
     irr::ParamScalar
     "ppa price"
@@ -27,6 +29,7 @@ end
 function GreenDeveloper(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
     return GreenDeveloper(
         id,
+        first(model_data.index_y),
         ParamScalar("irr", 0.12, description = "internal rate of return"),
         initialize_param(
             "ppa_my",
@@ -123,6 +126,8 @@ function solve_agent_problem!(
         end
     end
 
+    green_developer.current_year = reg_year_index
+
     return compute_difference_percentage_one_norm([(green_tech_buildout_before, green_developer.green_tech_buildout_my)])
 
 end
@@ -139,9 +144,8 @@ function solve_agent_problem!(
     export_file_path,
     update_results::Bool
 )
-
+    green_developer.current_year = first(model_data.index_y)
     return 0.0
-
 end
 
 function save_results(
