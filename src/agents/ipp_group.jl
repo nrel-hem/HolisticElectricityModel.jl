@@ -1896,9 +1896,6 @@ function get_mccormick_bounds(
                 for z in model_data.index_z
                     for d in model_data.index_d
                         for t in model_data.index_t
-                            # @info "Currently " eta_val=eta_param(y, k, z, d, t, :) y k z d t
-                            # @info "For z, d, t " saved_data=ipp.eta_param_vec[end](:, :, z, d, t) y_before k z d t
-                            # @info "Saved data " saved_data_type=typeof(ipp.eta_param_vec[end]) y_axiskeys=AxisKeys.axiskeys(ipp.eta_param_vec[end],1) y_dim=ipp.eta_param_vec[end].dims[1]
                             eta_param(y, k, z, d, t, :) .= ipp.eta_param_vec[end](y_before, k, z, d, t)
                         end
                     end
