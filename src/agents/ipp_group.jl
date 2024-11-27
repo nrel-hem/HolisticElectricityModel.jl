@@ -1891,7 +1891,6 @@ function get_mccormick_bounds(
 
         for (i, y) in enumerate(model_data.index_y)
             y_before = ipp.eta_param_vec[end].dims[1][i]
-            @show(i, y, y_before)
 
             for k in ipp.index_k_existing
                 for z in model_data.index_z
