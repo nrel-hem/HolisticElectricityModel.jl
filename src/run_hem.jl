@@ -33,7 +33,7 @@ function run_hem(
     customers = CustomerGroup(input_dir, model_data)
     ipp = IPPGroup(input_dir, model_data)
     green_developer = GreenDeveloper(input_dir, model_data)
-    dera = DERAggregator(input_dir, model_data)
+    dera = DERAggregator(input_dir, model_data, dera_options)
     # distribution_utility = DistributionUtility(input_dir, model_data)
 
     # the sequence of simulation matters a lot! (e.g., the year DER aggregation is picked is dependent on this)

@@ -31,6 +31,8 @@ abstract type AbstractDistributionUtility <: AgentGroup end
 
 mutable struct DistributionUtility <: AbstractDistributionUtility
     id::String
+    current_year::Symbol
+
     SAIDI::ParamArray
     distribution_capex_balance_model::DistributionCapexBalanceModel
     distribution_capex_addition_model::DistributionCapexAdditionModel
@@ -174,6 +176,7 @@ function DistributionUtility(
 
     return DistributionUtility(
         id,
+        first(model_data.index_y),
         read_param(
             "SAIDI",
             input_filename,
@@ -486,6 +489,8 @@ function solve_agent_problem!(
         debt_interest + return_to_equity + income_tax + operational_cost + distribution_existing_annual_depreciation + distribution_new_annual_accounting_depreciation
 
     regulator.distribution_cost(reg_year_index, :) .= revenue_requirement
+
+    distribution_utility.current_year = reg_year_index
 
     return compute_difference_percentage_one_norm([
         (distribution_cost_before, regulator.distribution_cost),

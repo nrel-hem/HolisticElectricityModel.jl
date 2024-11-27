@@ -18,18 +18,28 @@ struct RegulatorOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegu
     rate_design::T
     net_metering_policy::U
 
+    tou_suffix::AbstractString
+
     planning_reserve_margin::AbstractFloat
     allowed_return_on_investment::AbstractFloat
 end
 
-function RegulatorOptions(rate_design::RateDesign, net_metering_policy::NetMeteringPolicy; 
-    planning_reserve_margin::AbstractFloat = 0.12, allowed_return_on_investment::AbstractFloat = 0.112)
-
-    return RegulatorOptions(rate_design, net_metering_policy, planning_reserve_margin, allowed_return_on_investment)
+function RegulatorOptions(
+    rate_design::RateDesign, 
+    net_metering_policy::NetMeteringPolicy; 
+    tou_suffix="NE2025",
+    planning_reserve_margin::AbstractFloat = 0.12, 
+    allowed_return_on_investment::AbstractFloat = 0.112
+)
+    return RegulatorOptions(rate_design, net_metering_policy, tou_suffix, planning_reserve_margin, allowed_return_on_investment)
 end
 
 function get_file_prefix(options::RegulatorOptions)
-    return join(["$(typeof(options.rate_design))", 
+    rate_design = "$(typeof(options.rate_design))"
+    if typeof(options.rate_design) == TOU
+        rate_design *= options.tou_suffix
+    end
+    return join([rate_design, 
                  "$(typeof(options.net_metering_policy))"], "_")
 end
 
@@ -37,8 +47,10 @@ abstract type AbstractRegulator <: Agent end
 
 mutable struct Regulator <: AbstractRegulator
     id::String
+    current_year::Symbol
+
     index_rate_tou::Dimension
-    rep_day_time_tou_mapping::DataFrame
+    tou_rate_structure::DataFrame
     # Parameters
     "planning reserve (fraction)"
     r::ParamArray
@@ -103,7 +115,7 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
         prose_name = "index for time-of-use rates",
     )
 
-    rep_day_time_tou_mapping = CSV.read(joinpath(input_filename, "rep_day_time_tou_mapping.csv"), DataFrame)
+    tou_rate_structure = CSV.read(joinpath(input_filename, "tou_rate_structure_$(opts.tou_suffix).csv"), DataFrame)
 
     distribution_cost = read_param(
         "distribution_cost",
@@ -152,8 +164,9 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
 
     return Regulator(
         id,
+        first(model_data.index_y),
         index_rate_tou,
-        rep_day_time_tou_mapping,
+        tou_rate_structure,
         initialize_param(
             "r",
             model_data.index_z,
@@ -345,722 +358,11 @@ end
 # this function will work. Can also:
 # Vector{Agent}([c1, c2, c3])
 
-# function solve_agent_problem!(
-#     regulator::Regulator,
-#     regulator_opts::RegulatorOptions,
-#     model_data::HEMData,
-#     hem_opts::HEMOptions{VerticallyIntegratedUtility},
-#     agent_store::AgentStore,
-#     w_iter,
-# )
-
-#     for y in model_data.index_y_fix
-#         regulator.othercost(y, :) .= regulator.distribution_cost(y) + regulator.administration_cost(y) + regulator.transmission_cost(y) + regulator.interconnection_cost(y) + regulator.system_cost(y)
-#     end
-
-#     utility = get_agent(Utility, agent_store)
-#     customers = get_agent(CustomerGroup, agent_store)
-#     green_developer = get_agent(GreenDeveloper, agent_store)
-
-#     # the year regulator is making a rate case
-#     reg_year, reg_year_index = get_reg_year(model_data)
-#     # retirement up to the rate case year
-#     reg_retirement = KeyedArray(
-#         [
-#             sum(
-#                 utility.x_R_my(Symbol(Int(y_symbol)), k) for
-#                 y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
-#             ) for k in utility.index_k_existing
-#         ];
-#         [get_pair(utility.index_k_existing)]...
-#     )
-
-#     # pure volumetric rate
-#     energy_cost =
-#         sum(
-#             model_data.omega(t) *
-#             (utility.v_E_my(reg_year_index, k, t) * utility.y_E_my(reg_year_index, k, t))
-#             for k in utility.index_k_existing, t in model_data.index_t
-#         ) + sum(
-#             model_data.omega(t) *
-#             (utility.v_C_my(reg_year_index, k, t) * utility.y_C_my(reg_year_index, k, t))
-#             for k in utility.index_k_new, t in model_data.index_t
-#         )
-#     fixed_om =
-#         sum(
-#             utility.fom_E_my(reg_year_index, k) * (utility.x_E_my(k) - reg_retirement(k))
-#             for k in utility.index_k_existing
-#         ) + sum(
-#             utility.fom_C_my(Symbol(Int(y_symbol)), k) *
-#             utility.x_C_my(Symbol(Int(y_symbol)), k) for
-#             y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year,
-#             k in utility.index_k_new
-#         )
-#     operational_cost = energy_cost + fixed_om
-#     working_capital = utility.DaysofWC / 365 * operational_cost
-
-#     # calculate ADIT and rate base (no working capital) for new builds, "reg_year-y+1" represents the number of years since the new investment is made
-#     ADITNew = KeyedArray(
-#         [
-#             sum(
-#                 utility.CapEx_my(Symbol(Int(y)), k) *
-#                 utility.x_C_my(Symbol(Int(y)), k) *
-#                 (
-#                     utility.CumuTaxDepre_new_my(Symbol(Int(reg_year - y + 1)), k) -
-#                     utility.CumuAccoutDepre_new_my(Symbol(Int(reg_year - y + 1)), k)
-#                 ) *
-#                 utility.Tax +
-#                 utility.ITC_new_my(Symbol(Int(y)), k) *
-#                 utility.CapEx_my(Symbol(Int(y)), k) *
-#                 utility.x_C_my(Symbol(Int(y)), k) *
-#                 (1 - utility.CumuITCAmort_new_my(Symbol(Int(reg_year - y + 1)), k)) for
-#                 y in model_data.year(first(model_data.index_y_fix)):reg_year
-#             ) for k in utility.index_k_new
-#         ];
-#         [get_pair(utility.index_k_new)]...
-#     )
-#     RateBaseNoWC_new = KeyedArray(
-#         [
-#             sum(
-#                 utility.CapEx_my(Symbol(Int(y)), k) *
-#                 utility.x_C_my(Symbol(Int(y)), k) *
-#                 (1 - utility.CumuAccoutDepre_new_my(Symbol(Int(reg_year - y + 1)), k))
-#                 for y in model_data.year(first(model_data.index_y_fix)):reg_year
-#             ) - ADITNew(k) for k in utility.index_k_new
-#         ];
-#         [get_pair(utility.index_k_new)]...
-#     )
-
-#     # calculate total rate base for the year of rate making
-#     rate_base =
-#         sum(
-#             utility.RateBaseNoWC_existing_my(reg_year_index, k) *
-#             (utility.x_E_my(k) - reg_retirement(k)) for k in utility.index_k_existing
-#         ) +
-#         sum(RateBaseNoWC_new(k) for k in utility.index_k_new) +
-#         working_capital
-#     debt_interest = rate_base * utility.DebtRatio * utility.COD
-#     # calculate total depreciation
-#     depreciation =
-#     # annual depreciation on existing units that have not retired
-#         sum(
-#             utility.CapEx_existing_my(k) *
-#             (utility.x_E_my(k) - reg_retirement(k)) *
-#             utility.AnnualAccoutDepre_existing_my(reg_year_index, k) +
-#             # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
-#             utility.CapEx_existing_my(k) *
-#             utility.x_R_my(reg_year_index, k) *
-#             (
-#                 utility.AnnualAccoutDepre_existing_my(reg_year_index, k) + 1 -
-#                 utility.CumuAccoutDepre_existing_my(reg_year_index, k)
-#             ) for k in utility.index_k_existing
-#         ) +
-#         # annual depreciation on new units
-#         sum(
-#             utility.CapEx_my(Symbol(Int(y)), k) *
-#             utility.x_C_my(Symbol(Int(y)), k) *
-#             utility.AnnualAccoutDepre_new_my(Symbol(Int(reg_year - y + 1)), k) for
-#             y in model_data.year(first(model_data.index_y_fix)):reg_year,
-#             k in utility.index_k_new
-#         )
-#     # calculate total tax depreciation
-#     depreciation_tax =
-#     # annual depreciation on existing units that have not retired
-#         sum(
-#             utility.CapEx_existing_my(k) *
-#             (utility.x_E_my(k) - reg_retirement(k)) *
-#             utility.AnnualTaxDepre_existing_my(reg_year_index, k) +
-#             # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
-#             utility.CapEx_existing_my(k) *
-#             utility.x_R_my(reg_year_index, k) *
-#             (
-#                 utility.AnnualTaxDepre_existing_my(reg_year_index, k) + 1 -
-#                 utility.CumuTaxDepre_existing_my(reg_year_index, k)
-#             ) for k in utility.index_k_existing
-#         ) +
-#         # annual depreciation on new units
-#         sum(
-#             utility.CapEx_my(Symbol(Int(y)), k) *
-#             utility.x_C_my(Symbol(Int(y)), k) *
-#             utility.AnnualTaxDepre_new_my(Symbol(Int(reg_year - y + 1)), k) for
-#             y in model_data.year(first(model_data.index_y_fix)):reg_year,
-#             k in utility.index_k_new
-#         )
-#     return_to_equity = rate_base * (1 - utility.DebtRatio) * utility.COE
-#     #=
-#     income_tax = (return_to_equity -
-#         sum(utility.CapEx_my(reg_year_index,k)*utility.x_C_my(reg_year_index,k)*utility.ITC_new_my(reg_year_index,k) for k in utility.index_k_new)) /
-#         (1-utility.Tax) - return_to_equity
-#     =#
-#     income_tax =
-#         (
-#             return_to_equity * utility.Tax +
-#             (depreciation - depreciation_tax) * utility.Tax - 
-#             sum(
-#                 utility.ITC_existing_my(k) *
-#                 utility.CapEx_existing_my(k) *
-#                 (utility.x_E_my(k) - reg_retirement(k)) *
-#                 utility.AnnualITCAmort_existing_my(reg_year_index, k) +
-#                 # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
-#                 utility.ITC_existing_my(k) *
-#                 utility.CapEx_existing_my(k) *
-#                 utility.x_R_my(reg_year_index, k) *
-#                 (
-#                     utility.AnnualITCAmort_existing_my(reg_year_index, k) + 1 -
-#                     utility.CumuITCAmort_existing_my(reg_year_index, k)
-#                 ) for k in utility.index_k_existing
-#             ) -
-#             sum(
-#                 utility.ITC_new_my(Symbol(Int(y)), k) *
-#                 utility.CapEx_my(Symbol(Int(y)), k) *
-#                 utility.x_C_my(Symbol(Int(y)), k) *
-#                 utility.AnnualITCAmort_new_my(Symbol(Int(reg_year - y + 1)), k) for
-#                 y in model_data.year(first(model_data.index_y_fix)):reg_year, k in utility.index_k_new
-#             )
-#         ) / (1 - utility.Tax)
-#     # calculate revenue requirement
-#     revenue_requirement =
-#         debt_interest + return_to_equity + income_tax + operational_cost + depreciation
-
-#     regulator.revenue_req_my(reg_year_index, :) .= revenue_requirement
-#     regulator.cost_my(reg_year_index, :) .=
-#         debt_interest + income_tax + operational_cost + depreciation
-
-#     regulator.debt_interest_my(reg_year_index, :) .= debt_interest
-#     regulator.income_tax_my(reg_year_index, :) .= income_tax
-#     regulator.operational_cost_my(reg_year_index, :) .= operational_cost
-#     regulator.depreciation_my(reg_year_index, :) .= depreciation
-#     regulator.depreciation_tax_my(reg_year_index, :) .= depreciation_tax
-
-#     # when it comes to net demand, calculate two values: the one with loss is used for cost allocation;
-#     # the one without loss is used for rate calculation.
-#     net_demand_w_loss = (
-#         # demand
-#         # when it comes to sharing the revenue requirement (cost), use load including distribution loss
-#         # e.g. utility generation is 100 MW, 50 MW to serve load (including distribution loss),
-#         #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
-#         sum(
-#             customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
-#             h in model_data.index_h, t in model_data.index_t
-#         ) +
-#         # export
-#         sum(
-#             model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
-#             t in model_data.index_t
-#         ) -
-#         # DG
-#         # when it comes to cost allocation, simply use total DER generation to offset total load;
-#         # this does not consider enery offset at the household level, which is only considered when 
-#         # calculating retail rates.
-#         sum(
-#             model_data.omega(t) * (
-#                 customers.rho_DG(h, m, t) *
-#                 customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                     customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
-#                     y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 )
-#             ) for t in model_data.index_t, h in model_data.index_h,
-#             m in customers.index_m
-#         ) -
-#         # green technology subscription
-#         sum(
-#             model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#             model_data.year(first(model_data.index_y_fix)):reg_year)
-#             for t in model_data.index_t, j in model_data.index_j, h in model_data.index_h
-#         )
-#     )
-
-#     # In the presence of distribution loss, multiply load (including distribution loss) by (1 - loss factor),
-#     # DER generation above this value shall be compansated for DER excess credits
-#     # e.g. DER generation is 100 MW, load (without loss) is 95 MW, receive 5 MW excess credits
-#     der_excess_cost_h = KeyedArray(
-#         [
-#             sum(
-#                 model_data.omega(t) *
-#                 regulator.p_ex(h, t) *
-#                 (
-#                     max(
-#                         0,
-#                         customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m) -
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                     customers.Opti_DG_E(h, m) + sum(
-#                         max(
-#                             0,
-#                             customers.rho_DG(h, m, t) *
-#                             customers.Opti_DG_my(Symbol(Int(y)), h, m) -
-#                             customers.d(h, t) * (1 - utility.loss_dist),
-#                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                         y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                     )
-#                 ) for t in model_data.index_t, m in customers.index_m
-#             ) for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     net_demand_h_w_loss = KeyedArray(
-#         # demand
-#         [
-#             sum(
-#                 customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
-#                 t in model_data.index_t
-#             ) -
-#             # DG
-#             sum(
-#                 model_data.omega(t) * (
-#                     customers.rho_DG(h, m, t) *
-#                     customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                         customers.rho_DG(h, m, t) *
-#                         customers.x_DG_new_my(Symbol(Int(y)), h, m) for
-#                         y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                     )
-#                 ) for t in model_data.index_t, m in customers.index_m
-#             ) -
-#             # green technology subscription
-#             sum(
-#                 model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for t in model_data.index_t, j in model_data.index_j
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     net_demand_h_wo_loss = KeyedArray(
-#         # demand
-#         [
-#             sum(
-#                 customers.gamma(h) *
-#                 model_data.omega(t) *
-#                 customers.d(h, t) *
-#                 (1 - utility.loss_dist) for t in model_data.index_t
-#             ) -
-#             # DG
-#             # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-#             # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-#             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-#             # 100 MW instead of 80 MW.
-#             sum(
-#                 model_data.omega(t) * (
-#                     min(
-#                         customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                     customers.Opti_DG_E(h, m) + sum(
-#                         min(
-#                             customers.rho_DG(h, m, t) *
-#                             customers.Opti_DG_my(Symbol(Int(y)), h, m),
-#                             customers.d(h, t) * (1 - utility.loss_dist),
-#                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                         y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                     )
-#                 ) for t in model_data.index_t, m in customers.index_m
-#             ) -
-#             # green technology subscription
-#             sum(
-#                 model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for t in model_data.index_t, j in model_data.index_j
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     net_demand_wo_green_tech_h_wo_loss = KeyedArray(
-#         [
-#             # demand
-#             sum(
-#                 customers.gamma(h) *
-#                 model_data.omega(t) *
-#                 customers.d(h, t) *
-#                 (1 - utility.loss_dist) for t in model_data.index_t
-#             ) -
-#             # DG
-#             # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-#             # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-#             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-#             # 100 MW instead of 80 MW.
-#             sum(
-#                 model_data.omega(t) * (
-#                     min(
-#                         customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                     customers.Opti_DG_E(h, m) + sum(
-#                         min(
-#                             customers.rho_DG(h, m, t) *
-#                             customers.Opti_DG_my(Symbol(Int(y)), h, m),
-#                             customers.d(h, t) * (1 - utility.loss_dist),
-#                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                         y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                     )
-#                 ) for t in model_data.index_t, m in customers.index_m
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     #=
-#     energy_cost_t = Dict(t => sum(utility.v_E(k, t)*utility.y_E(k, t) for k in utility.index_k_existing) +
-#         sum(utility.v_C(k, t)*utility.y_C(k, t) for k in utility.index_k_new) for t in model_data.index_t)
-#     =#
-#     energy_cost_t = KeyedArray(
-#         [
-#             sum(
-#                 utility.v_E_my(reg_year_index, k, t) * utility.y_E_my(reg_year_index, k, t) for k in utility.index_k_existing
-#             ) + sum(
-#                 utility.v_C_my(reg_year_index, k, t) * utility.y_C_my(reg_year_index, k, t) for k in utility.index_k_new
-#             ) for t in model_data.index_t
-#         ];
-#         [get_pair(model_data.index_t)]...
-#     )
-
-#     net_demand_t_w_loss = KeyedArray(
-#         # demand
-#         [
-#             sum(customers.gamma(h) * customers.d(h, t) for h in model_data.index_h) +
-#             # export
-#             utility.eximport_my(reg_year_index, t) -
-#             # DG
-#             sum(
-#                 customers.rho_DG(h, m, t) *
-#                 customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                     customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
-#                     y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 ) for h in model_data.index_h, m in customers.index_m
-#             ) -
-#             # green technology subscription
-#             sum(
-#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for h in model_data.index_h, j in model_data.index_j
-#             )
-#             for t in model_data.index_t
-#         ];
-#         [get_pair(model_data.index_t)]...
-#     )
-
-#     der_excess_cost_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         der_excess_cost_h_t(h, t, :) .= sum(
-#             regulator.p_ex(h, t) * (
-#                 max(
-#                     0,
-#                     customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m) -
-#                     customers.d(h, t) * (1 - utility.loss_dist),
-#                 ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                 customers.Opti_DG_E(h, m) + sum(
-#                     max(
-#                         0,
-#                         customers.rho_DG(h, m, t) *
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m) -
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                     customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                     y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 )
-#             ) for m in customers.index_m
-#         )
-#     end
-
-#     net_demand_h_t_w_loss = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         net_demand_h_t_w_loss(h, t, :) .=
-#         # demand
-#             customers.gamma(h) * customers.d(h, t) -
-#             # DG
-#             sum(
-#                 customers.rho_DG(h, m, t) *
-#                 customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                     customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
-#                     for y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 ) for m in customers.index_m
-#             ) -
-#             sum(
-#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for j in model_data.index_j
-#             )
-#     end
-
-#     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         net_demand_h_t_wo_loss(h, t, :) .=
-#         # demand
-#             customers.gamma(h) * customers.d(h, t) * (1 - utility.loss_dist) -
-#             # DG
-#             sum(
-#                 min(
-#                     customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
-#                     customers.d(h, t) * (1 - utility.loss_dist),
-#                 ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                 customers.Opti_DG_E(h, m) + sum(
-#                     min(
-#                         customers.rho_DG(h, m, t) *
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m),
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                     customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                     y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 ) for m in customers.index_m
-#             ) -
-#             sum(
-#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for j in model_data.index_j
-#             )
-#     end
-
-#     # for the purpose of calculating net peak load, use load including distribution loss
-#     net_demand_for_peak_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         net_demand_for_peak_h_t(h, t, :) .=
-#             customers.gamma(h) * customers.d(h, t) - sum(
-#                 customers.rho_DG(h, m, t) *
-#                 customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                     customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
-#                     for y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 ) for m in customers.index_m
-#             ) -
-#             sum(
-#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for j in model_data.index_j
-#             )
-#     end
-
-#     # excluding green tech generation offset when it comes to sharing T&D costs
-#     net_demand_for_peak_wo_green_tech_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         net_demand_for_peak_wo_green_tech_h_t(h, t, :) .=
-#             customers.gamma(h) * customers.d(h, t) - sum(
-#                 customers.rho_DG(h, m, t) *
-#                 customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                     customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
-#                     y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 ) for m in customers.index_m
-#             )
-#     end
-
-#     net_peak_load_h = KeyedArray(
-#         [
-#             findmax(Dict(t => net_demand_for_peak_h_t(h, t) for t in model_data.index_t))[1] for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     net_peak_load_wo_green_tech_h = KeyedArray(
-#         [ 
-#             findmax(Dict(t => net_demand_for_peak_wo_green_tech_h_t(h, t) for t in model_data.index_t))[1] for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     # Cost Classification/Allocation
-#     energy_cost_allocation_h = KeyedArray(
-#         [
-#             energy_cost * net_demand_h_w_loss(h) / net_demand_w_loss + der_excess_cost_h(h) for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-#     energy_cost_allocation_eximport =
-#         energy_cost * sum(
-#             model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
-#             t in model_data.index_t
-#         ) / net_demand_w_loss
-
-#     # allocate (revenue_requirement - energy_cost) by net peak load with green tech generation offset;
-#     # allocate regulator.othercost (T&D costs) by net peak load without green tech generation offset;
-#     demand_cost_allocation_h = KeyedArray(
-#         [
-#             (revenue_requirement - energy_cost) * net_peak_load_h(h) / (
-#                 sum(net_peak_load_h(h) for h in model_data.index_h) +
-#                 utility.Peak_eximport_my(reg_year_index)
-#             ) + 
-#             regulator.othercost(reg_year_index) * net_peak_load_wo_green_tech_h(h) / (
-#                 sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
-#                 utility.Peak_eximport_my(reg_year_index)
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-#     demand_cost_allocation_capacity_h = KeyedArray(
-#         [
-#             (revenue_requirement - energy_cost) * net_peak_load_h(h) / (
-#                 sum(net_peak_load_h(h) for h in model_data.index_h) +
-#                 utility.Peak_eximport_my(reg_year_index)
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-#     demand_cost_allocation_othercost_h = KeyedArray(
-#         [
-#             regulator.othercost(reg_year_index) * net_peak_load_wo_green_tech_h(h) / (
-#                 sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
-#                 utility.Peak_eximport_my(reg_year_index)
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     demand_cost_allocation_eximport =
-#         (revenue_requirement - energy_cost) *
-#         utility.Peak_eximport_my(reg_year_index) / (
-#             sum(net_peak_load_h(h) for h in model_data.index_h) +
-#             utility.Peak_eximport_my(reg_year_index)
-#         ) +
-#         regulator.othercost(reg_year_index) *
-#         utility.Peak_eximport_my(reg_year_index) / (
-#             sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
-#             utility.Peak_eximport_my(reg_year_index)
-#         )
-
-#     energy_cost_allocation_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         energy_cost_allocation_h_t(h, t, :) .=
-#             energy_cost_t(t) * net_demand_h_t_w_loss(h, t) / net_demand_t_w_loss(t) +
-#             der_excess_cost_h_t(h, t)
-#     end
-#     energy_cost_allocation_eximport_t = KeyedArray(
-#         [
-#             energy_cost_t(t) * utility.eximport_my(reg_year_index, t) /
-#             net_demand_t_w_loss(t) for t in model_data.index_t
-#         ];
-#         [get_pair(model_data.index_t)]...
-#     )
-
-#     # compute the retail price
-#     p_before = ParamArray(regulator.p, "p_before")
-#     fill!(p_before, NaN)  # TODO DT: debug only
-#     for h in model_data.index_h, t in model_data.index_t
-#         p_before(h, t, :) .= regulator.p_my(reg_year_index, h, t)
-#     end
-
-#     p_before_wavg = ParamArray(regulator.p_td, "p_before_wavg")
-#     fill!(p_before_wavg, NaN)  # TODO DT: debug only
-#     for h in model_data.index_h
-#         p_before_wavg(h, :) .= 
-#             sum(regulator.p_my(reg_year_index, h, t) * model_data.omega(t) * customers.d(h, t) for t in model_data.index_t) / 
-#             sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
-#     end
-
-#     p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
-#     fill!(p_ex_before, NaN)
-#     for h in model_data.index_h, t in model_data.index_t
-#         p_ex_before(h, t, :) .= regulator.p_ex_my(reg_year_index, h, t)
-#     end
-
-#     # TODO: Call a function instead of using if-then
-#     if regulator_opts.rate_design isa FlatRate
-#         fill!(regulator.p, NaN)
-#         for h in model_data.index_h, t in model_data.index_t
-#             regulator.p(h, t, :) .=
-#                 (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
-#                 net_demand_h_wo_loss(h) +
-#                 demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
-#         end
-#         fill!(regulator.p_eximport, NaN)
-#         for t in model_data.index_t
-#             regulator.p_eximport(t, :) .=
-#                 (energy_cost_allocation_eximport + demand_cost_allocation_eximport) /
-#                 sum(
-#                     model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
-#                     t in model_data.index_t
-#                 )
-#         end
-#     elseif regulator_opts.rate_design isa TOU
-#         fill!(regulator.p, NaN)
-#         for h in model_data.index_h, t in model_data.index_t
-#             regulator.p(h, t, :) .=
-#                 energy_cost_allocation_h_t(h, t) / net_demand_h_t_wo_loss(h, t) +
-#                 demand_cost_allocation_capacity_h(h) / net_demand_h_wo_loss(h) +
-#                 demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
-#         end
-#         fill!(regulator.p_eximport, NaN)
-#         for t in model_data.index_t
-#             regulator.p_eximport(t, :) .=
-#                 energy_cost_allocation_eximport_t(t) /
-#                 utility.eximport_my(reg_year_index, t) +
-#                 demand_cost_allocation_eximport / sum(
-#                     model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
-#                     t in model_data.index_t
-#                 )
-#         end
-#     end
-
-#     fill!(regulator.p_regression, NaN)
-#     for h in model_data.index_h
-#         regulator.p_regression(h, :) .=
-#             (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
-#             net_demand_h_wo_loss(h)
-#     end
-
-#     fill!(regulator.p_td, NaN)
-#     for h in model_data.index_h
-#         regulator.p_td(h, :) .=
-#             demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
-#     end
-
-#     # TODO: Call a function instead of using if-then
-#     if regulator_opts.net_metering_policy isa ExcessRetailRate
-#         regulator.p_ex = ParamArray(regulator.p)
-#     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-#         fill!(regulator.p_ex, NaN)
-#         for h in model_data.index_h, t in model_data.index_t
-#             regulator.p_ex(h, t, :) .=
-#                 utility.miu_my(reg_year_index, t) /
-#                 (model_data.omega(t) * utility.pvf_onm(reg_year_index))
-#         end
-#     elseif regulator_opts.net_metering_policy isa ExcessZero
-#         fill!(regulator.p_ex, 0.0)
-#     end
-
-#     for h in model_data.index_h, t in model_data.index_t
-#         regulator.p_my(reg_year_index, h, t, :) .= regulator.p(h, t)
-#         regulator.p_ex_my(reg_year_index, h, t, :) .= regulator.p_ex(h, t)
-#         regulator.p_eximport_my(reg_year_index, t, :) .= regulator.p_eximport(t)
-#     end
-
-#     for h in model_data.index_h
-#         regulator.p_my_regression(reg_year_index, h, :) .= regulator.p_regression(h)
-#         regulator.p_my_td(reg_year_index, h, :) .= regulator.p_td(h)
-#     end
-
-#     p_after_wavg = ParamArray(regulator.p_td, "p_after_wavg")
-#     fill!(p_after_wavg, NaN)  # TODO DT: debug only
-#     for h in model_data.index_h
-#         p_after_wavg(h, :) .= 
-#             sum(regulator.p_my(reg_year_index, h, t) * model_data.omega(t) * customers.d(h, t) for t in model_data.index_t) / 
-#             sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
-#     end
-
-#     @info "Original retail price" p_before
-#     @info "Original DER excess rate" p_ex_before
-#     @info "New retail price" regulator.p
-#     @info "New DER excess rate" regulator.p_ex
-
-#     return compute_difference_percentage_one_norm([
-#         (p_before_wavg.values, p_after_wavg.values),
-#     ])
-# end
-
-# regulator's module with updated dimensions
-
 function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{VerticallyIntegratedUtility},
+    hem_opts::HEMOptions{VIU},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -1772,9 +1074,9 @@ function solve_agent_problem!(
     energy_cost_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         energy_cost_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             energy_cost_t_temp = energy_cost_t_temp + 
                 sum(
                     model_data.omega(d) * delta_t *
@@ -1792,9 +1094,9 @@ function solve_agent_problem!(
     net_eximport_cost_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_eximport_cost_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_eximport_cost_t_temp = net_eximport_cost_t_temp +
                 # export and import cost of modeled areas
                 sum(
@@ -1813,9 +1115,9 @@ function solve_agent_problem!(
     net_demand_t_w_loss = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_demand_t_w_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_t_w_loss_temp = net_demand_t_w_loss_temp + 
                 # demand
                 # when it comes to sharing the revenue requirement (cost), use load including distribution loss
@@ -1869,9 +1171,9 @@ function solve_agent_problem!(
     net_demand_t_w_loss_no_eximport = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_demand_t_w_loss_no_eximport_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_t_w_loss_no_eximport_temp = net_demand_t_w_loss_no_eximport_temp + 
                 # demand
                 # when it comes to sharing the revenue requirement (cost), use load including distribution loss
@@ -1916,9 +1218,9 @@ function solve_agent_problem!(
     exo_eximport_demand_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         exo_eximport_demand_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             exo_eximport_demand_t_temp = exo_eximport_demand_t_temp + 
                 # exogenous export/import
                 sum(
@@ -1931,9 +1233,9 @@ function solve_agent_problem!(
     edo_eximport_demand_t = make_keyed_array(model_data.index_z, utility.index_l, regulator.index_rate_tou)
     for z in model_data.index_z, l in utility.index_l, tou in regulator.index_rate_tou
         edo_eximport_demand_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             edo_eximport_demand_t_temp = edo_eximport_demand_t_temp + 
                 # endogenous export/import (flow out of zone z)
                 sum(
@@ -1946,9 +1248,9 @@ function solve_agent_problem!(
     der_excess_cost_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         der_excess_cost_h_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             der_excess_cost_h_t_temp = der_excess_cost_h_t_temp + 
             # der excess for pv-only customers
             model_data.omega(d) * delta_t *
@@ -2004,9 +1306,9 @@ function solve_agent_problem!(
     net_demand_h_t_w_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_w_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_h_t_w_loss_temp = net_demand_h_t_w_loss_temp +
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t)
@@ -2037,9 +1339,9 @@ function solve_agent_problem!(
     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_wo_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_h_t_wo_loss_temp = net_demand_h_t_wo_loss_temp +
                 # Demand without loss
                 sum(
@@ -2225,14 +1527,6 @@ function solve_agent_problem!(
         p_before(z, h, d, t, :) .= regulator.p_my(reg_year_index, z, h, d, t)
     end
 
-    # p_before_wavg = initialize_param("p_before_wavg", model_data.index_h)
-    # for h in model_data.index_h
-    #     p_before_wavg(h, :) .= 
-    #         sum(regulator.p_my(reg_year_index, z, h, d, t) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t) / 
-    #         sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t)
-    # end
-    # replace!(p_before_wavg.values, NaN => 0.0)
-
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
@@ -2273,7 +1567,7 @@ function solve_agent_problem!(
             
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
                             
-            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
+            tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
     
             # Aggregate over customer types
             numerator_energy = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
@@ -2299,19 +1593,6 @@ function solve_agent_problem!(
         replace!(regulator.p.values, NaN => 0.0)
     end    
 
-    # fill!(regulator.p_regression, NaN)
-    # for h in model_data.index_h
-    #     regulator.p_regression(h, :) .=
-    #         (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
-    #         net_demand_h_wo_loss(h)
-    # end
-
-    # fill!(regulator.p_td, NaN)
-    # for h in model_data.index_h
-    #     regulator.p_td(h, :) .=
-    #         demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
-    # end
-
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
         regulator.p_ex = ParamArray(regulator.p)
@@ -2330,614 +1611,18 @@ function solve_agent_problem!(
         regulator.p_ex_my(reg_year_index, z, h, d, t, :) .= regulator.p_ex(z, h, d, t)
     end
 
-    # for h in model_data.index_h
-    #     regulator.p_my_regression(reg_year_index, h, :) .= regulator.p_regression(h)
-    #     regulator.p_my_td(reg_year_index, h, :) .= regulator.p_td(h)
-    # end
-
-    # p_after_wavg = initialize_param("p_after_wavg", model_data.index_h)
-    # for h in model_data.index_h
-    #     p_after_wavg(h, :) .= 
-    #         sum(regulator.p_my(reg_year_index, z, h, d, t) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * customers.gamma(z, h) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t) / 
-    #         sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) * customers.gamma(z, h) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t)
-    # end
-    # replace!(p_after_wavg.values, NaN => 0.0)
-
     # @info "Original retail price" p_before
     # @info "Original DER excess rate" p_ex_before
     # @info "New retail price" regulator.p
     # @info "New DER excess rate" regulator.p_ex
+
+    regulator.current_year = reg_year_index
 
     return compute_difference_percentage_maximum_one_norm([
         (p_before.values, regulator.p.values),
     ])
 end
 
-# function solve_agent_problem!(
-#     regulator::Regulator,
-#     regulator_opts::RegulatorOptions,
-#     model_data::HEMData,
-#     hem_opts::HEMOptions{WholesaleMarket},
-#     agent_store::AgentStore,
-#     w_iter,
-# )
-
-#     for y in model_data.index_y_fix
-#         regulator.othercost(y, :) .= (
-#             regulator.distribution_cost(y) + 
-#             regulator.administration_cost(y) + 
-#             regulator.transmission_cost(y) + 
-#             regulator.interconnection_cost(y) + 
-#             regulator.system_cost(y)
-#         )
-#     end
-
-#     customers = get_agent(CustomerGroup, agent_store)
-#     ipp = get_agent(IPPGroup, agent_store)
-#     utility = get_agent(Utility, agent_store)
-#     green_developer = get_agent(GreenDeveloper, agent_store)
-
-#     # the year regulator is making a rate case
-#     reg_year, reg_year_index = get_reg_year(model_data)
-
-#     net_demand_w_loss = (
-#         # demand
-#         # when it comes to sharing the revenue requirement (cost), use load including distribution loss
-#         # e.g. utility generation is 100 MW, 50 MW to serve load (including distribution loss),
-#         #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
-#         sum(
-#             customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
-#             h in model_data.index_h, t in model_data.index_t
-#         ) +
-#         # export
-#         sum(
-#             model_data.omega(t) * ipp.eximport_my(reg_year_index, t) for
-#             t in model_data.index_t
-#         ) -
-#         # DG
-#         # when it comes to cost allocation, simply use total DER generation to offset total load;
-#         # this does not consider enery offset at the household level, which is only considered when 
-#         # calculating retail rates.
-#         sum(
-#             model_data.omega(t) * (
-#                 customers.rho_DG(h, m, t) *
-#                 customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                     customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
-#                     y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 )
-#             ) for t in model_data.index_t, h in model_data.index_h,
-#             m in customers.index_m
-#         ) -
-#         # green technology subscription
-#         sum(
-#             model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#             model_data.year(first(model_data.index_y_fix)):reg_year)
-#             for t in model_data.index_t, j in model_data.index_j, h in model_data.index_h
-#         )
-#     )
-
-#     der_excess_cost_h = KeyedArray(
-#         [
-#             sum(
-#                 model_data.omega(t) *
-#                 regulator.p_ex(h, t) *
-#                 (
-#                     max(
-#                         0,
-#                         customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m) -
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                     customers.Opti_DG_E(h, m) + sum(
-#                         max(
-#                             0,
-#                             customers.rho_DG(h, m, t) *
-#                             customers.Opti_DG_my(Symbol(Int(y)), h, m) -
-#                             customers.d(h, t) * (1 - utility.loss_dist),
-#                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                         y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                     )
-#                 ) for t in model_data.index_t, m in customers.index_m
-#             ) for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     net_demand_h_w_loss = KeyedArray(
-#         # demand
-#         [
-#             sum(
-#                 customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
-#                 t in model_data.index_t
-#             ) -
-#             # DG
-#             sum(
-#                 model_data.omega(t) * (
-#                     customers.rho_DG(h, m, t) *
-#                     customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                         customers.rho_DG(h, m, t) *
-#                         customers.x_DG_new_my(Symbol(Int(y)), h, m) for
-#                         y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                     )
-#                 ) for t in model_data.index_t, m in customers.index_m
-#             ) -
-#             # green technology subscription
-#             sum(
-#                 model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for t in model_data.index_t, j in model_data.index_j
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     net_demand_h_wo_loss = KeyedArray(
-#         # demand
-#         [
-#             sum(
-#                 customers.gamma(h) *
-#                 model_data.omega(t) *
-#                 customers.d(h, t) *
-#                 (1 - utility.loss_dist) for t in model_data.index_t
-#             ) -
-#             # DG
-#             # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-#             # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-#             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-#             # 100 MW instead of 80 MW.
-#             sum(
-#                 model_data.omega(t) * (
-#                     min(
-#                         customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                     customers.Opti_DG_E(h, m) + sum(
-#                         min(
-#                             customers.rho_DG(h, m, t) *
-#                             customers.Opti_DG_my(Symbol(Int(y)), h, m),
-#                             customers.d(h, t) * (1 - utility.loss_dist),
-#                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                         y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                     )
-#                 ) for t in model_data.index_t, m in customers.index_m
-#             ) -
-#             # green technology subscription
-#             sum(
-#                 model_data.omega(t) * utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for t in model_data.index_t, j in model_data.index_j
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     net_demand_wo_green_tech_h_wo_loss = KeyedArray(
-#         [
-#         # demand
-#             sum(
-#                 customers.gamma(h) *
-#                 model_data.omega(t) *
-#                 customers.d(h, t) *
-#                 (1 - utility.loss_dist) for t in model_data.index_t
-#             ) -
-#             # DG
-#             # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-#             # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-#             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-#             # 100 MW instead of 80 MW.
-#             sum(
-#                 model_data.omega(t) * (
-#                     min(
-#                         customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                     customers.Opti_DG_E(h, m) + sum(
-#                         min(
-#                             customers.rho_DG(h, m, t) *
-#                             customers.Opti_DG_my(Symbol(Int(y)), h, m),
-#                             customers.d(h, t) * (1 - utility.loss_dist),
-#                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                         y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                     )
-#                 ) for t in model_data.index_t, m in customers.index_m
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     net_demand_t_w_loss = KeyedArray(
-#         # demand
-#         [
-#             sum(customers.gamma(h) * customers.d(h, t) for h in model_data.index_h) +
-#             # export
-#             utility.eximport_my(reg_year_index, t) -
-#             # DG
-#             sum(
-#                 customers.rho_DG(h, m, t) *
-#                 customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                     customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
-#                     y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 ) for h in model_data.index_h, m in customers.index_m
-#             ) -
-#             # green technology subscription
-#             sum(
-#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for h in model_data.index_h, j in model_data.index_j
-#             )
-#             for t in model_data.index_t
-#         ];
-#         [get_pair(model_data.index_t)]...
-#     )
-
-#     der_excess_cost_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         der_excess_cost_h_t(h, t, :) .= sum(
-#             regulator.p_ex(h, t) * (
-#                 max(
-#                     0,
-#                     customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m) -
-#                     customers.d(h, t) * (1 - utility.loss_dist),
-#                 ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                 customers.Opti_DG_E(h, m) + sum(
-#                     max(
-#                         0,
-#                         customers.rho_DG(h, m, t) *
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m) -
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                     customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                     y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 )
-#             ) for m in customers.index_m
-#         )
-#     end
-
-#     net_demand_h_t_w_loss = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         net_demand_h_t_w_loss(h, t, :) .=
-#         # demand
-#             customers.gamma(h) * customers.d(h, t) -
-#             # DG
-#             sum(
-#                 customers.rho_DG(h, m, t) *
-#                 customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                     customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
-#                     for y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 ) for m in customers.index_m
-#             ) -
-#             sum(
-#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for j in model_data.index_j
-#             )
-#     end
-
-#     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         net_demand_h_t_wo_loss(h, t, :) .=
-#         # demand
-#             customers.gamma(h) * customers.d(h, t) * (1 - utility.loss_dist) -
-#             # DG
-#             sum(
-#                 min(
-#                     customers.rho_DG(h, m, t) * customers.Opti_DG_E(h, m),
-#                     customers.d(h, t) * (1 - utility.loss_dist),
-#                 ) * customers.x_DG_E_my(first(model_data.index_y), h, m) /
-#                 customers.Opti_DG_E(h, m) + sum(
-#                     min(
-#                         customers.rho_DG(h, m, t) *
-#                         customers.Opti_DG_my(Symbol(Int(y)), h, m),
-#                         customers.d(h, t) * (1 - utility.loss_dist),
-#                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, m) /
-#                     customers.Opti_DG_my(Symbol(Int(y)), h, m) for
-#                     y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 ) for m in customers.index_m
-#             ) -
-#             sum(
-#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for j in model_data.index_j
-#             )
-#     end
-
-#     # for the purpose of calculating net peak load, use load including distribution loss
-#     net_demand_for_peak_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         net_demand_for_peak_h_t(h, t, :) .=
-#             customers.gamma(h) * customers.d(h, t) - sum(
-#                 customers.rho_DG(h, m, t) *
-#                 customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                     customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
-#                     for y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                 ) for m in customers.index_m
-#             ) -
-#             sum(
-#                 utility.rho_C_my(j, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, h) for y_symbol in
-#                 model_data.year(first(model_data.index_y_fix)):reg_year)
-#                 for j in model_data.index_j
-#             )
-#     end
-
-#     # excluding green tech generation offset when it comes to sharing T&D costs
-#     net_demand_for_peak_wo_green_tech_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         net_demand_for_peak_wo_green_tech_h_t(h, t, :) .=
-#                 customers.gamma(h) * customers.d(h, t) - sum(
-#                     customers.rho_DG(h, m, t) *
-#                     customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-#                         customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m) for
-#                         y in model_data.year(first(model_data.index_y_fix)):reg_year
-#                     ) for m in customers.index_m
-#                 )
-#     end
-
-#     net_peak_load_h = KeyedArray(
-#         [
-#             findmax(Dict(t => net_demand_for_peak_h_t(h, t) for t in model_data.index_t))[1] for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     net_peak_load_wo_green_tech_h = KeyedArray(
-#         [ 
-#             findmax(Dict(t => net_demand_for_peak_wo_green_tech_h_t(h, t) for t in model_data.index_t))[1] for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     # Cost Classification/Allocation
-#     energy_purchase_cost =
-#         sum(
-#             ipp.miu_my(reg_year_index, t) * (
-#                 sum(
-#                     ipp.y_E_my(reg_year_index, p, k, t) for k in ipp.index_k_existing,
-#                     p in ipp.index_p
-#                 ) + sum(
-#                     ipp.y_C_my(reg_year_index, p, k, t) for k in ipp.index_k_new,
-#                     p in ipp.index_p
-#                 )
-#             ) for t in model_data.index_t
-#         ) +
-#         # incorporate REC cost into energy purchase cost
-#         sum(
-#             regulator.REC *
-#             model_data.omega(t) *
-#             (
-#                 sum(
-#                     ipp.y_E_my(reg_year_index, p, rps, t) for rps in ipp.index_rps,
-#                     p in ipp.index_p
-#                 ) + sum(
-#                     ipp.y_C_my(reg_year_index, p, rps, t) for rps in ipp.index_rps,
-#                     p in ipp.index_p
-#                 )
-#             ) for t in model_data.index_t
-#         )
-#     energy_purchase_cost_t = KeyedArray(
-#         [
-#             ipp.miu_my(reg_year_index, t) / model_data.omega(t) * (
-#                 sum(
-#                     ipp.y_E_my(reg_year_index, p, k, t) for k in ipp.index_k_existing,
-#                     p in ipp.index_p
-#                 ) + sum(
-#                     ipp.y_C_my(reg_year_index, p, k, t) for k in ipp.index_k_new,
-#                     p in ipp.index_p
-#                 )
-#             ) +
-#             # incorporate REC cost into energy purchase cost
-#             regulator.REC * (
-#                 sum(
-#                     ipp.y_E_my(reg_year_index, p, rps, t) for rps in ipp.index_rps,
-#                     p in ipp.index_p
-#                 ) + sum(
-#                     ipp.y_C_my(reg_year_index, p, rps, t) for rps in ipp.index_rps,
-#                     p in ipp.index_p
-#                 )
-#             ) for t in model_data.index_t
-#         ];
-#         [get_pair(model_data.index_t)]...
-#     )
-
-#     capacity_purchase_cost = sum(
-#         ipp.ucap(reg_year_index, p) * (
-#             ipp.Capacity_intercept_my(reg_year_index) +
-#             ipp.Capacity_slope_my(reg_year_index) *
-#             sum(ipp.ucap(reg_year_index, p) for p in ipp.index_p)
-#         ) for p in ipp.index_p
-#     )
-
-#     energy_cost_allocation_h = KeyedArray(
-#         [
-#             energy_purchase_cost * net_demand_h_w_loss(h) / net_demand_w_loss +
-#             der_excess_cost_h(h) for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-#     energy_cost_allocation_eximport =
-#         energy_purchase_cost * sum(
-#             model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
-#             t in model_data.index_t
-#         ) / net_demand_w_loss
-
-#     # allocate capacity_purchase_cost by net peak load with green tech generation offset;
-#     # allocate regulator.othercost (T&D costs) by net peak load without green tech generation offset;
-#     demand_cost_allocation_h = KeyedArray(
-#         [
-#             capacity_purchase_cost * net_peak_load_h(h) / (
-#                 sum(net_peak_load_h(h) for h in model_data.index_h) +
-#                 utility.Peak_eximport_my(reg_year_index)
-#             ) +
-#             regulator.othercost(reg_year_index) * net_peak_load_wo_green_tech_h(h) / (
-#                 sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
-#                 utility.Peak_eximport_my(reg_year_index)
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-#     demand_cost_allocation_capacity_h = KeyedArray(
-#         [
-#             capacity_purchase_cost * net_peak_load_h(h) / (
-#                 sum(net_peak_load_h(h) for h in model_data.index_h) +
-#                 utility.Peak_eximport_my(reg_year_index)
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-#     demand_cost_allocation_othercost_h = KeyedArray(
-#         [
-#             regulator.othercost(reg_year_index) * net_peak_load_wo_green_tech_h(h) / (
-#                 sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
-#                 utility.Peak_eximport_my(reg_year_index)
-#             )
-#             for h in model_data.index_h
-#         ];
-#         [get_pair(model_data.index_h)]...
-#     )
-
-#     demand_cost_allocation_eximport =
-#         capacity_purchase_cost *
-#         utility.Peak_eximport_my(reg_year_index) / (
-#             sum(net_peak_load_h(h) for h in model_data.index_h) +
-#             utility.Peak_eximport_my(reg_year_index)
-#         ) +
-#         regulator.othercost(reg_year_index) *
-#         utility.Peak_eximport_my(reg_year_index) / (
-#             sum(net_peak_load_wo_green_tech_h(h) for h in model_data.index_h) +
-#             utility.Peak_eximport_my(reg_year_index)
-#         )
-#     energy_cost_allocation_h_t = make_keyed_array(model_data.index_h, model_data.index_t)
-#     for h in model_data.index_h, t in model_data.index_t
-#         energy_cost_allocation_h_t(h, t, :) .=
-#             energy_purchase_cost_t(t) * net_demand_h_t_w_loss(h, t) /
-#             net_demand_t_w_loss(t) + der_excess_cost_h_t(h, t)
-#     end
-
-#     energy_cost_allocation_eximport_t = KeyedArray(
-#         [
-#             energy_purchase_cost_t(t) * utility.eximport_my(reg_year_index, t) /
-#             net_demand_t_w_loss(t) for t in model_data.index_t
-#         ];
-#         [get_pair(model_data.index_t)]...
-#     )
-
-#     p_before = ParamArray(regulator.p, "p_before")
-#     fill!(p_before, NaN)
-#     for h in model_data.index_h, t in model_data.index_t
-#         p_before(h, t, :) .= regulator.p_my(reg_year_index, h, t)
-#     end
-
-#     p_before_wavg = ParamArray(regulator.p_td, "p_before_wavg")
-#     fill!(p_before_wavg, NaN)  # TODO DT: debug only
-#     for h in model_data.index_h
-#         p_before_wavg(h, :) .= 
-#             sum(regulator.p_my(reg_year_index, h, t) * model_data.omega(t) * customers.d(h, t) for t in model_data.index_t) / 
-#             sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
-#     end
-
-#     p_ex_before = ParamArray(regulator.p_ex, "p_ex_before")
-#     fill!(p_ex_before, NaN)
-#     for h in model_data.index_h, t in model_data.index_t
-#         p_ex_before(h, t, :) .= regulator.p_ex_my(reg_year_index, h, t)
-#     end
-
-#     # TODO: Call a function instead of using if-then
-#     if regulator_opts.rate_design isa FlatRate
-#         fill!(regulator.p, NaN)
-#         for h in model_data.index_h, t in model_data.index_t
-#             regulator.p(h, t, :) .=
-#                 (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
-#                 net_demand_h_wo_loss(h) +
-#                 demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
-#         end
-#         fill!(regulator.p_eximport, NaN)
-#         for t in model_data.index_t
-#             regulator.p_eximport(t, :) .=
-#                 (energy_cost_allocation_eximport + demand_cost_allocation_eximport) /
-#                 sum(
-#                     model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
-#                     t in model_data.index_t
-#                 )
-#         end
-#     elseif regulator_opts.rate_design isa TOU
-#         fill!(regulator.p, NaN)
-#         for h in model_data.index_h, t in model_data.index_t
-#             regulator.p(h, t, :) .=
-#                 energy_cost_allocation_h_t(h, t) / net_demand_h_t_wo_loss(h, t) +
-#                 demand_cost_allocation_capacity_h(h) / net_demand_h_wo_loss(h) +
-#                 demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
-#         end
-#         fill!(regulator.p_eximport, NaN)
-#         for t in model_data.index_t
-#             regulator.p_eximport(t, :) .=
-#                 energy_cost_allocation_eximport_t(t) /
-#                 utility.eximport_my(reg_year_index, t) +
-#                 demand_cost_allocation_eximport / sum(
-#                     model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
-#                     t in model_data.index_t
-#                 )
-#         end
-#     end
-
-#     fill!(regulator.p_regression, NaN)
-#     for h in model_data.index_h
-#         regulator.p_regression(h, :) .=
-#             (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
-#             net_demand_h_wo_loss(h)
-#     end
-
-#     fill!(regulator.p_td, NaN)
-#     for h in model_data.index_h
-#         regulator.p_td(h, :) .=
-#             demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
-#     end
-
-#     # TODO: Call a function instead of using if-then
-#     if regulator_opts.net_metering_policy isa ExcessRetailRate
-#         regulator.p_ex = ParamArray(regulator.p)
-#     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-#         fill!(regulator.p_ex, NaN)
-#         for h in model_data.index_h, t in model_data.index_t
-#             regulator.p_ex(h, t, :) .= ipp.miu_my(reg_year_index, t) / model_data.omega(t)
-#         end
-#     elseif regulator_opts.net_metering_policy isa ExcessZero
-#         fill!(regulator.p_ex, 0.0)
-#     end
-
-#     for h in model_data.index_h, t in model_data.index_t
-#         regulator.p_my(reg_year_index, h, t, :) .= regulator.p(h, t)
-#         regulator.p_ex_my(reg_year_index, h, t, :) .= regulator.p_ex(h, t)
-#         regulator.p_eximport_my(reg_year_index, t, :) .= regulator.p_eximport(t)
-#     end
-
-#     for h in model_data.index_h
-#         regulator.p_my_regression(reg_year_index, h, :) .= regulator.p_regression(h)
-#         regulator.p_my_td(reg_year_index, h, :) .= regulator.p_td(h)
-#     end
-
-#     p_after_wavg = ParamArray(regulator.p_td, "p_after_wavg")
-#     fill!(p_after_wavg, NaN)  # TODO DT: debug only
-#     for h in model_data.index_h
-#         p_after_wavg(h, :) .= 
-#             sum(regulator.p_my(reg_year_index, h, t) * model_data.omega(t) * customers.d(h, t) for t in model_data.index_t) / 
-#             sum(model_data.omega(t) * customers.d(h, t) for t in model_data.index_t)
-#     end
-
-#     @info "Original retail price" p_before
-#     @info "Original DER excess rate" p_ex_before
-#     @info "New retail price" regulator.p
-#     @info "New DER excess rate" regulator.p_ex
-
-#     return compute_difference_percentage_one_norm([
-#         (p_before_wavg.values, p_after_wavg.values),
-#     ])
-# end
 
 # regulator's module with updated dimensions
 
@@ -2945,7 +1630,7 @@ function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{WholesaleMarket},
+    hem_opts::HEMOptions{WM},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -3244,23 +1929,6 @@ function solve_agent_problem!(
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
                 for d in model_data.index_d, t in model_data.index_t
             ) - 
-            # sum(
-            #     model_data.omega(d) * delta_t * (
-            #         min(
-            #             sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-            #             customers.d(h, z, d, t) * (1 - utility.loss_dist),
-            #         ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-            #         customers.Opti_DG_E(z, h, :BTMPV) + sum(
-            #             min(
-            #                 sum(customers.rho_DG(h, m, z, d, t) *
-            #                 customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-            #                 customers.d(h, z, d, t) * (1 - utility.loss_dist),
-            #             ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-            #             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
-            #             y in model_data.year(first(model_data.index_y_fix)):reg_year
-            #         )
-            #     ) for d in model_data.index_d, t in model_data.index_t
-            # ) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -3328,31 +1996,14 @@ function solve_agent_problem!(
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
                 for d in model_data.index_d, t in model_data.index_t
             )
-            # sum(
-            #     model_data.omega(d) * delta_t * (
-            #         min(
-            #             sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-            #             customers.d(h, z, d, t) * (1 - utility.loss_dist),
-            #         ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-            #         customers.Opti_DG_E(z, h, :BTMPV) + sum(
-            #             min(
-            #                 sum(customers.rho_DG(h, m, z, d, t) *
-            #                 customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-            #                 customers.d(h, z, d, t) * (1 - utility.loss_dist),
-            #             ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-            #             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
-            #             y in model_data.year(first(model_data.index_y_fix)):reg_year
-            #         )
-            #     ) for d in model_data.index_d, t in model_data.index_t
-            # )
     end
 
     net_demand_t_w_loss = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_demand_t_w_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_t_w_loss_temp = net_demand_t_w_loss_temp + 
                 # demand
                 # when it comes to sharing the revenue requirement (cost), use load including distribution loss
@@ -3406,9 +2057,9 @@ function solve_agent_problem!(
     net_demand_t_w_loss_no_eximport = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         net_demand_t_w_loss_no_eximport_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_t_w_loss_no_eximport_temp = net_demand_t_w_loss_no_eximport_temp + 
                 # demand
                 # when it comes to sharing the revenue requirement (cost), use load including distribution loss
@@ -3453,9 +2104,9 @@ function solve_agent_problem!(
     exo_eximport_demand_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         exo_eximport_demand_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             exo_eximport_demand_t_temp = exo_eximport_demand_t_temp + 
                 # exogenous export/import
                 sum(
@@ -3468,9 +2119,9 @@ function solve_agent_problem!(
     edo_eximport_demand_t = make_keyed_array(model_data.index_z, utility.index_l, regulator.index_rate_tou)
     for z in model_data.index_z, l in utility.index_l, tou in regulator.index_rate_tou
         edo_eximport_demand_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             edo_eximport_demand_t_temp = edo_eximport_demand_t_temp + 
                 # endogenous export/import (flow out of zone z)
                 sum(
@@ -3483,9 +2134,9 @@ function solve_agent_problem!(
     der_excess_cost_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         der_excess_cost_h_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             der_excess_cost_h_t_temp = der_excess_cost_h_t_temp + 
             # der excess for pv-only customers
             model_data.omega(d) * delta_t *
@@ -3561,9 +2212,9 @@ function solve_agent_problem!(
     net_demand_h_t_w_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_w_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_h_t_w_loss_temp = net_demand_h_t_w_loss_temp +
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t)
@@ -3594,9 +2245,9 @@ function solve_agent_problem!(
     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_wo_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_h_t_wo_loss_temp = net_demand_h_t_wo_loss_temp +
                 # Demand without loss
                 sum(
@@ -3648,21 +2299,6 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z)) -
-                # model_data.omega(d) * delta_t * (
-                #     min(
-                #         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                #         customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                #     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                #     customers.Opti_DG_E(z, h, :BTMPV) + sum(
-                #         min(
-                #             sum(customers.rho_DG(h, m, z, d, t) *
-                #             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                #             customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                #         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                #         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
-                #         y in model_data.year(first(model_data.index_y_fix)):reg_year
-                #     )
-                # ) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -3676,9 +2312,9 @@ function solve_agent_problem!(
     net_demand_wo_green_tech_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_wo_green_tech_h_t_wo_loss_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
             net_demand_wo_green_tech_h_t_wo_loss_temp = net_demand_wo_green_tech_h_t_wo_loss_temp +
                 # Demand without loss
                 sum(
@@ -3730,22 +2366,6 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
-
-                # model_data.omega(d) * delta_t * (
-                #     min(
-                #         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                #         customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                #     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
-                #     customers.Opti_DG_E(z, h, :BTMPV) + sum(
-                #         min(
-                #             sum(customers.rho_DG(h, m, z, d, t) *
-                #             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                #             customers.d(h, z, d, t) * (1 - utility.loss_dist),
-                #         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
-                #         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
-                #         y in model_data.year(first(model_data.index_y_fix)):reg_year
-                #     )
-                # )
         end
         net_demand_wo_green_tech_h_t_wo_loss(z, h, tou, :) .= net_demand_wo_green_tech_h_t_wo_loss_temp
     end
@@ -3857,9 +2477,9 @@ function solve_agent_problem!(
     local_net_load_tou = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         local_net_load_tou_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
 
             local_net_load_tou_temp = local_net_load_tou_temp + 
                 model_data.omega(d) * delta_t * 
@@ -3883,9 +2503,9 @@ function solve_agent_problem!(
     energy_purchase_quantity_detailed_tou = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         energy_purchase_quantity_detailed_tou_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
 
             energy_purchase_quantity_detailed_tou_temp = energy_purchase_quantity_detailed_tou_temp +
                 # positive net load
@@ -3949,9 +2569,9 @@ function solve_agent_problem!(
     energy_purchase_cost_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         energy_purchase_cost_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
 
             energy_purchase_cost_t_temp = energy_purchase_cost_t_temp + 
                 model_data.omega(d) * delta_t * ipp.LMP_my(reg_year_index, z, d, t) *
@@ -3963,9 +2583,9 @@ function solve_agent_problem!(
     rec_purchase_cost_t = make_keyed_array(model_data.index_z, regulator.index_rate_tou)
     for z in model_data.index_z, tou in regulator.index_rate_tou
         rec_purchase_cost_t_temp = 0.0
-        for i in 1:size(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :])[1]
-            d = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_d][i])
-            t = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_rate_tou.==String(tou)), :index_t][i])
+        for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
+            d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
+            t = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_t][i])
 
             rec_purchase_cost_t_temp = rec_purchase_cost_t_temp + 
                 # incorporate REC cost into energy purchase cost
@@ -4105,7 +2725,7 @@ function solve_agent_problem!(
             
             customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
                             
-            tou = Symbol(regulator.rep_day_time_tou_mapping[(regulator.rep_day_time_tou_mapping.index_d .== String(d)) .& (regulator.rep_day_time_tou_mapping.index_t .== String(t)), :index_rate_tou][1])
+            tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
 
             energy_cost = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
             net_demand_tou = sum(net_demand_wo_green_tech_h_t_wo_loss(z, h, tou) for h in customer_types)
@@ -4124,20 +2744,6 @@ function solve_agent_problem!(
         
         replace!(regulator.p.values, NaN => 0.0)
     end
-
-
-    # fill!(regulator.p_regression, NaN)
-    # for h in model_data.index_h
-    #     regulator.p_regression(h, :) .=
-    #         (energy_cost_allocation_h(h) + demand_cost_allocation_capacity_h(h)) /
-    #         net_demand_h_wo_loss(h)
-    # end
-
-    # fill!(regulator.p_td, NaN)
-    # for h in model_data.index_h
-    #     regulator.p_td(h, :) .=
-    #         demand_cost_allocation_othercost_h(h) / net_demand_wo_green_tech_h_wo_loss(h)
-    # end
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
@@ -4169,10 +2775,12 @@ function solve_agent_problem!(
             sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) for d in model_data.index_d, t in model_data.index_t)
     end
 
+    regulator.current_year = reg_year_index
+
     # @info "Original retail price" p_before
     # @info "Original DER excess rate" p_ex_before
-    @info "New retail price" regulator.p
-    @info "New DER excess rate" regulator.p_ex
+    # @info "New retail price" regulator.p
+    # @info "New DER excess rate" regulator.p_ex
 
     # return compute_difference_percentage_one_norm([
     #     (p_before_wavg.values, p_after_wavg.values),

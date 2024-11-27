@@ -24,12 +24,12 @@ input_path = joinpath(hem_data_dir, "inputs")
 ba = ["p129", "p130", "p131", "p132", "p133", "p134"]
 ba_len = length(ba)
 base_year = 2020
-future_years = [2021, 2022]
+future_years = [2021, 2022, 2023]
 future_years_len = length(future_years)
 ipp_number = 1
 scenario = HEMDataRepo.DataSelection(ba, base_year, future_years, ipp_number)
 
-inputs_date = "20241111"
+inputs_date = "20241119-ba"
 input_dir_name = "$inputs_date"*"_ba_"*"$ba_len"*"_base_"*"$base_year"*"_future_"*"$future_years_len"*"_ipps_"*"$ipp_number"
 input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 # input_dir = joinpath(test_data_dir, input_dir_name)
@@ -39,7 +39,7 @@ input_dir = joinpath(hem_data_dir, "runs", input_dir_name)
 
 # Define the scenario and other run options
 hem_opts = HEMOptions(
-    VerticallyIntegratedUtility(),    # VerticallyIntegratedUtility(), WholesaleMarket()
+    WM(),                             # VIU(), WM()
     DERAdoption(),                    # DERAdoption(), NullUseCase()
     NullUseCase(),                    # SupplyChoice(), NullUseCase()
     DERAggregation(),                 # DERAggregation(), NullUseCase()
@@ -48,6 +48,7 @@ hem_opts = HEMOptions(
 regulator_opts = RegulatorOptions(
     TOU(),                            # FlatRate(), TOU()
     ExcessRetailRate();               # ExcessRetailRate(), ExcessMarginalCost(), ExcessZero()
+    tou_suffix="NE2025",
     planning_reserve_margin=0.129     # Value for New England from ReEDS-2.0/inputs/reserves/prm_annual.csv
 )
 
@@ -107,7 +108,7 @@ green_developer_opts = GreenDeveloperOptions(
 )
 
 customer_opts = CustomerOptions(
-    SolarPlusStorageOnly(),
+    CompeteDERConfigs(),
     JuMP.optimizer_with_attributes(
         () -> Xpress.Optimizer(),
         # "OUTPUTLOG" => 0,
@@ -118,7 +119,9 @@ dera_opts = DERAggregatorOptions(
     JuMP.optimizer_with_attributes(
         () -> Xpress.Optimizer(),
         # "OUTPUTLOG" => 0,
-    ),
+    );
+    incentive_curve=1,
+    frac_viu_cost_savings_as_revenue=0.1
 )
 
 # ------------------------------------------------------------------------------
