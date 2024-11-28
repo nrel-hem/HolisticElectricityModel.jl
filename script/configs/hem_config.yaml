@@ -4,7 +4,7 @@
 
 data_selection:
 
-  input_path: "../HolisticElectricityModelData.jl/runs/20241111_ba_6_base_2020_future_2_ipps_1/"
+  input_path: "../HolisticElectricityModelData.jl/runs/20241120-ba_ba_6_base_2020_future_15_ipps_1/"
 
 # ------------------------------------------------------------------------------
 # Simulation Parameters
@@ -12,7 +12,7 @@ data_selection:
 
 simulation_parameters:
   
-  solver: "Xpress"
+  solver: "Gurobi"
 
 # ------------------------------------------------------------------------------
 # Holistic Energy Model (HEM) model-wide options
@@ -26,6 +26,18 @@ hem_options:
   der_aggregation_use_case: "der_aggregation_use_case"
 
 # ------------------------------------------------------------------------------
+# Regulator options
+# ------------------------------------------------------------------------------
+
+regulator_options:
+
+  rate_design: "flat_rate"
+  net_metering_policy: "excess_retail_rate"
+  tou_suffix : "NE2025"
+  planning_reserve_margin : 0.129
+  allowed_return_on_investment : 0.112
+
+# ------------------------------------------------------------------------------
 # Independent Power Producer (IPP) options
 # ------------------------------------------------------------------------------
 
@@ -34,18 +46,16 @@ ipp_options:
   ipp_algorithm: "mppdcmer_transportation_storage"
 
 # ------------------------------------------------------------------------------
-# Regulator options
-# ------------------------------------------------------------------------------
-
-regulator_options:
-
-  rate_design: "flat_rate"
-  net_metering_policy: "excess_retail_rate"
-
-
-# ------------------------------------------------------------------------------
 # Customer options
 # ------------------------------------------------------------------------------
 customer_options:
 
-  pv_adoption_type: "solar_plus_storage"
+  pv_adoption_type: "compete_der_configs"
+
+# ------------------------------------------------------------------------------
+# DER Aggregator options
+# ------------------------------------------------------------------------------
+der_aggregator_options:
+
+  incentive_curve: 1
+  frac_viu_cost_savings_as_revenue: 0.5

@@ -20,6 +20,17 @@ function validate(section::String, validator::FieldValidator, value::Any)
     return msg_or_value
 end
 
+function check_chain(value, checks::Vector)
+    ret = nothing; msg_or_value=nothing
+    for check in checks
+        ret, msg_or_value = check(value)
+        if !ret
+            return ret, msg_or_value
+        end
+    end
+    return ret, msg_or_value
+end
+
 function check_in_collection(value, collection)
     if !(value in collection)
         return false, "$value not in $collection"
@@ -42,9 +53,19 @@ function check_iterable(value, min_length, func)
     return true, typeof(value)(result)
 end
 
-function check_integer(value, min=nothing, max=nothing)
-    result = Integer(value)
+function check_integer(value; min=nothing, max=nothing)
+    result = value isa String ? parse(Int, value) : Int(value)
 
+    return _check_bounds(result; min=min, max=max)
+end
+
+function check_float(value; min=nothing, max=nothing)
+    result = value isa String ? parse(Float64, value) : Float64(value)
+
+    return _check_bounds(result; min=min, max=max)
+end
+
+function _check_bounds(result; min=nothing, max=nothing)
     if !isnothing(min) && (result < min)
         return false, "$result < minimum value $min"
     end
@@ -59,11 +80,15 @@ function check_string(value)
     return true, String(value)
 end
 
+function check_symbol(value)
+    return true, Symbol(value)
+end
+
 function check_bool(value)
     return true, Bool(value)
 end
 
-function parse(config::Dict{Any,Any}, section::String, validators::Dict{String,Vector{T}}) where T<: FieldValidator
+function parse(config::Dict{Any,Any}, section::String, validators::Dict{String,Vector})
     if !(section in keys(config))
         error("Invalid config section: $section.")
     end

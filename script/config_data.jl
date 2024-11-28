@@ -5,8 +5,8 @@ reeds_bas = collect("p$n" for n = 1:134)
 null_use_case_identifier = "null_use_case"
 
 market_structure_map = Dict(
-    "wholesale_market" => WholesaleMarket(),
-    "vertically_integrated_utility" => VerticallyIntegratedUtility()
+    "wholesale_market" => WM(),
+    "vertically_integrated_utility" => VIU()
 )
 
 der_use_case_map = Dict(
@@ -24,13 +24,6 @@ der_aggregation_use_case_map = Dict(
     null_use_case_identifier => NullUseCase()
 )
 
-ipp_algorithm_map = Dict(
-    "lagrange_decomposition" => LagrangeDecomposition(),
-    "mppdcmer_transportation_storage" => MPPDCMERTransStorage(),
-    "mppdcmer" => MPPDCMER(),
-    "miqp" => MIQP()
-)
-
 rate_design_map = Dict(
     "flat_rate" => FlatRate(),
     "time_of_use" => TOU()
@@ -42,10 +35,17 @@ net_metering_policy_map = Dict(
     "excess_zero" => ExcessZero()
 )
 
+ipp_algorithm_map = Dict(
+    "lagrange_decomposition" => LagrangeDecomposition(),
+    "mppdcmer_transportation_storage" => MPPDCMERTransStorage(),
+    "mppdcmer" => MPPDCMER(),
+    "miqp" => MIQP()
+)
+
 pv_adoption_type_map = Dict(
     "standalone_pv" => StandalonePVOnly(),
     "solar_plus_storage" => SolarPlusStorageOnly(),
-    "compete_standalone_pv_solar_storage" => Compete_StandalonePV_SolarPlusStorage()
+    "compete_der_configs" => CompeteDERConfigs()
 )
 
 validators = Dict(
@@ -58,7 +58,10 @@ validators = Dict(
     "simulation_parameters" => [
         FieldValidatorBasic(
             "solver",
-            value -> check_in_collection(value, ("Gurobi", "Xpress"))
+            value -> check_chain(value, [
+                val -> check_in_collection(val, ("Gurobi", "Xpress")),
+                check_symbol
+            ])
         ),
     ],
     "hem_options" => [
@@ -79,12 +82,6 @@ validators = Dict(
             value -> check_and_return_from_map(value, der_aggregation_use_case_map)
         ),
     ],
-    "ipp_options" => [
-        FieldValidatorBasic(
-            "ipp_algorithm",
-            value -> check_and_return_from_map(value, ipp_algorithm_map)
-        )
-    ],
     "regulator_options" => [
         FieldValidatorBasic(
             "rate_design",
@@ -93,6 +90,27 @@ validators = Dict(
         FieldValidatorBasic(
             "net_metering_policy",
             value -> check_and_return_from_map(value, net_metering_policy_map)
+        ),
+        FieldValidatorHasDefault(
+            "tou_suffix",
+            value -> check_in_collection(value, ("NE2025", "NE2035")),
+            "NE2025"
+        ),
+        FieldValidatorHasDefault(
+            "planning_reserve_margin",
+            value -> check_float(value; min=0.0, max=0.5),
+            0.129
+        ),
+        FieldValidatorHasDefault(
+            "allowed_return_on_investment",
+            value -> check_float(value; min=0.0, max=0.5),
+            0.112
+        )
+    ],
+    "ipp_options" => [
+        FieldValidatorBasic(
+            "ipp_algorithm",
+            value -> check_and_return_from_map(value, ipp_algorithm_map)
         )
     ],
     "customer_options" => [
@@ -100,5 +118,17 @@ validators = Dict(
             "pv_adoption_type",
             value -> check_and_return_from_map(value, pv_adoption_type_map)
         )
-    ]
+    ],
+    "der_aggregator_options" => [
+        FieldValidatorHasDefault(
+            "incentive_curve",
+            value -> check_integer(value; min=1, max=5),
+            1
+        ),
+        FieldValidatorHasDefault(
+            "frac_viu_cost_savings_as_revenue",
+            value -> check_float(value; min=0.0, max=1.0),
+            0.5
+        ),
+    ],
 )

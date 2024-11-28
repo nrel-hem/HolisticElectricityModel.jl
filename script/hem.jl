@@ -31,56 +31,38 @@ import_solver_package(solver)
 # Model configuration
 # ------------------------------------------------------------------------------
 
-market_structure, der_use_case, supply_choice_use_case, der_aggregation_use_case = parse(config, "hem_options", validators)
-ipp_algorithm, = parse(config, "ipp_options", validators)
-rate_design, net_metering_policy = parse(config, "regulator_options", validators)
-pv_adoption_type, = parse(config, "customer_options", validators)
-
 # Define HEM run options
-hem_opts = HEMOptions(market_structure, der_use_case, supply_choice_use_case, der_aggregation_use_case)
 
-regulator_opts = RegulatorOptions(rate_design, net_metering_policy)
+market_structure, der_use_case, supply_choice_use_case, 
+    der_aggregation_use_case = parse(config, "hem_options", validators)
+
+hem_opts = HEMOptions(
+    market_structure, 
+    der_use_case, 
+    supply_choice_use_case, 
+    der_aggregation_use_case
+)
+
+# Define agent options
+
+rate_design, net_metering_policy, tou_suffix, planning_reserve_margin, 
+    allowed_return_on_investment = parse(config, "regulator_options", validators)
+
+regulator_opts = RegulatorOptions(
+    rate_design, 
+    net_metering_policy; 
+    tou_suffix=tou_suffix,
+    planning_reserve_margin=planning_reserve_margin,
+    allowed_return_on_investment=allowed_return_on_investment,
+)
 
 # Get the optimizer depending on the solver defined the config
-ipp_opts = IPPOptions(
-    ipp_algorithm,
-    Dict(
-        "Lagrange_Sub_Investment_Retirement_Cap" => JuMP.optimizer_with_attributes(
-            () -> get_optimizer_for_solver("Ipopt"),
-            "print_level" => 0,
-            # "tol" => 1e-6,
-            # "max_iter" => 500,
-        ),
-        "Lagrange_Sub_Dispatch_Cap" => JuMP.optimizer_with_attributes(
-            () -> get_optimizer_for_solver(solver),
-            # "OUTPUTLOG" => 0,
-        ),
-        "Lagrange_Feasible_Cap" => JuMP.optimizer_with_attributes(
-            () -> get_optimizer_for_solver(solver),
-            "Presolve" => 0,
-            # "OUTPUTLOG" => 0,
-        ),
-        "solve_agent_problem_ipp_cap" => JuMP.optimizer_with_attributes(
-            () -> get_optimizer_for_solver(solver),
-            "Presolve" => 1,
-            # "OUTPUTLOG" => 0,
-        ),
-        "solve_agent_problem_ipp_mppdc" => JuMP.optimizer_with_attributes(
-            () -> get_optimizer_for_solver(solver),
-            "Presolve" => 1,
-            "BarHomogeneous" => 1,
-            # "NumericFocus" => 3,
-            # "OUTPUTLOG" => 0,
-        ),
-        "solve_agent_problem_ipp_mppdc_mccormic_lower" =>
-            JuMP.optimizer_with_attributes(
-                () -> get_optimizer_for_solver(solver),
-                "Presolve" => 1,
-                "BarHomogeneous" => 1,
-                # "OUTPUTLOG" => 0,
-            ),
-    ),
-)
+ipp_algorithm, = parse(config, "ipp_options", validators)
+
+ipp_solvers = Dict()
+addsolvers_ipp!(ipp_solvers,:Ipopt)
+addsolvers_ipp!(ipp_solvers,solver)
+ipp_opts = IPPOptions(ipp_algorithm, ipp_solvers)
 
 utility_opts = UtilityOptions(JuMP.optimizer_with_attributes(
     () -> get_optimizer_for_solver(solver),
@@ -94,6 +76,8 @@ green_developer_opts = GreenDeveloperOptions(
     ),
 )
 
+pv_adoption_type, = parse(config, "customer_options", validators)
+
 customer_opts = CustomerOptions(
     pv_adoption_type,
     JuMP.optimizer_with_attributes(
@@ -102,11 +86,16 @@ customer_opts = CustomerOptions(
     ),
 )
 
+incentive_curve, frac_viu_cost_savings_as_revenue = 
+    parse(config, "der_aggregator_options", validators)
+
 dera_opts = DERAggregatorOptions(
     JuMP.optimizer_with_attributes(
         () -> get_optimizer_for_solver(solver),
         # "OUTPUTLOG" => 0,
-    ),
+    );
+    incentive_curve=incentive_curve,
+    frac_viu_cost_savings_as_revenue=frac_viu_cost_savings_as_revenue
 )
 
 jump_model = []

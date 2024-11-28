@@ -35,6 +35,8 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
     ```
 
     ```julia
+    julia> ]
+    pkg> dev .
     pkg> instantiate
     pkg> build Gurobi
     ```
@@ -50,7 +52,10 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
     ```
 
     ```julia
+    julia> ]
+    pkg> dev .
     pkg> instantiate
+    pkg> build Xpress
     ```
 
 ### Performing a Model Run

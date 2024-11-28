@@ -41,6 +41,40 @@ function get_new_jump_model(hem_solver::IpoptSolver)
     make_jump_model(hem_solver.attributes)
 end
 
+function import_ipopt()
+    try
+        @eval Main begin
+            import Ipopt
+        end
+    catch
+        error("The Ipopt optimizer must be installed.")
+    end
+end
+
+function _get_ipopt()
+    @eval Main begin
+        import Ipopt
+        return Ipopt.Optimizer
+    end
+end
+
+function _initialize_optimizer_ipopt()
+    @eval Main begin
+        import Ipopt
+        return Ipopt.Optimizer()
+    end
+end
+
+function addsolvers_ipp!(ipp_solvers::Dict,solver_name::Val{:Ipopt})
+    ipp_solvers["Lagrange_Sub_Investment_Retirement_Cap"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        "print_level" => 0,
+        # "tol" => 1e-6,
+        # "max_iter" => 500,
+    )
+end
+
+
 """
 Construct an Xpress optimizer. Use default settings or pass an MOI.OptimizerWithAttributes
 instance.
@@ -72,6 +106,69 @@ function get_new_jump_model(hem_solver::XpressSolver)
     isnothing(hem_solver.attributes) && return Model(_get_xpress())
     make_jump_model(hem_solver.attributes)
 end
+
+function import_xpress()
+    try
+        @eval Main begin
+            import Xpress
+        end
+    catch
+        error("The Xpress optimizer must be installed.")
+    end
+end
+
+function _get_xpress()
+    @eval Main begin
+        import Xpress
+        return Xpress.Optimizer
+    end
+end
+
+function _initialize_optimizer_xpress()
+    @eval Main begin
+        import Xpress
+        return Xpress.Optimizer()
+    end
+end
+
+function addsolvers_ipp!(ipp_solvers::Dict,solver_name::Val{:Xpress})
+    ipp_solvers["Lagrange_Sub_Dispatch_Cap"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        # "OUTPUTLOG" => 0,
+    )
+    ipp_solvers["Lagrange_Feasible_Cap"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name)
+    )
+    ipp_solvers["solve_agent_problem_ipp_cap"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        # "Presolve" => 1,
+        # "OUTPUTLOG" => 0,
+    )
+    ipp_solvers["solve_agent_problem_ipp_mppdc"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        # "Aggregate" => 0,
+        # "Presolve" => 0,
+        # "BarHomogeneous" => 1,
+        # "FeasibilityTol" => 1e-3,
+        # "Method" => 1
+        # "NumericFocus" => 3,
+        # "ScaleFlag" => 2,
+        # "OUTPUTLOG" => 0,
+    )
+    ipp_solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        # "Presolve" => 1,
+        # "BarHomogeneous" => 1,
+        # "OUTPUTLOG" => 0,
+    )
+    ipp_solvers["solve_agent_problem_ipp_mppdc_mccormic_lower_presolve"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        # "Presolve" => 1,
+        # "BarHomogeneous" => 1,
+        # "OUTPUTLOG" => 0,
+    )
+end
+
 
 """
 Construct an Gurobi optimizer. Use default settings or pass an MOI.OptimizerWithAttributes
@@ -124,54 +221,6 @@ function _get_gurobi()
     end
 end
 
-function import_ipopt()
-    try
-        @eval Main begin
-            import Ipopt
-        end
-    catch
-        error("The Ipopt optimizer must be installed.")
-    end
-end
-
-function _get_ipopt()
-    @eval Main begin
-        import Ipopt
-        return Ipopt.Optimizer
-    end
-end
-
-function import_xpress()
-    try
-        @eval Main begin
-            import Xpress
-        end
-    catch
-        error("The Xpress optimizer must be installed.")
-    end
-end
-
-function _get_xpress()
-    @eval Main begin
-        import Xpress
-        return Xpress.Optimizer
-    end
-end
-
-function _initialize_optimizer_xpress()
-    @eval Main begin
-        import Xpress
-        return Xpress.Optimizer()
-    end
-end
-
-function _initialize_optimizer_ipopt()
-    @eval Main begin
-        import Ipopt
-        return Ipopt.Optimizer()
-    end
-end
-
 function _initialize_optimizer_gurobi()
     @eval Main begin
         import Gurobi
@@ -182,26 +231,57 @@ function _initialize_optimizer_gurobi()
     end
 end
 
-function import_solver_package(solver_name::AbstractString)
-    if solver_name == "Xpress"
-        import_xpress()
-    elseif solver_name == "Gurobi"
-        import_gurobi()
-    elseif solver_name == "Ipopt"
-        import_ipopt()
-    else
-        @error "Solver not implemented"
-    end
+function addsolvers_ipp!(ipp_solvers::Dict,solver_name::Val{:Gurobi})
+    ipp_solvers["Lagrange_Sub_Dispatch_Cap"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        # "OUTPUTLOG" => 0,
+    )
+    ipp_solvers["Lagrange_Feasible_Cap"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        "Presolve" => 0,
+        # "OUTPUTLOG" => 0,
+    )
+    ipp_solvers["solve_agent_problem_ipp_cap"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        "Presolve" => 1,
+        # "OUTPUTLOG" => 0,
+    )
+    ipp_solvers["solve_agent_problem_ipp_mppdc"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        "Aggregate" => 0,
+        # "Presolve" => 0,
+        "BarHomogeneous" => 1,
+        # "FeasibilityTol" => 1e-3,
+        # "Method" => 1
+        "NumericFocus" => 3,
+        "ScaleFlag" => 2,
+        # "OUTPUTLOG" => 0,
+    )
+    ipp_solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        "Presolve" => 0,
+        "BarHomogeneous" => 1,
+        # "OUTPUTLOG" => 0,
+    )
+    ipp_solvers["solve_agent_problem_ipp_mppdc_mccormic_lower_presolve"] = JuMP.optimizer_with_attributes(
+        () -> get_optimizer_for_solver(solver_name),
+        "Presolve" => 1,
+        "BarHomogeneous" => 1,
+        # "OUTPUTLOG" => 0,
+    )
 end
 
-function get_optimizer_for_solver(solver_name::AbstractString)
-    if solver_name == "Xpress"
-        return _initialize_optimizer_xpress()
-    elseif solver_name == "Gurobi"
-        return _initialize_optimizer_gurobi()
-    elseif solver_name == "Ipopt"
-        return _initialize_optimizer_ipopt()
-    else
-        @error "Solver not implemented"
-    end
-end
+
+import_solver_package(solver_name::Symbol) = import_solver_package(Val{solver_name}())
+
+import_solver_package(solver_name::Val{:Ipopt}) = import_ipopt()
+import_solver_package(solver_name::Val{:Xpress}) = import_xpress()
+import_solver_package(solver_name::Val{:Gurobi}) = import_gurobi()
+
+get_optimizer_for_solver(solver_name::Symbol) = get_optimizer_for_solver(Val{solver_name}())
+
+get_optimizer_for_solver(solver_name::Val{:Ipopt}) = _initialize_optimizer_ipopt()
+get_optimizer_for_solver(solver_name::Val{:Xpress}) = _initialize_optimizer_xpress()
+get_optimizer_for_solver(solver_name::Val{:Gurobi}) = _initialize_optimizer_gurobi()
+
+addsolvers_ipp!(ipp_solvers::Dict, solver_name::Symbol) = addsolvers_ipp!(ipp_solvers, Val{solver_name}())

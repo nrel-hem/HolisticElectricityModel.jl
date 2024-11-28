@@ -57,27 +57,26 @@ export DERAggregation                                              # presence of
 export StandalonePVOnly, SolarPlusStorageOnly, CompeteDERConfigs   # DER types
 export LagrangeDecomposition, MIQP, MPPDCMER, MPPDCMERTransStorage # ipp algorithms
 
-# Solvers
+# HEM Functions
+export run_hem
 export solve_equilibrium_problem!
 export solve_agent_problem!
-# export Lagrange_Sub_Investment_Retirement_Cap
-# export Lagrange_Sub_Dispatch_Cap
-# export Lagrange_Feasible_Cap
-# export solve_agent_problem_ipp_lagrange_cap
 export save_results
 export welfare_calculation!
-# export solve_agent_problem_ipp_energy_cap_combined
 export solve_agent_problem_decomposition_by_year
 export solve_agent_problem_decomposition_by_year_feasible
 export solve_agent_problem_decomposition_by_year_feasible_obj
 export solve_agent_problem_decomposition_by_year_master
-export run_hem
 
+# Data Structures
 export initialize_param
-export get_new_jump_model
 export make_keyed_array
+
+# Solvers
 export import_solver_package
 export get_optimizer_for_solver
+export get_new_jump_model
+export addsolvers_ipp!
 
 ################################################################################
 # Imports
