@@ -3,6 +3,41 @@
 const DEFAULT_ID = "default"
 const HEM_TIMER = TimerOutputs.TimerOutput()
 
+abstract type Options end
+
+get_file_prefix(::Options) = String("")
+
+# Struct with no fields used to dispatch -- this is the traits pattern
+abstract type MarketStructure end
+struct VIU <: MarketStructure end
+struct WM <: MarketStructure end
+
+abstract type UseCase end
+struct NullUseCase <: UseCase end
+struct DERAdoption <: UseCase end
+struct SupplyChoice <: UseCase end
+struct DERAggregation <: UseCase end
+
+struct HEMOptions{T <: MarketStructure, 
+    U <: Union{NullUseCase,DERAdoption},
+    V <: Union{NullUseCase,SupplyChoice},
+    W <: Union{NullUseCase,DERAggregation}} <: Options
+market_structure::T
+
+# use case switches
+der_use_case::U
+supply_choice_use_case::V
+der_aggregation_use_case::W
+end
+
+function get_file_prefix(options::HEMOptions)
+return join([# "$(typeof(options.der_use_case))", 
+   # "$(typeof(options.supply_choice_use_case))",
+   "$(typeof(options.der_aggregation_use_case))",
+   "$(typeof(options.market_structure))"],"_")
+end
+
+
 mutable struct HEMData
     # Configuration
     epsilon::ParamScalar # iteration tolerance
@@ -211,40 +246,6 @@ function get_prev_two_reg_year(model_data::HEMData, w_iter::Integer)
     return prev_reg_year, Symbol(Int(prev_reg_year))
 end
 
-
-# Struct with no fields used to dispatch -- this is the traits pattern
-abstract type MarketStructure end
-struct VIU <: MarketStructure end
-struct WM <: MarketStructure end
-
-abstract type UseCase end
-struct NullUseCase <: UseCase end
-struct DERAdoption <: UseCase end
-struct SupplyChoice <: UseCase end
-struct DERAggregation <: UseCase end
-
-abstract type Options end
-
-get_file_prefix(::Options) = String("")
-
-struct HEMOptions{T <: MarketStructure, 
-                  U <: Union{NullUseCase,DERAdoption},
-                  V <: Union{NullUseCase,SupplyChoice},
-                  W <: Union{NullUseCase,DERAggregation}} <: Options
-    market_structure::T
-
-    # use case switches
-    der_use_case::U
-    supply_choice_use_case::V
-    der_aggregation_use_case::W
-end
-
-function get_file_prefix(options::HEMOptions)
-    return join([# "$(typeof(options.der_use_case))", 
-                 # "$(typeof(options.supply_choice_use_case))",
-                 "$(typeof(options.der_aggregation_use_case))",
-                 "$(typeof(options.market_structure))"],"_")
-end
 
 """
 Abstract type for agents.
@@ -492,13 +493,14 @@ function solve_equilibrium_problem!(
 
     # if hem_opts.supply_choice_use_case isa NullUseCase
     #     Welfare_green_developer = [
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix)]
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #     ]
     # else
     #     z = store.data[GreenDeveloper]["default"]
     #     Welfare_green_developer =

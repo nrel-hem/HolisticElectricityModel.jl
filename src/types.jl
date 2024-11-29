@@ -1,7 +1,3 @@
-# ------------------------------------------------------------------------------
-# Base Data Types
-# ------------------------------------------------------------------------------
-
 abstract type AbstractData end
 
 # Required interface functions:
@@ -155,8 +151,8 @@ end
 
 function ParamArray(
     name::AbstractString,
-    dims::NTuple{N, Dimension},
-    vals::Array{Float64, N}; # TODO: Replace with something more general than Float64
+    dims::NTuple{N,Dimension},
+    vals::Array{Float64,N}; # TODO: Replace with something more general than Float64
     prose_name = "",
     description = "",
 ) where {N}
@@ -215,7 +211,7 @@ function make_keyed_array(indices...; fill_nan = true)
     return array
 end
 
-function initialize_keyed_array(indices...; value=0.0)
+function initialize_keyed_array(indices...; value = 0.0)
     array = try
         KeyedArray(
             Array{Float64, length(indices)}(undef, length.(indices)...);

@@ -307,7 +307,6 @@ function Utility(
     )
     PTCOld = read_param("PTC_existing", input_filename, "PTCOld", index_k_existing)
 
-
     ADITOld = make_keyed_array(model_data.index_z, index_k_existing)
     for z in model_data.index_z, k in index_k_existing
         ADITOld(z, k, :) .= CapExOld(z, k) * (CumuTaxDepreOld(k) - CumuAccoutDepreOld(k)) * tax_rate +
