@@ -8,7 +8,7 @@ using HolisticElectricityModel
 
 # Load config file
 if length(ARGS) > 0 # otherwise, define this variable in the REPL
-    config_fp = ARGS[0]
+    config_fp = ARGS[1]
 else
     config_fp = joinpath(@__DIR__, "configs", "hem_config.yaml")
 end
