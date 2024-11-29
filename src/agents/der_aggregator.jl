@@ -375,6 +375,7 @@ function solve_agent_problem!(
     for z in model_data.index_z
         der_aggregator.incentive_level(reg_year_index, z, :) .= incentive_level_by_segment[z][max_seg_index[z]]
         der_aggregator.aggregation_level(reg_year_index, z, :) .= participation_by_segment[z][max_seg_index[z]]
+        der_aggregator.aggregation_level_output(reg_year_index, z, :) .= participation_by_segment[z][max_seg_index[z]]
     end
 
     dera_agg_stor_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
