@@ -4,14 +4,15 @@
 
 data_selection:
   # Specify the path to the inputs for the model. If using HolisticElectricityModelData.jl, it should point to the test case folder under runs/.
-  input_path
+  input_path: "../HolisticElectricityModelData.jl/runs/ba_6_base_2020_future_15_ipps_1/"
+
 # ------------------------------------------------------------------------------
 # Simulation Parameters
 # ------------------------------------------------------------------------------
 
 simulation_parameters:
   # CHOOSE ONE
-  solver: "Xpress", "Gurobi"
+  solver: "Xpress" # "Gurobi"
 
 # ------------------------------------------------------------------------------
 # Holistic Energy Model (HEM) model-wide options

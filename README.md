@@ -106,10 +106,13 @@ Xpress or Gurobi. If you would prefer to use a different solver, please let us
 know and/or try implementing on your own. The key steps to supporting another 
 solver are:
 
-- Add a new environment specification under [runner](https://github.com/nrel-hem/HolisticElectricityModel.jl/tree/main/runner) following the Gurobi and Xpress examples.
+- Add a new environment specification under [runner](https://github.com/nrel-hem/HolisticElectricityModel.jl/tree/main/runner) 
+  following the Gurobi and Xpress examples.
 - Create a new `HEMSolver` in [src/solvers.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/src/solvers.jl)
-- Add an entry to the get_optimizer_for_solver in [src/solvers.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/src/solvers.jl)
-- Edit `script/hem.jl` accordingly
+- Add entries for `import_solver_package`, `get_optimizer_for_solver`, and `addsolvers_ipp!` in 
+  [src/solvers.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/src/solvers.jl)
+- Edit [script/config_data.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/script/config_data.jl) 
+  (and [script/hem.jl](https://github.com/nrel-hem/HolisticElectricityModel.jl/blob/main/script/hem.jl)) as needed
 
 A nonlinear programming solver is also required, but we've generally found the 
 open source solver Ipopt to be sufficient for our purposes. Thus, Ipopt is 
