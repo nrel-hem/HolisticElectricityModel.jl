@@ -117,6 +117,7 @@ abstract type AbstractCustomerGroup <: AgentGroup end
 mutable struct CustomerGroup <: AbstractCustomerGroup
     id::String
     current_year::Symbol
+    previous_year::Symbol
     # Sets
     index_m::Dimension # behind-the-meter technologies
 
@@ -482,6 +483,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     result = CustomerGroup(
         id,
         first(model_data.index_y),
+        first(model_data.index_y),
         index_m,
         gamma,
         demand,
@@ -681,6 +683,7 @@ function solve_agent_problem!(
 
     # the year consumer is making DER investment decision
     reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
     delta_t = get_delta_t(model_data)
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
@@ -787,6 +790,7 @@ function solve_agent_problem!(
     end
 
     customers.current_year = reg_year_index
+    customers.previous_year = reg_year_index_pre
 
     # x_DG_aggregate_after = initialize_param("x_DG_aggregate_after", model_data.index_h, customers.index_m)
     # for h in model_data.index_h, m in customers.index_m
@@ -819,6 +823,7 @@ function solve_agent_problem!(
 
     # the year consumer is making DER investment decision
     reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
     delta_t = get_delta_t(model_data)
 
     # the year the aggregator decided on incentive levels
@@ -1302,6 +1307,7 @@ function solve_agent_problem!(
     end
 
     customers.current_year = reg_year_index
+    customers.previous_year = reg_year_index_pre
 
     # @info "Original new DG" x_DG_before
     # @info "New new DG" customers.x_DG_new
@@ -1324,6 +1330,7 @@ function solve_agent_problem!(
 
     # the year consumer is making green tariff subscription decision
     reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
 
     x_green_sub_before = ParamArray(customers.x_green_sub, "x_green_sub_before")
     fill!(x_green_sub_before, NaN)
@@ -1398,6 +1405,7 @@ function solve_agent_problem!(
     end
 
     customers.current_year = reg_year_index
+    customers.previous_year = reg_year_index_pre
 
     return compute_difference_percentage_one_norm([(x_green_sub_before, GreenSubMWh)])
 
@@ -1418,6 +1426,7 @@ function solve_agent_problem!(
 
     # the year consumer is making green tariff subscription decision
     reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
@@ -1600,6 +1609,7 @@ function solve_agent_problem!(
     end
 
     customers.current_year = reg_year_index
+    customers.previous_year = reg_year_index_pre
 
     return compute_difference_percentage_one_norm([
         (x_green_sub_before, GreenSubMWh), 

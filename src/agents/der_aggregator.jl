@@ -28,6 +28,7 @@ end
 mutable struct DERAggregator <: AbstractDERAggregator
     id::String
     current_year::Symbol
+    previous_year::Symbol
 
     # incentive function for DER aggregation (piece-wise linear function: incentive (x) vs participation (y))
     dera_stor_incentive_function::DataFrame
@@ -56,6 +57,7 @@ function DERAggregator(input_filename::AbstractString, model_data::HEMData, opts
 
     return DERAggregator(
         id,
+        first(model_data.index_y),
         first(model_data.index_y),
         dera_stor_incentive_function,
         initialize_param("aggregation_friction", model_data.index_y, model_data.index_z, model_data.index_h, value = 0.0),
@@ -86,6 +88,7 @@ function solve_agent_problem!(
 
     ipp = get_agent(IPPGroup, agent_store)
     reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
 
     for z in model_data.index_z
         der_aggregator.incentive_level(reg_year_index, z, :) .= 0.0
@@ -104,6 +107,7 @@ function solve_agent_problem!(
     end
 
     der_aggregator.current_year = reg_year_index
+    der_aggregator.previous_year = reg_year_index_pre
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
@@ -126,6 +130,7 @@ function solve_agent_problem!(
 
     utility = get_agent(Utility, agent_store)
     reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
     
     for z in model_data.index_z
         der_aggregator.incentive_level(reg_year_index, z, :) .= 0.0
@@ -143,6 +148,7 @@ function solve_agent_problem!(
     end
 
     der_aggregator.current_year = reg_year_index
+    der_aggregator.previous_year = reg_year_index_pre
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
@@ -164,6 +170,7 @@ function solve_agent_problem!(
 )
 
     reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
     delta_t = get_delta_t(model_data)
 
     ipp = get_agent(IPPGroup, agent_store)
@@ -395,6 +402,7 @@ function solve_agent_problem!(
     end
 
     der_aggregator.current_year = reg_year_index
+    der_aggregator.previous_year = reg_year_index_pre
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
@@ -722,6 +730,7 @@ function solve_agent_problem!(
     end
 
     der_aggregator.current_year = reg_year_index
+    der_aggregator.previous_year = reg_year_index_pre
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 

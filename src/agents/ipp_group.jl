@@ -228,6 +228,9 @@ mutable struct IPPGroup <: AbstractIPPGroup
     theta_C_charge_param_vec::Vector{}
     pi_C_charge_param_vec::Vector{}
     kappa_C_param_vec::Vector{}
+
+    # duality gap
+    lower_level_duality_gap::ParamArray
 end
 
 mutable struct McCormickBounds
@@ -813,6 +816,7 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         ),
         Dict(),
         [], [], [], [], [], [], [], [], [], [], [], [], 
+        initialize_param("lower_level_duality_gap", model_data.index_y, value = 100.0),
     )
 end
 
@@ -850,11 +854,17 @@ function ipp_cap_lower(
 )
     MPPDCMER_lower = get_new_jump_model(solver)
 
-    cust_year = customers.current_year
-    dera_year = der_aggregator.current_year
-    gd_year = green_developer.current_year
-
     index_y = get_index_y(ipp, model_data, window_length)
+
+    if index_y != model_data.index_y.elements
+        cust_year = customers.previous_year
+        dera_year = der_aggregator.previous_year
+        gd_year = green_developer.previous_year
+    else
+        cust_year = customers.current_year
+        dera_year = der_aggregator.current_year
+        gd_year = green_developer.current_year
+    end
 
     # Variables
     @variable(
@@ -1353,11 +1363,17 @@ function ipp_cap_lower_dual(
 )
     MPPDCMER_lower_dual = get_new_jump_model(solver)
 
-    cust_year = customers.current_year
-    dera_year = der_aggregator.current_year
-    gd_year = green_developer.current_year
-
     index_y = get_index_y(ipp, model_data, window_length)
+
+    if index_y != model_data.index_y.elements
+        cust_year = customers.previous_year
+        dera_year = der_aggregator.previous_year
+        gd_year = green_developer.previous_year
+    else
+        cust_year = customers.current_year
+        dera_year = der_aggregator.current_year
+        gd_year = green_developer.current_year
+    end
 
     # Variables
     @variable(
@@ -4792,242 +4808,14 @@ function ipp_cap_upper(
     return WMDER_IPP
 end
 
-function ipp_cap_save_results_calc_duality_gap(
+function ipp_calc_duality_gap(
     WMDER_IPP, ipp, p_star, model_data, delta_t,
     customers, der_aggregator, green_developer
 )
+
     cust_year = customers.current_year
     dera_year = der_aggregator.current_year
     gd_year = green_developer.current_year
-
-    # Save Results
-    for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z
-        ipp.x_R_my(y, p_star, k, z, :) .= value.(WMDER_IPP[:x_R][y, k, z])
-    end
-    for y in model_data.index_y, k in ipp.index_k_new, z in model_data.index_z
-        ipp.x_C_my(y, p_star, k, z, :) .= value.(WMDER_IPP[:x_C][y, k, z])
-    end
-    for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z
-        ipp.x_stor_R_my(y, p_star, s, z, :) .= value.(WMDER_IPP[:x_stor_R][y, s, z])
-    end
-    for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z
-        ipp.x_stor_C_my(y, p_star, s, z, :) .= value.(WMDER_IPP[:x_stor_C][y, s, z])
-    end
-    for y in model_data.index_y,
-        p in ipp.index_p,
-        k in ipp.index_k_existing,
-        z in model_data.index_z,
-        d in model_data.index_d,
-        t in model_data.index_t
-
-        ipp.y_E_my(y, p, k, z, d, t, :) .= value.(WMDER_IPP[:y_E][y, p, k, z, d, t])
-    end
-    for y in model_data.index_y,
-        p in ipp.index_p,
-        k in ipp.index_k_new,
-        z in model_data.index_z,
-        d in model_data.index_d,
-        t in model_data.index_t
-
-        ipp.y_C_my(y, p, k, z, d, t, :) .= value.(WMDER_IPP[:y_C][y, p, k, z, d, t])
-    end
-    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        ipp.miu_my(y, z, d, t, :) .= value.(WMDER_IPP[:miu][y, z, d, t])
-    end
-    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
-        ipp.LMP_my(y, z, d, t, :) .= ipp.miu_my(y, z, d, t) / (model_data.omega(d) * delta_t)
-    end
-
-    for y in model_data.index_y,
-        p in ipp.index_p,
-        s in ipp.index_stor_existing,
-        z in model_data.index_z,
-        d in model_data.index_d,
-        t in model_data.index_t
-
-        ipp.charge_E_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:charge_E][y, p, s, z, d, t])
-    end
-    for y in model_data.index_y,
-        p in ipp.index_p,
-        s in ipp.index_stor_existing,
-        z in model_data.index_z,
-        d in model_data.index_d,
-        t in model_data.index_t
-
-        ipp.discharge_E_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:discharge_E][y, p, s, z, d, t])
-    end
-    for y in model_data.index_y,
-        p in ipp.index_p,
-        s in ipp.index_stor_new,
-        z in model_data.index_z,
-        d in model_data.index_d,
-        t in model_data.index_t
-
-        ipp.charge_C_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:charge_C][y, p, s, z, d, t])
-    end
-    for y in model_data.index_y,
-        p in ipp.index_p,
-        s in ipp.index_stor_new,
-        z in model_data.index_z,
-        d in model_data.index_d,
-        t in model_data.index_t
-
-        ipp.discharge_C_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:discharge_C][y, p, s, z, d, t])
-    end
-    for y in model_data.index_y,
-        p in ipp.index_p,
-        s in ipp.index_stor_existing,
-        z in model_data.index_z,
-        d in model_data.index_d,
-        t in model_data.index_t
-
-        ipp.energy_E_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:energy_E][y, p, s, z, d, t])
-    end
-    for y in model_data.index_y,
-        p in ipp.index_p,
-        s in ipp.index_stor_new,
-        z in model_data.index_z,
-        d in model_data.index_d,
-        t in model_data.index_t
-
-        ipp.energy_C_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:energy_C][y, p, s, z, d, t])
-    end
-    for y in model_data.index_y,
-        l in ipp.index_l,
-        d in model_data.index_d,
-        t in model_data.index_t
-
-        ipp.flow_my(y, l, d, t, :) .= value.(WMDER_IPP[:flow][y, l, d, t])
-    end
-
-
-    ###### running MILP only ######
-    # UCAP_p_star_solution = Dict(y =>
-    #     sum(ipp.capacity_credit_E_my(y,k)*(ipp.x_E_my(p_star,k)-sum(ipp.x_R_my(Symbol(y_symbol),p_star,k) for y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)) - ipp.x_R_cumu[p_star,k]) for k in ipp.index_k_existing) + 
-    #     sum(ipp.capacity_credit_C_my(y,k)*(sum(ipp.x_C_my(Symbol(y_symbol),p_star,k) for y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)) + ipp.x_C_cumu[p_star,k]) for k in ipp.index_k_new)
-    #     for y in model_data.index_y
-    # )
-    # capacity_profit = Dict(y =>
-    #     ipp.pvf_onm(y,p_star) * UCAP_p_star_solution(y) * (ipp.Capacity_intercept_my(y) + ipp.Capacity_slope_my(y) * UCAP_p_star_solution(y))
-    #     for y in model_data.index_y
-    # )
-    # total_profit = Dict(y => capacity_profit(y) + objective_value(WMDER_IPP) for y in model_data.index_y)
-
-    ###### running MIQP ######
-    UCAP_p_star = make_keyed_array(model_data.index_y)
-    for y in model_data.index_y
-        UCAP_p_star(y, :) .= 
-            sum(
-                ipp.capacity_credit_E_my(y, z, k) * (
-                    ipp.x_E_my(p_star, z, k) - sum(
-                        ipp.x_R_my(Symbol(Int(y_symbol)), p_star, k, z) for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
-                    ) - ipp.x_R_cumu(p_star, k, z)
-                ) for k in ipp.index_k_existing, z in model_data.index_z
-            ) + sum(
-                ipp.capacity_credit_C_my(y, z, k) * (
-                    sum(
-                        ipp.x_C_my(Symbol(Int(y_symbol)), p_star, k, z) for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
-                    ) + ipp.x_C_cumu(p_star, k, z)
-                ) for k in ipp.index_k_new, z in model_data.index_z
-            ) + sum(
-                ipp.capacity_credit_stor_E_my(y, z, s) * (
-                    ipp.x_stor_E_my(p_star, z, s) - sum(
-                        ipp.x_stor_R_my(Symbol(Int(y_symbol)), p_star, s, z) for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
-                    ) - ipp.x_stor_R_cumu(p_star, s, z)
-                ) for s in ipp.index_stor_existing, z in model_data.index_z
-            ) + sum(
-                ipp.capacity_credit_stor_C_my(y, z, s) * (
-                    sum(
-                        ipp.x_stor_C_my(Symbol(Int(y_symbol)), p_star, s, z) for y_symbol in
-                        model_data.year(first(model_data.index_y)):model_data.year(y)
-                    ) + ipp.x_stor_C_cumu(p_star, s, z)
-                ) for s in ipp.index_stor_new, z in model_data.index_z
-            )
-    end
-
-    # Calculated prior to WMDER_IPP
-    Max_Net_Load_my_dict = ipp.Max_Net_Load_my_dict
-
-    UCAP_total = make_keyed_array(model_data.index_y)
-    if length(ipp.index_p) >= 2
-        for y in model_data.index_y
-            UCAP_total(y, :) .= 
-                UCAP_p_star(y) +
-                sum(
-                    ipp.capacity_credit_E_my(y, z, k) * (
-                        ipp.x_E_my(p, z, k) - sum(
-                            ipp.x_R_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) - ipp.x_R_cumu(p, k, z)
-                    ) for k in ipp.index_k_existing,
-                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))), 
-                    z in model_data.index_z
-                ) +
-                sum(
-                    ipp.capacity_credit_C_my(y, z, k) * (
-                        sum(
-                            ipp.x_C_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) + ipp.x_C_cumu(p, k, z)
-                    ) for k in ipp.index_k_new,
-                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))), 
-                    z in model_data.index_z
-                ) +
-                sum(
-                    ipp.capacity_credit_stor_E_my(y, z, s) * (
-                        ipp.x_stor_E_my(p, z, s) - sum(
-                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) - ipp.x_stor_R_cumu(p, s, z)
-                    ) for s in ipp.index_stor_existing,
-                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))), 
-                    z in model_data.index_z
-                ) +
-                sum(
-                    ipp.capacity_credit_stor_C_my(y, z, s) * (
-                        sum(
-                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
-                            model_data.year(first(model_data.index_y)):model_data.year(y)
-                        ) + ipp.x_stor_C_cumu(p, s, z)
-                    ) for s in ipp.index_stor_new,
-                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))), 
-                    z in model_data.index_z
-                ) +
-                # green technology subscription
-                sum(
-                    ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, h in model_data.index_h, z in model_data.index_z
-                ) - 
-                # put exogenous export on the supply-side
-                # don't have endogenous export/import because the capacity market clearing here assumes the entire region
-                sum(ipp.eximport_my(y, z, Max_Net_Load_my_dict[y, z][1], Max_Net_Load_my_dict[y, z][2]) for z in model_data.index_z)
-        end
-    else
-        for y in model_data.index_y
-            UCAP_total(y, :) .= 
-                UCAP_p_star(y) +
-                # green technology subscription
-                sum(
-                    ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, h in model_data.index_h, z in model_data.index_z
-                ) - 
-                # put exogenous export on the supply-side
-                # don't have endogenous export/import because the capacity market clearing here assumes the entire region
-                sum(ipp.eximport_my(y, z, Max_Net_Load_my_dict[y, z][1], Max_Net_Load_my_dict[y, z][2]) for z in model_data.index_z)
-        end
-    end
-
-    for y in model_data.index_y
-        ipp.capacity_price(y, :) .=
-            ipp.Capacity_intercept_my(y) + ipp.Capacity_slope_my(y) * UCAP_total(y)
-        ipp.ucap(y, p_star, :) .= UCAP_p_star(y)
-        ipp.ucap_total(y, :) .= UCAP_total(y)
-    end
 
     # report lower level duality gap
     lower_level_primal_obj = DataFrame()
@@ -5303,6 +5091,245 @@ function ipp_cap_save_results_calc_duality_gap(
     return maximum.(vec(Matrix(lower_level_duality_gap)))[1]
 end
 
+function ipp_cap_save_results(
+    WMDER_IPP, ipp, p_star, model_data, delta_t,
+    customers, der_aggregator, green_developer
+)
+    cust_year = customers.current_year
+    dera_year = der_aggregator.current_year
+    gd_year = green_developer.current_year
+
+    # Save Results
+    for y in model_data.index_y, k in ipp.index_k_existing, z in model_data.index_z
+        ipp.x_R_my(y, p_star, k, z, :) .= value.(WMDER_IPP[:x_R][y, k, z])
+    end
+    for y in model_data.index_y, k in ipp.index_k_new, z in model_data.index_z
+        ipp.x_C_my(y, p_star, k, z, :) .= value.(WMDER_IPP[:x_C][y, k, z])
+    end
+    for y in model_data.index_y, s in ipp.index_stor_existing, z in model_data.index_z
+        ipp.x_stor_R_my(y, p_star, s, z, :) .= value.(WMDER_IPP[:x_stor_R][y, s, z])
+    end
+    for y in model_data.index_y, s in ipp.index_stor_new, z in model_data.index_z
+        ipp.x_stor_C_my(y, p_star, s, z, :) .= value.(WMDER_IPP[:x_stor_C][y, s, z])
+    end
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        k in ipp.index_k_existing,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        ipp.y_E_my(y, p, k, z, d, t, :) .= value.(WMDER_IPP[:y_E][y, p, k, z, d, t])
+    end
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        k in ipp.index_k_new,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        ipp.y_C_my(y, p, k, z, d, t, :) .= value.(WMDER_IPP[:y_C][y, p, k, z, d, t])
+    end
+    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        ipp.miu_my(y, z, d, t, :) .= value.(WMDER_IPP[:miu][y, z, d, t])
+    end
+    for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        ipp.LMP_my(y, z, d, t, :) .= ipp.miu_my(y, z, d, t) / (model_data.omega(d) * delta_t)
+    end
+
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        s in ipp.index_stor_existing,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        ipp.charge_E_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:charge_E][y, p, s, z, d, t])
+    end
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        s in ipp.index_stor_existing,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        ipp.discharge_E_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:discharge_E][y, p, s, z, d, t])
+    end
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        s in ipp.index_stor_new,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        ipp.charge_C_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:charge_C][y, p, s, z, d, t])
+    end
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        s in ipp.index_stor_new,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        ipp.discharge_C_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:discharge_C][y, p, s, z, d, t])
+    end
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        s in ipp.index_stor_existing,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        ipp.energy_E_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:energy_E][y, p, s, z, d, t])
+    end
+    for y in model_data.index_y,
+        p in ipp.index_p,
+        s in ipp.index_stor_new,
+        z in model_data.index_z,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        ipp.energy_C_my(y, p, s, z, d, t, :) .= value.(WMDER_IPP[:energy_C][y, p, s, z, d, t])
+    end
+    for y in model_data.index_y,
+        l in ipp.index_l,
+        d in model_data.index_d,
+        t in model_data.index_t
+
+        ipp.flow_my(y, l, d, t, :) .= value.(WMDER_IPP[:flow][y, l, d, t])
+    end
+
+
+    ###### running MILP only ######
+    # UCAP_p_star_solution = Dict(y =>
+    #     sum(ipp.capacity_credit_E_my(y,k)*(ipp.x_E_my(p_star,k)-sum(ipp.x_R_my(Symbol(y_symbol),p_star,k) for y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)) - ipp.x_R_cumu[p_star,k]) for k in ipp.index_k_existing) + 
+    #     sum(ipp.capacity_credit_C_my(y,k)*(sum(ipp.x_C_my(Symbol(y_symbol),p_star,k) for y_symbol = model_data.year(first(model_data.index_y)):model_data.year(y)) + ipp.x_C_cumu[p_star,k]) for k in ipp.index_k_new)
+    #     for y in model_data.index_y
+    # )
+    # capacity_profit = Dict(y =>
+    #     ipp.pvf_onm(y,p_star) * UCAP_p_star_solution(y) * (ipp.Capacity_intercept_my(y) + ipp.Capacity_slope_my(y) * UCAP_p_star_solution(y))
+    #     for y in model_data.index_y
+    # )
+    # total_profit = Dict(y => capacity_profit(y) + objective_value(WMDER_IPP) for y in model_data.index_y)
+
+    ###### running MIQP ######
+    UCAP_p_star = make_keyed_array(model_data.index_y)
+    for y in model_data.index_y
+        UCAP_p_star(y, :) .= 
+            sum(
+                ipp.capacity_credit_E_my(y, z, k) * (
+                    ipp.x_E_my(p_star, z, k) - sum(
+                        ipp.x_R_my(Symbol(Int(y_symbol)), p_star, k, z) for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) - ipp.x_R_cumu(p_star, k, z)
+                ) for k in ipp.index_k_existing, z in model_data.index_z
+            ) + sum(
+                ipp.capacity_credit_C_my(y, z, k) * (
+                    sum(
+                        ipp.x_C_my(Symbol(Int(y_symbol)), p_star, k, z) for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) + ipp.x_C_cumu(p_star, k, z)
+                ) for k in ipp.index_k_new, z in model_data.index_z
+            ) + sum(
+                ipp.capacity_credit_stor_E_my(y, z, s) * (
+                    ipp.x_stor_E_my(p_star, z, s) - sum(
+                        ipp.x_stor_R_my(Symbol(Int(y_symbol)), p_star, s, z) for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) - ipp.x_stor_R_cumu(p_star, s, z)
+                ) for s in ipp.index_stor_existing, z in model_data.index_z
+            ) + sum(
+                ipp.capacity_credit_stor_C_my(y, z, s) * (
+                    sum(
+                        ipp.x_stor_C_my(Symbol(Int(y_symbol)), p_star, s, z) for y_symbol in
+                        model_data.year(first(model_data.index_y)):model_data.year(y)
+                    ) + ipp.x_stor_C_cumu(p_star, s, z)
+                ) for s in ipp.index_stor_new, z in model_data.index_z
+            )
+    end
+
+    # Calculated prior to WMDER_IPP
+    Max_Net_Load_my_dict = ipp.Max_Net_Load_my_dict
+
+    UCAP_total = make_keyed_array(model_data.index_y)
+    if length(ipp.index_p) >= 2
+        for y in model_data.index_y
+            UCAP_total(y, :) .= 
+                UCAP_p_star(y) +
+                sum(
+                    ipp.capacity_credit_E_my(y, z, k) * (
+                        ipp.x_E_my(p, z, k) - sum(
+                            ipp.x_R_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_R_cumu(p, k, z)
+                    ) for k in ipp.index_k_existing,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))), 
+                    z in model_data.index_z
+                ) +
+                sum(
+                    ipp.capacity_credit_C_my(y, z, k) * (
+                        sum(
+                            ipp.x_C_my(Symbol(Int(y_symbol)), p, k, z) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_C_cumu(p, k, z)
+                    ) for k in ipp.index_k_new,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))), 
+                    z in model_data.index_z
+                ) +
+                sum(
+                    ipp.capacity_credit_stor_E_my(y, z, s) * (
+                        ipp.x_stor_E_my(p, z, s) - sum(
+                            ipp.x_stor_R_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) - ipp.x_stor_R_cumu(p, s, z)
+                    ) for s in ipp.index_stor_existing,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))), 
+                    z in model_data.index_z
+                ) +
+                sum(
+                    ipp.capacity_credit_stor_C_my(y, z, s) * (
+                        sum(
+                            ipp.x_stor_C_my(Symbol(Int(y_symbol)), p, s, z) for y_symbol in
+                            model_data.year(first(model_data.index_y)):model_data.year(y)
+                        ) + ipp.x_stor_C_cumu(p, s, z)
+                    ) for s in ipp.index_stor_new,
+                    p in ipp.index_p(Not(findall(x -> x == p_star, ipp.index_p))), 
+                    z in model_data.index_z
+                ) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                    for j in model_data.index_j, h in model_data.index_h, z in model_data.index_z
+                ) - 
+                # put exogenous export on the supply-side
+                # don't have endogenous export/import because the capacity market clearing here assumes the entire region
+                sum(ipp.eximport_my(y, z, Max_Net_Load_my_dict[y, z][1], Max_Net_Load_my_dict[y, z][2]) for z in model_data.index_z)
+        end
+    else
+        for y in model_data.index_y
+            UCAP_total(y, :) .= 
+                UCAP_p_star(y) +
+                # green technology subscription
+                sum(
+                    ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
+                    model_data.year(first(model_data.index_y_fix)):model_data.year(y))
+                    for j in model_data.index_j, h in model_data.index_h, z in model_data.index_z
+                ) - 
+                # put exogenous export on the supply-side
+                # don't have endogenous export/import because the capacity market clearing here assumes the entire region
+                sum(ipp.eximport_my(y, z, Max_Net_Load_my_dict[y, z][1], Max_Net_Load_my_dict[y, z][2]) for z in model_data.index_z)
+        end
+    end
+
+    for y in model_data.index_y
+        ipp.capacity_price(y, :) .=
+            ipp.Capacity_intercept_my(y) + ipp.Capacity_slope_my(y) * UCAP_total(y)
+        ipp.ucap(y, p_star, :) .= UCAP_p_star(y)
+        ipp.ucap_total(y, :) .= UCAP_total(y)
+    end
+
+end
+
 function solve_agent_problem_ipp_cap(
     ipp::IPPGroup,
     ipp_opts::IPPOptions{MPPDCMERTransStorage},
@@ -5347,20 +5374,23 @@ function solve_agent_problem_ipp_cap(
     cust_year = customers.current_year
     dera_year = der_aggregator.current_year
 
+    cust_pre_year = customers.previous_year
+    dera_pre_year = der_aggregator.previous_year
+
     # TODO: Only update here on first year? Or find a better place to initialize?
     for z in model_data.index_z
         # simply assign DERAggregator to a random ipp (ipp1)
         ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(
-            der_aggregator.dera_stor_my(dera_year, z, h) for h in model_data.index_h
+            der_aggregator.dera_stor_my(dera_pre_year, z, h) for h in model_data.index_h
         )
         ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(
-            der_aggregator.dera_pv_my(dera_year, z, h) for h in model_data.index_h
+            der_aggregator.dera_pv_my(dera_pre_year, z, h) for h in model_data.index_h
         )
     end
 
     # TODO: Only update in customers
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-        customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(cust_year, h, :BTMStorage, z, d, t)
+        customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(cust_pre_year, h, :BTMStorage, z, d, t)
     end
 
     for iter in 1:max_iter
@@ -5369,19 +5399,25 @@ function solve_agent_problem_ipp_cap(
 
         MPPDCMER_lower = nothing
         if !skip_lower
-            solver = ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"]
+            lower_level_solver = []
+            push!(lower_level_solver, ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower"])
+            solver = lower_level_solver[1]
             MPPDCMER_lower = ipp_cap_lower(
                 ipp, ipp_opts, model_data, delta_t, window_length,
                 customers, der_aggregator, green_developer, solver
             )
             push!(jump_model, MPPDCMER_lower)
             if termination_status(MPPDCMER_lower) != OPTIMAL
-                solver = ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower_presolve"]
+                lower_level_solver[1] = ipp_opts.solvers["solve_agent_problem_ipp_mppdc_mccormic_lower_presolve"]
+                solver = lower_level_solver[1]
                 MPPDCMER_lower = ipp_cap_lower(
                     ipp, ipp_opts, model_data, delta_t, window_length,
                     customers, der_aggregator, green_developer, solver
                 )
                 jump_model[end] = MPPDCMER_lower
+                # if termination_status(MPPDCMER_lower) != OPTIMAL
+                #     error("lower-level LP failed")
+                # end
             end
 
             # TEMPORARY CODE FOR TESTING
@@ -5390,6 +5426,7 @@ function solve_agent_problem_ipp_cap(
             # f = open("lower_level_dual.txt","w"); print(f, dual_model); close(f)
 
             ############ lower-level dual problem ############
+            solver = lower_level_solver[1]
             MPPDCMER_lower_dual = ipp_cap_lower_dual(
                 ipp, ipp_opts, model_data, delta_t, window_length,
                 customers, der_aggregator, green_developer, solver
@@ -5431,14 +5468,24 @@ function solve_agent_problem_ipp_cap(
         end
 
         objective_value(WMDER_IPP)
-        lower_level_duality_gap = ipp_cap_save_results_calc_duality_gap(
+        lower_level_duality_gap = ipp_calc_duality_gap(
             WMDER_IPP, ipp, p_star, model_data, delta_t,
             customers, der_aggregator, green_developer
         )
-        if lower_level_duality_gap > preferred_duality_gap
+
+        if lower_level_duality_gap < ipp.lower_level_duality_gap(reg_year_index)
+            ipp.lower_level_duality_gap(reg_year_index, :) .= lower_level_duality_gap
+
+            ipp_cap_save_results(
+                WMDER_IPP, ipp, p_star, model_data, delta_t,
+                customers, der_aggregator, green_developer
+            )
+        end
+
+        if ipp.lower_level_duality_gap(reg_year_index) > preferred_duality_gap
             # tighten the bound
             bound_size = bound_size * bound_adjust
-            @info("Duality gap $(lower_level_duality_gap) is greater than $(preferred_duality_gap). "*
+            @info("Duality gap $(ipp.lower_level_duality_gap(reg_year_index)) is greater than $(preferred_duality_gap). "*
                   "Re-running lower level problem and applying McCormick bounds with $(bound_size)")
             skip_lower = false
         else
@@ -5446,8 +5493,8 @@ function solve_agent_problem_ipp_cap(
         end
     end
 
-    if (lower_level_duality_gap > acceptable_duality_gap)
-        msg = "MPPDC upper level never solved to optimality with an acceptable optimality gap, i.e., $(lower_level_duality_gap) > $(acceptable_duality_gap))."
+    if (ipp.lower_level_duality_gap(reg_year_index) > acceptable_duality_gap)
+        msg = "MPPDC upper level never solved to optimality with an acceptable optimality gap, i.e., $(ipp.lower_level_duality_gap(reg_year_index)) > $(acceptable_duality_gap))."
         if (termination_status(WMDER_IPP) != OPTIMAL)
             @error "$(msg) In addition, MPPDC upper level did not solve to optimality and terminated as $(termination_status(WMDER_IPP)). Calling compute_conflict! and outputting information to iis_model_$(iteration_year).txt."
             compute_conflict!(WMDER_IPP)
@@ -5460,7 +5507,7 @@ function solve_agent_problem_ipp_cap(
         end
     end
 
-    @info "IPP Problem solved with duality gap $(lower_level_duality_gap) < $(preferred_duality_gap)."
+    @info "IPP Problem solved with duality gap $(ipp.lower_level_duality_gap(reg_year_index)) < $(preferred_duality_gap)."
 
     return compute_difference_percentage_maximum_one_norm([
         (x_R_before, ipp.x_R_my),
