@@ -85,7 +85,7 @@ mutable struct IPPGroup <: AbstractIPPGroup
     eximport::ParamArray # net export (MWh)
     Peak_eximport::ParamScalar
     "Big M Parameter"
-    B1GM::ParamScalar{<:Integer}
+    BIGM::ParamScalar{<:Integer}
     zeta::ParamScalar # offer price factor cap
 
     # Primal Variables
@@ -369,7 +369,7 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         ),
         eximport,
         peak_eximport,
-        ParamScalar("B1GM", 1000000),
+        ParamScalar("BIGM", 1000000),
         ParamScalar("zeta", 3.0),
         initialize_param("y_E", index_p, index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t),
         initialize_param("y_C", index_p, index_k_new, model_data.index_z, model_data.index_d, model_data.index_t),
