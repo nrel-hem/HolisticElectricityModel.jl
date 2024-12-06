@@ -1684,9 +1684,29 @@ function save_results(
     )
     save_param(
         customers.rho_DG_my.values,
-        [:Year, :CustomerType, :DERtech, :Zone, :Day, :Hour],
+        [:Year, :CustomerType, :DERTech, :Zone, :Day, :Hour],
         :MW,
         joinpath(export_file_path, "rho_DG_my.csv"),
+    )
+
+    # Cumulative DER by Configuration
+    save_param(
+        total_der_capacity_my,
+        [:Year, :Zone, :CustomerType, :DERTech],
+        :MW,
+        joinpath(export_file_path, "total_der_capacity_my.csv"),
+    )
+    save_param(
+        total_pv_only_capacity_my,
+        [:Year, :Zone, :CustomerType, :DERTech],
+        :MW,
+        joinpath(export_file_path, "total_pv_only_capacity_my.csv"),
+    )
+    save_param(
+        total_pv_stor_capacity_my,
+        [:Year, :Zone, :CustomerType, :DERTech],
+        :MW,
+        joinpath(export_file_path, "total_pv_stor_capacity_my.csv"),
     )
 end
 
