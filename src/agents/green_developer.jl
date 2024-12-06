@@ -17,6 +17,7 @@ end
 mutable struct GreenDeveloper <: AbstractGreenDeveloper
     id::String
     current_year::Symbol
+    previous_year::Symbol
 
     "internal rate of return"
     irr::ParamScalar
@@ -29,6 +30,7 @@ end
 function GreenDeveloper(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
     return GreenDeveloper(
         id,
+        first(model_data.index_y),
         first(model_data.index_y),
         ParamScalar("irr", 0.12, description = "internal rate of return"),
         initialize_param(
@@ -70,6 +72,7 @@ function solve_agent_problem!(
 
     # the year green developer is solving PPA investment problem
     reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
 
     Green_Developer_model = get_new_jump_model(green_developer_opts.solvers)
 
@@ -127,6 +130,7 @@ function solve_agent_problem!(
     end
 
     green_developer.current_year = reg_year_index
+    green_developer.previous_year = reg_year_index_pre
 
     return compute_difference_percentage_one_norm([(green_tech_buildout_before, green_developer.green_tech_buildout_my)])
 
@@ -144,7 +148,13 @@ function solve_agent_problem!(
     export_file_path,
     update_results::Bool
 )
-    green_developer.current_year = first(model_data.index_y)
+
+    reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
+
+    green_developer.current_year = reg_year_index
+    green_developer.previous_year = reg_year_index_pre
+    
     return 0.0
 end
 
