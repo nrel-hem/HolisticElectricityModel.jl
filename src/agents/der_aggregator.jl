@@ -423,7 +423,7 @@ function solve_agent_problem!(
 )
 
     reg_year, reg_year_index = get_reg_year(model_data)
-    reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
     delta_t = get_delta_t(model_data)
 
     utility = get_agent(Utility, agent_store)
@@ -468,7 +468,7 @@ function solve_agent_problem!(
         # simply assign DERAggregator to a random ipp (ipp1)
         utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= 0.0
         utility.x_E_my(z, Symbol("dera_pv"), :) .= 0.0
-        der_aggregator.aggregation_level(reg_year_index_dera, z, :) .= 0.0
+        der_aggregator.aggregation_level(reg_year_index_pre, z, :) .= 0.0
     end
 
     diff_one_base = solve_agent_problem!(
@@ -489,7 +489,7 @@ function solve_agent_problem!(
         if sum(total_der_stor_capacity(z, h) for h in model_data.index_h) != 0.0
             for i in 1:incentive_function_dimension - 1
                 # set der aggregation level to points on the curve before running CEM
-                der_aggregator.aggregation_level(reg_year_index_dera, z, :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"]
+                der_aggregator.aggregation_level(reg_year_index_pre, z, :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"]
                 utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) for h in model_data.index_h)
                 utility.x_E_my(z, Symbol("dera_pv"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * 
                 sum(
