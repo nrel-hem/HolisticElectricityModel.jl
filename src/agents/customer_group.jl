@@ -225,6 +225,8 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     total_pv_only_capacity_my_delay_update::ParamArray
     "Cumulative PV plus Storage capacity"
     total_pv_stor_capacity_my_delay_update::ParamArray
+    "Big M Parameter"
+    BIGM::ParamScalar{<:Integer}
 end
 
 
@@ -610,6 +612,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("total_der_capacity_my_delay_update",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         initialize_param("total_pv_only_capacity_my_delay_update",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         initialize_param("total_pv_stor_capacity_my_delay_update",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
+        ParamScalar("BIGM", 100),
     )
 
     # populate total_*_capacity_my variables for DER with all existing/prescribed capacity for all years
@@ -886,6 +889,7 @@ function solve_agent_problem!(
         @variable(Customer_PV_Storage_Opti, stor_charge[model_data.index_d, model_data.index_t] >= 0)
         @variable(Customer_PV_Storage_Opti, stor_discharge[model_data.index_d, model_data.index_t] >= 0)
         @variable(Customer_PV_Storage_Opti, stor_energy[model_data.index_d, model_data.index_t] >= 0)
+        @variable(Customer_PV_Storage_Opti, net_load_sign[model_data.index_d, model_data.index_t], Bin)
 
         objective_function_dist = begin
             sum(
@@ -932,6 +936,33 @@ function solve_agent_problem!(
                 t in model_data.index_t,
             ],
             net_load[d, t] == net_load_plus[d, t] + net_load_minus[d, t]
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_net_load_minus[
+                d in model_data.index_d,
+                t in model_data.index_t,
+            ],
+            net_load_minus[d, t] <= net_load[d, t]
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_net_load_plus_bigm[
+                d in model_data.index_d,
+                t in model_data.index_t,
+            ],
+            net_load_plus[d, t] <= customers.BIGM * net_load_sign[d, t]
+        )
+
+        @constraint(
+            Customer_PV_Storage_Opti,
+            Eq_net_load_minus_bigm[
+                d in model_data.index_d,
+                t in model_data.index_t,
+            ],
+            net_load_minus[d, t] >= -customers.BIGM * (1 - net_load_sign[d, t])
         )
 
         @constraint(
@@ -1032,6 +1063,12 @@ function solve_agent_problem!(
 
         TimerOutputs.@timeit HEM_TIMER "optimize! Customer BTM storage dispatch" begin
             optimize!(Customer_PV_Storage_Opti)
+        end
+
+        # push!(jump_model, Customer_PV_Storage_Opti)
+
+        if (termination_status(Customer_PV_Storage_Opti) != OPTIMAL)
+            error("customer problem is not solved")
         end
 
         Payment_after_PVStor(z, h, :) .= objective_value(Customer_PV_Storage_Opti)
