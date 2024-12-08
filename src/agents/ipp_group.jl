@@ -5686,7 +5686,7 @@ function save_results(
         joinpath(export_file_path, "flow.csv"),
     )
     save_param(
-        ipp.total_emissions_my.values,
+        ipps.total_emissions_my.values,
         [:Year],
         :MetricTon_CO2, # TODO: Check units
         joinpath(export_file_path, "total_emissions_my.csv"),
