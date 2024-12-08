@@ -212,6 +212,9 @@ mutable struct Utility <: AbstractUtility
     energy_C_my::ParamArray
     flow_my::ParamArray
 
+    # total emissions
+    total_emissions_my::ParamArray
+
     Max_Net_Load_my_dict::Dict
 
     _obj_value::ParamScalar
@@ -1014,6 +1017,10 @@ function Utility(
             index_l,
             model_data.index_d,
             model_data.index_t,
+        ),
+        initialize_param(
+            "total_emissions_my",
+            model_data.index_y
         ),
         Dict(),
         ParamScalar("_obj_value", 0.0, description = "objective value--use with caution")
@@ -1820,6 +1827,20 @@ function solve_agent_problem!(
             utility.energy_C_my(y, s, z, d, t, :) .= value.(energy_C[y, s, z, d, t])
         end
 
+        for y in model_data.index_y
+            utility.total_emissions_my(y, :) .= sum(
+                model_data.omega(d) * delta_t * (
+                    sum(
+                        utility.y_E_my(y, k, z, d, t) * utility.emission_rate_E_my(y, z, k) for
+                        k in utility.index_k_existing
+                    ) + sum(
+                        utility.y_C_my(y, k, z, d, t) * utility.emission_rate_C_my(y, z, k) for
+                        k in utility.index_k_new
+                    )
+                ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            ) * 0.000453592
+        end
+
         utility.current_year = first(model_data.index_y)
     end
 
@@ -1926,6 +1947,12 @@ function save_results(
         [:Year, :Line, :Day, :Time],
         :Flow_MWh,
         joinpath(export_file_path, "flow.csv"),
+    )
+    save_param(
+        utility.total_emissions_my.values,
+        [:Year],
+        :MetricTon_CO2, # TODO: Check units
+        joinpath(export_file_path, "total_emissions_my.csv"),
     )
 end
 

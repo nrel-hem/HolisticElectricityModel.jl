@@ -213,6 +213,9 @@ mutable struct IPPGroup <: AbstractIPPGroup
     energy_C_my::ParamArray
     flow_my::ParamArray
 
+    # total emissions
+    total_emissions_my::ParamArray
+
     Max_Net_Load_my_dict::Dict
 
     # McCormic bounds data
@@ -813,6 +816,10 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
             index_l,
             model_data.index_d,
             model_data.index_t,
+        ),
+        initialize_param(
+            "total_emissions_my",
+            model_data.index_y
         ),
         Dict(),
         [], [], [], [], [], [], [], [], [], [], [], [], 
@@ -5093,7 +5100,7 @@ end
 
 function ipp_cap_save_results(
     WMDER_IPP, ipp, p_star, model_data, delta_t,
-    customers, der_aggregator, green_developer
+    customers, der_aggregator, green_developer, regulator
 )
     cust_year = customers.current_year
     dera_year = der_aggregator.current_year
@@ -5198,7 +5205,19 @@ function ipp_cap_save_results(
 
         ipp.flow_my(y, l, d, t, :) .= value.(WMDER_IPP[:flow][y, l, d, t])
     end
-
+    for y in model_data.index_y
+        ipp.total_emissions_my(y, :) .= sum(
+            model_data.omega(d) * delta_t * (
+                sum(
+                    ipp.y_E_my(y, p, k, z, d, t) * ipp.emission_rate_E_my(y, p, z, k) for
+                    k in ipp.index_k_existing, p in ipp.index_p
+                ) + sum(
+                    ipp.y_C_my(y, p, k, z, d, t) * ipp.emission_rate_C_my(y, p, z, k) for
+                    k in ipp.index_k_new, p in ipp.index_p
+                )
+            ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+        ) * 0.000453592
+    end
 
     ###### running MILP only ######
     # UCAP_p_star_solution = Dict(y =>
@@ -5328,6 +5347,31 @@ function ipp_cap_save_results(
         ipp.ucap_total(y, :) .= UCAP_total(y)
     end
 
+    for y in model_data.index_y,
+        z in model_data.index_z
+
+        der_aggregator.revenue(y, z, :) .= 
+            # energy
+            sum(
+                model_data.omega(d) * delta_t * ipp.LMP_my(y, z, d, t) * (
+                    ipp.y_E_my(y, p, :dera_pv, z, d, t) + 
+                    ipp.discharge_E_my(y, p, :der_aggregator, z, d, t) - 
+                    ipp.charge_E_my(y, p, :der_aggregator, z, d, t)
+                ) for p in ipp.index_p, d in model_data.index_d, t in model_data.index_t
+            ) + 
+            # capacity
+            sum(
+                ipp.capacity_price(y) * (
+                    ipp.capacity_credit_E_my(y, z, :dera_pv) * ipp.x_E_my(p, z, :dera_pv) + 
+                    ipp.capacity_credit_stor_E_my(y, z, :der_aggregator) * ipp.x_stor_E_my(p, z, :der_aggregator)
+                ) for p in ipp.index_p
+            ) + 
+            # RECs
+            sum(
+                model_data.omega(d) * delta_t * regulator.REC(z, y) * ipp.y_E_my(y, p, :dera_pv, z, d, t)
+                for p in ipp.index_p, d in model_data.index_d, t in model_data.index_t
+            )
+    end
 end
 
 function solve_agent_problem_ipp_cap(
@@ -5478,7 +5522,7 @@ function solve_agent_problem_ipp_cap(
 
             ipp_cap_save_results(
                 WMDER_IPP, ipp, p_star, model_data, delta_t,
-                customers, der_aggregator, green_developer
+                customers, der_aggregator, green_developer, regulator
             )
         end
 
@@ -5640,6 +5684,12 @@ function save_results(
         [:Year, :Line, :Day, :Time],
         :Flow_MWh,
         joinpath(export_file_path, "flow.csv"),
+    )
+    save_param(
+        ipp.total_emissions_my.values,
+        [:Year],
+        :MetricTon_CO2, # TODO: Check units
+        joinpath(export_file_path, "total_emissions_my.csv"),
     )
 end
 

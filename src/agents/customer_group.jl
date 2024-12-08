@@ -220,6 +220,29 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     "Cumulative PV plus Storage capacity"
     total_pv_stor_capacity_my::ParamArray
 
+    "Per customer annual utility bill prior to DER"
+    Payment_before_PVStor_my::ParamArray
+    "Per customer annual utility bill after adding solar plus storage"
+    Payment_after_PVStor_my::ParamArray
+    "Per customer annual VPP aggregation incentive"
+    PVStor_DERA_incentive_my::ParamArray
+    "Per customer annual FOM cost if have solar plus storage"
+    PVStor_FOM_my::ParamArray
+    "Per customer annual net profit from owning solar plus storage. Does not account for capital costs."
+    NetProfit_PVStor_my::ParamArray
+
+    "Per customer annual utility bill after adding standalone PV"
+    Payment_after_PVOnly_my::ParamArray
+    "Per customer annual FOM cost if have solar"
+    PVOnly_FOM_my::ParamArray
+    "Per customer annual net profit from owning standalone PV. Does not account for capital costs."
+    NetProfit_PVOnly_my::ParamArray
+
+    "Per customer capital costs for solar plus storage. Includes ITC."
+    FinalCapEx_PVStor_my::ParamArray
+    "Per customer capital costs for standalone PV. Includes ITC."
+    FinalCapEx_PVOnly_my::ParamArray
+
     "Cumulative DER capacity, total PV and storage regardless of how they are grouped"
     total_der_capacity_my_delay_update::ParamArray
     "Cumulative PV only capacity"
@@ -611,6 +634,16 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("total_der_capacity_my",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         initialize_param("total_pv_only_capacity_my",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         initialize_param("total_pv_stor_capacity_my",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
+        initialize_param("Payment_before_PVStor_my", model_data.index_y, model_data.index_z, model_data.index_h),
+        initialize_param("Payment_after_PVStor_my", model_data.index_y, model_data.index_z, model_data.index_h),
+        initialize_param("PVStor_DERA_incentive_my", model_data.index_y, model_data.index_z, model_data.index_h),
+        initialize_param("PVStor_FOM_my", model_data.index_y, model_data.index_z, model_data.index_h),
+        initialize_param("NetProfit_PVStor_my", model_data.index_y, model_data.index_z, model_data.index_h),
+        initialize_param("Payment_after_PVOnly_my", model_data.index_y, model_data.index_z, model_data.index_h),
+        initialize_param("PVOnly_FOM_my", model_data.index_y, model_data.index_z, model_data.index_h),
+        initialize_param("NetProfit_PVOnly_my", model_data.index_y, model_data.index_z, model_data.index_h),
+        initialize_param("FinalCapEx_PVStor_my", model_data.index_y, model_data.index_z, model_data.index_h),
+        initialize_param("FinalCapEx_PVOnly_my", model_data.index_y, model_data.index_z, model_data.index_h),
         initialize_param("total_der_capacity_my_delay_update",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         initialize_param("total_pv_only_capacity_my_delay_update",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
         initialize_param("total_pv_stor_capacity_my_delay_update",model_data.index_y, model_data.index_z, model_data.index_h, index_m),
@@ -1098,16 +1131,16 @@ function solve_agent_problem!(
             der_aggregator.incentive_level(reg_year_index_dera, z) * customers.Opti_DG(z, h, :BTMStorage) * der_aggregator.aggregation_level(reg_year_index_dera, z) -
             # cost of distributed generation 
             sum(customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m)
-    end
-
+    end    
 
     # Calculate payback period of DPV-only
     # The NetProfit represents the energy saving/credit per representative agent per DER technology, 
     # assuming the optimal DER technology size
+    Payment_after_PVOnly = make_keyed_array(model_data.index_z, model_data.index_h)
     NetProfit_PV_only = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
-        # value of distributed generation (offset load)
-        NetProfit_PV_only(z, h, :) .=
+        Payment_after_PVOnly(z, h, :) .= 
+            # value of distributed generation (offset load)
             sum(
                 model_data.omega(d) * delta_t *
                 regulator.p(z, h, d, t) *
@@ -1125,9 +1158,32 @@ function solve_agent_problem!(
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG(z, h, :BTMPV) -
                     customers.d(h, z, d, t) * (1 - utility.loss_dist),
                 ) for d in model_data.index_d, t in model_data.index_t
-            ) -
+            )
+        NetProfit_PV_only(z, h, :) .= Payment_after_PVOnly(z, h) -
             # cost of distributed generation 
             customers.FOM_DG(z, h, :BTMPV) * customers.Opti_DG(z, h, :BTMPV)
+    end
+
+    # Save financial results
+    for z in model_data.index_z, h in model_data.index_h
+        customers.Payment_before_PVStor_my(reg_year_index, z, h, :) .= Payment_before_PVStor(z, h)
+        customers.Payment_after_PVStor_my(reg_year_index, z, h, :) .= Payment_after_PVStor(z, h)
+        customers.PVStor_DERA_incentive_my(reg_year_index, z, h, :) .= der_aggregator.incentive_level(reg_year_index_dera, z) * customers.Opti_DG(z, h, :BTMStorage)
+        customers.PVStor_FOM_my(reg_year_index, z, h, :) .=  sum(customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m) for m in customers.index_m)
+        customers.NetProfit_PVStor_my(reg_year_index, z, h, :) .= NetProfit_pv_stor(z, h)
+    
+        customers.Payment_after_PVOnly_my(reg_year_index, z, h, :) .= Payment_after_PVOnly(z, h)
+        customers.PVOnly_FOM_my(reg_year_index, z, h, :) .= customers.FOM_DG(z, h, :BTMPV) * customers.Opti_DG(z, h, :BTMPV)
+        customers.NetProfit_PVOnly_my(reg_year_index, z, h, :) .= NetProfit_PV_only(z, h)
+
+        customers.FinalCapEx_PVStor_my(reg_year_index, z, h, :) .= sum(
+            (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG(z, h, m) * customers.Opti_DG(z, h, m) 
+            for m in customers.index_m
+        )
+        customers.FinalCapEx_PVOnly_my(reg_year_index, z, h, :) .= (
+            (1.0 - customers.ITC_DER(:BTMPV)) * customers.CapEx_DG(z, h, :BTMPV) * 
+            customers.Opti_DG(z, h, :BTMPV)
+        )
     end
 
     for z in model_data.index_z, h in model_data.index_h
@@ -1691,22 +1747,84 @@ function save_results(
 
     # Cumulative DER by Configuration
     save_param(
-        total_der_capacity_my,
+        customers.total_der_capacity_my.values,
         [:Year, :Zone, :CustomerType, :DERTech],
         :MW,
         joinpath(export_file_path, "total_der_capacity_my.csv"),
     )
     save_param(
-        total_pv_only_capacity_my,
+        customers.total_pv_only_capacity_my.values,
         [:Year, :Zone, :CustomerType, :DERTech],
         :MW,
         joinpath(export_file_path, "total_pv_only_capacity_my.csv"),
     )
     save_param(
-        total_pv_stor_capacity_my,
+        customers.total_pv_stor_capacity_my.values,
         [:Year, :Zone, :CustomerType, :DERTech],
         :MW,
         joinpath(export_file_path, "total_pv_stor_capacity_my.csv"),
+    )
+
+    # Financial Metrics
+    save_param(
+        customers.Payment_before_PVStor_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "Payment_before_PVStor_my"),
+    )
+    save_param(
+        customers.Payment_after_PVStor_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "Payment_after_PVStor_my"),
+    )
+    save_param(
+        customers.PVStor_DERA_incentive_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "PVStor_DERA_incentive_my"),
+    )
+    save_param(
+        customers.PVStor_FOM_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "PVStor_FOM_my"),
+    )
+    save_param(
+        customers.NetProfit_PVStor_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "NetProfit_PVStor_my"),
+    )
+    save_param(
+        customers.Payment_after_PVOnly_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "Payment_after_PVOnly_my"),
+    )
+    save_param(
+        customers.PVOnly_FOM_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "PVOnly_FOM_my"),
+    )
+    save_param(
+        customers.NetProfit_PVOnly_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "NetProfit_PVOnly_my"),
+    )
+    save_param(
+        customers.FinalCapEx_PVStor_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "FinalCapEx_PVStor_my"),
+    )
+    save_param(
+        customers.FinalCapEx_PVOnly_my.values,
+        [:Year, :Zone, :CustomerType],
+        :dollars_per_yr,
+        joinpath(export_file_path, "FinalCapEx_PVOnly_my"),
     )
 end
 
