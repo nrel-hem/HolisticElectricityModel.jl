@@ -1770,61 +1770,61 @@ function save_results(
         customers.Payment_before_PVStor_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "Payment_before_PVStor_my"),
+        joinpath(export_file_path, "Payment_before_PVStor_my.csv"),
     )
     save_param(
         customers.Payment_after_PVStor_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "Payment_after_PVStor_my"),
+        joinpath(export_file_path, "Payment_after_PVStor_my.csv"),
     )
     save_param(
         customers.PVStor_DERA_incentive_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "PVStor_DERA_incentive_my"),
+        joinpath(export_file_path, "PVStor_DERA_incentive_my.csv"),
     )
     save_param(
         customers.PVStor_FOM_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "PVStor_FOM_my"),
+        joinpath(export_file_path, "PVStor_FOM_my.csv"),
     )
     save_param(
         customers.NetProfit_PVStor_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "NetProfit_PVStor_my"),
+        joinpath(export_file_path, "NetProfit_PVStor_my.csv"),
     )
     save_param(
         customers.Payment_after_PVOnly_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "Payment_after_PVOnly_my"),
+        joinpath(export_file_path, "Payment_after_PVOnly_my.csv"),
     )
     save_param(
         customers.PVOnly_FOM_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "PVOnly_FOM_my"),
+        joinpath(export_file_path, "PVOnly_FOM_my.csv"),
     )
     save_param(
         customers.NetProfit_PVOnly_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "NetProfit_PVOnly_my"),
+        joinpath(export_file_path, "NetProfit_PVOnly_my.csv"),
     )
     save_param(
         customers.FinalCapEx_PVStor_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "FinalCapEx_PVStor_my"),
+        joinpath(export_file_path, "FinalCapEx_PVStor_my.csv"),
     )
     save_param(
         customers.FinalCapEx_PVOnly_my.values,
         [:Year, :Zone, :CustomerType],
         :dollars_per_yr,
-        joinpath(export_file_path, "FinalCapEx_PVOnly_my"),
+        joinpath(export_file_path, "FinalCapEx_PVOnly_my.csv"),
     )
 end
 
