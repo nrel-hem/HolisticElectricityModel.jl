@@ -4,6 +4,7 @@
 
 data_selection:
   # Specify the path to the inputs for the model. If using HolisticElectricityModelData.jl, it should point to the test case folder under runs/.
+  # If on Windows, enter paths like "C:\\projects\\HolisticElectricityModelData.jl\\runs\\..."
   input_path: "../HolisticElectricityModelData.jl/runs/ba_6_base_2020_future_15_ipps_1/"
 
 # ------------------------------------------------------------------------------
