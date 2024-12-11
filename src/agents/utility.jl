@@ -1788,6 +1788,14 @@ function solve_agent_problem!(
             utility.x_C_my(y, k, z, :) .= value.(x_C[y, k, z])
         end
 
+        for y in model_data.index_y, k in utility.index_stor_existing, z in model_data.index_z
+            utility.x_stor_R_my(y, k, z, :) .= value.(x_stor_R[y, k, z])
+        end
+
+        for y in model_data.index_y, k in utility.index_stor_new, z in model_data.index_z
+            utility.x_stor_C_my(y, k, z, :) .= value.(x_stor_C[y, k, z])
+        end
+
         for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             utility.miu_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t])
             utility.p_energy_cem_my(y, z, d, t, :) .= dual.(Eq_miu[y, z, d, t]) ./ (utility.pvf_onm(y) .* model_data.omega(d) .* delta_t)
