@@ -9,8 +9,10 @@ end
 
 pages = OrderedDict(
         "Welcome Page" => "index.md",
+        "Quick Start Guide" => "quickstartguide.md",
         "Developer Guide" => Any[
             "dev_guide/logging.md",
+            "dev_guide/inputs.md"
         ],
         "API" => "HolisticElectricityModel.md"
 )
