@@ -44,6 +44,7 @@ makedocs(
     modules = [HolisticElectricityModel],
     format = Documenter.HTML(prettyurls = haskey(ENV, "GITHUB_ACTIONS"),),
     sitename = "HolisticElectricityModel.jl",
+    authors = "Elaine Hale, Nongchao Guo, Burcin Cakir Erdener, Haley Ross, Ellie Estreich, and Purboday Ghosh",
     pages = Any[p for p in pages]
 )
 
