@@ -734,8 +734,7 @@ function solve_agent_problem!(
 
     # since we moved some BTM storage to transmission level, need to reduce the BTM net load accordingly (in bulk power system, regulator, customers (maybe?)).
 
-    return 0.0
-    
+    return 0.0 
 end
 
 function save_results(
@@ -768,5 +767,11 @@ function save_results(
         [:Year, :Zone, :CustomerType],
         :aggregation_pv_mw,
         joinpath(export_file_path, "dera_aggregation_pv_mw.csv"),
+    )
+    save_param(
+        der_aggregator.revenue.values,
+        [:Year, :Zone],
+        :dollars_per_year,
+        joinpath(export_file_path, "dera_aggregation_revenue.csv"),
     )
 end
