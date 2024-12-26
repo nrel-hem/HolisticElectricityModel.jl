@@ -1139,7 +1139,7 @@ function solve_agent_problem!(
     Payment_after_PVOnly = make_keyed_array(model_data.index_z, model_data.index_h)
     NetProfit_PV_only = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
-        Payment_after_PVOnly(z, h, :) .= 
+        pvonly_savings = 
             # value of distributed generation (offset load)
             sum(
                 model_data.omega(d) * delta_t *
@@ -1159,7 +1159,8 @@ function solve_agent_problem!(
                     customers.d(h, z, d, t) * (1 - utility.loss_dist),
                 ) for d in model_data.index_d, t in model_data.index_t
             )
-        NetProfit_PV_only(z, h, :) .= Payment_after_PVOnly(z, h) -
+        Payment_after_PVOnly(z, h, :) .= Payment_before_PVStor(z, h) - pvonly_savings
+        NetProfit_PV_only(z, h, :) .= pvonly_savings -
             # cost of distributed generation 
             customers.FOM_DG(z, h, :BTMPV) * customers.Opti_DG(z, h, :BTMPV)
     end
