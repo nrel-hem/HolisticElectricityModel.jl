@@ -785,16 +785,16 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for h in model_data.index_h, m in customers.index_m, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
                 for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
                 for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            ) -
+            ) * (1 + utility.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -826,16 +826,16 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for h in model_data.index_h, m in customers.index_m, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
                 for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
                 for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            ) -
+            ) * (1 + utility.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -863,14 +863,14 @@ function solve_agent_problem!(
                 max(
                     0,
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                 customers.Opti_DG_E(z, h, :BTMPV) + sum(
                     max(
                         0,
                         customers.rho_DG(h, :BTMPV, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -879,7 +879,7 @@ function solve_agent_problem!(
                 max(
                     0,
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * total_der_pv_capacity(z, h) /
                 customers.Opti_DG_E(z, h, :BTMPV)
             )
@@ -893,14 +893,14 @@ function solve_agent_problem!(
                 max(
                     0,
                     sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                 customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                     max(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist), 
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist), 
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -926,10 +926,10 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for m in customers.index_m, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-            sum(model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) for d in model_data.index_d, t in model_data.index_t) + 
-            sum(model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) for d in model_data.index_d, t in model_data.index_t) -
+            sum(model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) for d in model_data.index_d, t in model_data.index_t) * (1 + utility.loss_dist) + 
+            sum(model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) for d in model_data.index_d, t in model_data.index_t) * (1 + utility.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -943,7 +943,7 @@ function solve_agent_problem!(
         net_demand_h_wo_loss(z, h, :) .= 
             # Demand without loss
             sum(
-                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist) for
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
@@ -958,13 +958,13 @@ function solve_agent_problem!(
                 (
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                     customers.Opti_DG_E(z, h, :BTMPV) + sum(
                         min(
                             customers.rho_DG(h, :BTMPV, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -972,7 +972,7 @@ function solve_agent_problem!(
                     # minus pv portion of pv_storage tech
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * total_der_pv_capacity(z, h) /
                     customers.Opti_DG_E(z, h, :BTMPV)
                 )
@@ -984,13 +984,13 @@ function solve_agent_problem!(
                 (
                     min(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                     customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1011,7 +1011,7 @@ function solve_agent_problem!(
         net_demand_wo_green_tech_h_wo_loss(z, h, :) .= 
             # Demand with loss
             sum(
-                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist) for
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
@@ -1025,13 +1025,13 @@ function solve_agent_problem!(
                 (
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                     customers.Opti_DG_E(z, h, :BTMPV) + sum(
                         min(
                             customers.rho_DG(h, :BTMPV, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1039,7 +1039,7 @@ function solve_agent_problem!(
                     # minus pv portion of pv_storage tech
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * total_der_pv_capacity(z, h) /
                     customers.Opti_DG_E(z, h, :BTMPV)
                 )
@@ -1051,13 +1051,13 @@ function solve_agent_problem!(
                 (
                     min(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                     customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1148,16 +1148,16 @@ function solve_agent_problem!(
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
                     ) for h in model_data.index_h, m in customers.index_m
-                ) +
+                ) * (1 + utility.loss_dist) +
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
                     for h in model_data.index_h
-                ) + 
+                ) * (1 + utility.loss_dist) + 
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
                     for h in model_data.index_h
-                ) -
+                ) * (1 + utility.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -1195,16 +1195,16 @@ function solve_agent_problem!(
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
                     ) for h in model_data.index_h, m in customers.index_m
-                ) + 
+                ) * (1 + utility.loss_dist) + 
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
                     for h in model_data.index_h
-                ) + 
+                ) * (1 + utility.loss_dist) + 
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
                     for h in model_data.index_h
-                ) -
+                ) * (1 + utility.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -1259,14 +1259,14 @@ function solve_agent_problem!(
                 max(
                     0,
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                 customers.Opti_DG_E(z, h, :BTMPV) + sum(
                     max(
                         0,
                         customers.rho_DG(h, :BTMPV, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1275,7 +1275,7 @@ function solve_agent_problem!(
                 max(
                     0,
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * total_der_pv_capacity(z, h) /
                 customers.Opti_DG_E(z, h, :BTMPV)
             ) + 
@@ -1286,14 +1286,14 @@ function solve_agent_problem!(
                 max(
                     0,
                     sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                 customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                     max(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1322,10 +1322,10 @@ function solve_agent_problem!(
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
                     ) for m in customers.index_m
-                ) +
+                ) * (1 + utility.loss_dist) +
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-                model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) + 
-                model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) -
+                model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + utility.loss_dist) + 
+                model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + utility.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -1345,7 +1345,7 @@ function solve_agent_problem!(
             net_demand_h_t_wo_loss_temp = net_demand_h_t_wo_loss_temp +
                 # Demand without loss
                 sum(
-                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist)
                 ) -
                 # DG
                 # since this net demand is for rate calculation, we need to consider energy offset at the household level.
@@ -1357,13 +1357,13 @@ function solve_agent_problem!(
                 (
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                     customers.Opti_DG_E(z, h, :BTMPV) + sum(
                         min(
                             customers.rho_DG(h, :BTMPV, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1371,7 +1371,7 @@ function solve_agent_problem!(
                     # minus pv portion of pv_storage tech
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * total_der_pv_capacity(z, h) /
                     customers.Opti_DG_E(z, h, :BTMPV)
                 ) - 
@@ -1380,13 +1380,13 @@ function solve_agent_problem!(
                 (
                     min(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                     customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1419,10 +1419,10 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for m in customers.index_m
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-            customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) + 
-            customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) -
+            customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + utility.loss_dist) + 
+            customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + utility.loss_dist) -
             # green technology subscription
             sum(
                 utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -1447,10 +1447,10 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for m in customers.index_m
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-            customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) + 
-            customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h)
+            customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + utility.loss_dist) + 
+            customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + utility.loss_dist)
     end
 
     # non-coincident peak load
@@ -1716,16 +1716,16 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for h in model_data.index_h, m in customers.index_m, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
                 for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
                 for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            ) -
+            ) * (1 + utility.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -1757,16 +1757,16 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for h in model_data.index_h, m in customers.index_m, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage generation/consumption since they're front-of-the-meter now
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
                 for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
                 for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            ) -
+            ) * (1 + utility.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -1794,14 +1794,14 @@ function solve_agent_problem!(
                 max(
                     0,
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                 customers.Opti_DG_E(z, h, :BTMPV) + sum(
                     max(
                         0,
                         customers.rho_DG(h, :BTMPV, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1810,7 +1810,7 @@ function solve_agent_problem!(
                 max(
                     0,
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * total_der_pv_capacity(z, h) /
                 customers.Opti_DG_E(z, h, :BTMPV)
             )
@@ -1824,14 +1824,14 @@ function solve_agent_problem!(
                 max(
                     0,
                     sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                 customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                     max(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1857,10 +1857,10 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for m in customers.index_m, d in model_data.index_d, t in model_data.index_t
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-            sum(model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) for d in model_data.index_d, t in model_data.index_t) + 
-            sum(model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) for d in model_data.index_d, t in model_data.index_t) -
+            sum(model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) for d in model_data.index_d, t in model_data.index_t) * (1 + utility.loss_dist) + 
+            sum(model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) for d in model_data.index_d, t in model_data.index_t) * (1 + utility.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -1874,7 +1874,7 @@ function solve_agent_problem!(
         net_demand_h_wo_loss(z, h, :) .= 
             # Demand without loss
             sum(
-                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist) for
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
@@ -1889,13 +1889,13 @@ function solve_agent_problem!(
                 (
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                     customers.Opti_DG_E(z, h, :BTMPV) + sum(
                         min(
                             customers.rho_DG(h, :BTMPV, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1903,7 +1903,7 @@ function solve_agent_problem!(
                     # minus pv portion of pv_storage tech
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * total_der_pv_capacity(z, h) /
                     customers.Opti_DG_E(z, h, :BTMPV)
                 )
@@ -1915,13 +1915,13 @@ function solve_agent_problem!(
                 (
                     min(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                     customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1942,7 +1942,7 @@ function solve_agent_problem!(
         net_demand_wo_green_tech_h_wo_loss(z, h, :) .= 
             # Demand with loss
             sum(
-                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist) for
+                customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist) for
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
@@ -1956,13 +1956,13 @@ function solve_agent_problem!(
                 (
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                     customers.Opti_DG_E(z, h, :BTMPV) + sum(
                         min(
                             customers.rho_DG(h, :BTMPV, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -1970,7 +1970,7 @@ function solve_agent_problem!(
                     # minus pv portion of pv_storage tech
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * total_der_pv_capacity(z, h) /
                     customers.Opti_DG_E(z, h, :BTMPV)
                 )
@@ -1982,13 +1982,13 @@ function solve_agent_problem!(
                 (
                     min(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                     customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -2034,16 +2034,16 @@ function solve_agent_problem!(
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
                     ) for h in model_data.index_h, m in customers.index_m
-                ) +
+                ) * (1 + utility.loss_dist) +
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
                     for h in model_data.index_h
-                ) + 
+                ) * (1 + utility.loss_dist) + 
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
                     for h in model_data.index_h
-                ) -
+                ) * (1 + utility.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -2081,16 +2081,16 @@ function solve_agent_problem!(
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
                     ) for h in model_data.index_h, m in customers.index_m
-                ) + 
+                ) * (1 + utility.loss_dist) + 
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
                     for h in model_data.index_h
-                ) + 
+                ) * (1 + utility.loss_dist) + 
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
                     for h in model_data.index_h
-                ) -
+                ) * (1 + utility.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -2145,14 +2145,14 @@ function solve_agent_problem!(
                 max(
                     0,
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                 customers.Opti_DG_E(z, h, :BTMPV) + sum(
                     max(
                         0,
                         customers.rho_DG(h, :BTMPV, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -2161,7 +2161,7 @@ function solve_agent_problem!(
                 max(
                     0,
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * total_der_pv_capacity(z, h) /
                 customers.Opti_DG_E(z, h, :BTMPV)
             ) + 
@@ -2172,14 +2172,14 @@ function solve_agent_problem!(
                 max(
                     0,
                     sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m) -
-                    customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
                 ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                 customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                     max(
                         0,
                         sum(customers.rho_DG(h, m, z, d, t) *
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m) -
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                     customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                     y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -2228,10 +2228,10 @@ function solve_agent_problem!(
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
                     ) for m in customers.index_m
-                ) +
+                ) * (1 + utility.loss_dist) +
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-                model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) + 
-                model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) -
+                model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + utility.loss_dist) + 
+                model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + utility.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -2251,7 +2251,7 @@ function solve_agent_problem!(
             net_demand_h_t_wo_loss_temp = net_demand_h_t_wo_loss_temp +
                 # Demand without loss
                 sum(
-                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist)
                 ) -
                 # DG
                 # since this net demand is for rate calculation, we need to consider energy offset at the household level.
@@ -2264,13 +2264,13 @@ function solve_agent_problem!(
                 (
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                     customers.Opti_DG_E(z, h, :BTMPV) + sum(
                         min(
                             customers.rho_DG(h, :BTMPV, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -2278,7 +2278,7 @@ function solve_agent_problem!(
                     # minus pv portion of pv_storage tech
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * total_der_pv_capacity(z, h) /
                     customers.Opti_DG_E(z, h, :BTMPV)
                 ) - 
@@ -2287,13 +2287,13 @@ function solve_agent_problem!(
                 (
                     min(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                     customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -2318,7 +2318,7 @@ function solve_agent_problem!(
             net_demand_wo_green_tech_h_t_wo_loss_temp = net_demand_wo_green_tech_h_t_wo_loss_temp +
                 # Demand without loss
                 sum(
-                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                    customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist)
                 ) -
                 # DG
                 # since this net demand is for rate calculation, we need to consider energy offset at the household level.
@@ -2331,13 +2331,13 @@ function solve_agent_problem!(
                 (
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist),
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist),
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) /
                     customers.Opti_DG_E(z, h, :BTMPV) + sum(
                         min(
                             customers.rho_DG(h, :BTMPV, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -2345,7 +2345,7 @@ function solve_agent_problem!(
                     # minus pv portion of pv_storage tech
                     min(
                         customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG_E(z, h, :BTMPV),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * total_der_pv_capacity(z, h) /
                     customers.Opti_DG_E(z, h, :BTMPV)
                 ) - 
@@ -2354,13 +2354,13 @@ function solve_agent_problem!(
                 (
                     min(
                         sum(customers.rho_DG(h, m, z, d, t) * customers.Opti_DG_E(z, h, m) for m in customers.index_m),
-                        customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                        customers.d(h, z, d, t) / (1 + utility.loss_dist)
                     ) * customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMStorage) /
                     customers.Opti_DG_E(z, h, :BTMStorage) + sum(
                         min(
                             sum(customers.rho_DG(h, m, z, d, t) *
                             customers.Opti_DG_my(Symbol(Int(y)), z, h, m) for m in customers.index_m),
-                            customers.d(h, z, d, t) * (1 - utility.loss_dist)
+                            customers.d(h, z, d, t) / (1 + utility.loss_dist)
                         ) * customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMStorage) /
                         customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMStorage) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
@@ -2386,10 +2386,10 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for m in customers.index_m
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-            customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) + 
-            customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) -
+            customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + utility.loss_dist) + 
+            customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + utility.loss_dist) -
             # green technology subscription
             # if customer h in zone z build green tech, that should be able to offest their capacity purchase obligation
             sum(
@@ -2415,10 +2415,10 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) for m in customers.index_m
-            ) + 
+            ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-            customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) + 
-            customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h)
+            customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + utility.loss_dist) + 
+            customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + utility.loss_dist)
     end
 
     # non-coincident peak load
@@ -2448,10 +2448,10 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                     for m in customers.index_m
-                ) + 
+                ) * (1 + utility.loss_dist) + 
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-                customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) + 
-                customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h)
+                customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + utility.loss_dist) + 
+                customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + utility.loss_dist)
     end
 
     energy_purchase_quantity_detailed = make_keyed_array(model_data.index_z, model_data.index_d, model_data.index_t)
@@ -2491,10 +2491,10 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                     for m in customers.index_m
-                ) + 
+                ) * (1 + utility.loss_dist) + 
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-                customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) + 
-                customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h)
+                customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + utility.loss_dist) + 
+                customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + utility.loss_dist)
                 )
         end
         local_net_load_tou(z, h, tou, :) .= local_net_load_tou_temp
@@ -2520,10 +2520,10 @@ function solve_agent_problem!(
                                 y in model_data.year(first(model_data.index_y_fix)):reg_year
                             )
                             for m in customers.index_m
-                        ) + 
+                        ) * (1 + utility.loss_dist) + 
                         # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
-                        customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) + 
-                        customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h)
+                        customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + utility.loss_dist) + 
+                        customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + utility.loss_dist)
                         ) for h in model_data.index_h
                     )
                 ) + 

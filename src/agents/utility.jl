@@ -1153,12 +1153,12 @@ function solve_agent_problem!(
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) +
+            ) * (1 + utility.loss_dist) +
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
                 customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-            )
+            ) * (1 + utility.loss_dist)
     end
     fill!(utility.Max_Net_Load_my, NaN)
     Max_Net_Load_my_dict = Dict()
@@ -1270,12 +1270,12 @@ function solve_agent_problem!(
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) -
+            ) * (1 + utility.loss_dist) -
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
                 customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-            ) +
+            ) * (1 + utility.loss_dist) +
             # green technology subscription at time t
             sum(
                 utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
