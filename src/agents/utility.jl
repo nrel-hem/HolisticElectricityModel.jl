@@ -1039,7 +1039,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
     utility.current_year = first(model_data.index_y)
     return 0.0
@@ -1057,7 +1058,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
@@ -1850,6 +1852,195 @@ function solve_agent_problem!(
         end
 
         utility.current_year = first(model_data.index_y)
+    end
+
+    if output_intermediate_results
+        y_E_intermediate = initialize_param(
+            "y_E_intermediate",
+            model_data.index_y, utility.index_k_existing, model_data.index_z, model_data.index_d, model_data.index_t,
+        )
+        y_C_intermediate = initialize_param(
+            "y_C_intermediate",
+            model_data.index_y, utility.index_k_new, model_data.index_z, model_data.index_d, model_data.index_t,
+        )
+        x_R_intermediate = initialize_param(
+            "x_R_intermediate",
+            model_data.index_y, utility.index_k_existing, model_data.index_z,
+        )
+        x_C_intermediate = initialize_param(
+            "x_C_intermediate",
+            model_data.index_y, utility.index_k_new, model_data.index_z,
+        )
+        x_stor_R_intermediate = initialize_param(
+            "x_stor_R_intermediate", 
+            model_data.index_y, utility.index_stor_existing, model_data.index_z
+        )
+        x_stor_C_intermediate = initialize_param(
+            "x_stor_C_intermediate", 
+            model_data.index_y, utility.index_stor_new, model_data.index_z
+        )
+        flow_intermediate = initialize_param(
+            "flow_intermediate",
+            model_data.index_y, utility.index_l, model_data.index_d, model_data.index_t,
+        )
+        charge_E_intermediate = initialize_param(
+            "charge_E_intermediate",
+            model_data.index_y, utility.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t,
+        )
+        discharge_E_intermediate = initialize_param(
+            "discharge_E_intermediate",
+            model_data.index_y, utility.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t,
+        )
+        energy_E_intermediate = initialize_param(
+            "energy_E_intermediate",
+            model_data.index_y, utility.index_stor_existing, model_data.index_z, model_data.index_d, model_data.index_t,
+        )
+        charge_C_intermediate = initialize_param(
+            "charge_C_intermediate",
+            model_data.index_y, utility.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t,
+        )
+        discharge_C_intermediate = initialize_param(
+            "discharge_C_intermediate",
+            model_data.index_y, utility.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t,
+        )
+        energy_C_intermediate = initialize_param(
+            "energy_C_intermediate",
+            model_data.index_y, utility.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t,
+        )
+        obj_intermediate = ParamScalar("obj_intermediate", 0.0)
+        
+        for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_E_intermediate(y, k, z, d, t, :) .= value.(y_E[y, k, z, d, t])
+        end
+
+        for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+            y_C_intermediate(y, k, z, d, t, :) .= value.(y_C[y, k, z, d, t])
+        end
+
+        for y in model_data.index_y, k in utility.index_k_existing, z in model_data.index_z
+            x_R_intermediate(y, k, z, :) .= value.(x_R[y, k, z])
+        end
+
+        for y in model_data.index_y, k in utility.index_k_new, z in model_data.index_z
+            x_C_intermediate(y, k, z, :) .= value.(x_C[y, k, z])
+        end
+
+        for y in model_data.index_y, k in utility.index_stor_existing, z in model_data.index_z
+            x_stor_R_intermediate(y, k, z, :) .= value.(x_stor_R[y, k, z])
+        end
+
+        for y in model_data.index_y, k in utility.index_stor_new, z in model_data.index_z
+            x_stor_C_intermediate(y, k, z, :) .= value.(x_stor_C[y, k, z])
+        end
+
+        for y in model_data.index_y, l in utility.index_l, d in model_data.index_d, t in model_data.index_t
+            flow_intermediate(y, l, d, t, :) .= value.(flow[y, l, d, t])
+        end
+
+        for y in model_data.index_y,
+            s in utility.index_stor_existing,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t
+    
+            charge_E_intermediate(y, s, z, d, t, :) .= value.(charge_E[y, s, z, d, t])
+            discharge_E_intermediate(y, s, z, d, t, :) .= value.(discharge_E[y, s, z, d, t])
+            energy_E_intermediate(y, s, z, d, t, :) .= value.(energy_E[y, s, z, d, t])
+        end
+        
+        for y in model_data.index_y,
+            s in utility.index_stor_new,
+            z in model_data.index_z,
+            d in model_data.index_d,
+            t in model_data.index_t
+    
+            charge_C_intermediate(y, s, z, d, t, :) .= value.(charge_C[y, s, z, d, t])
+            discharge_C_intermediate(y, s, z, d, t, :) .= value.(discharge_C[y, s, z, d, t])
+            energy_C_intermediate(y, s, z, d, t, :) .= value.(energy_C[y, s, z, d, t])
+        end
+
+        obj_intermediate.value = objective_value(VIUDER_Utility)
+
+        save_param(
+            y_E_intermediate.values,
+            [:Year, :GenTech, :Zone, :Day, :Time],
+            :Generation_MWh,
+            joinpath(export_file_path, "y_E.csv"),
+        )
+        save_param(
+            y_C_intermediate.values,
+            [:Year, :GenTech, :Zone, :Day, :Time],
+            :Generation_MWh,
+            joinpath(export_file_path, "y_C.csv"),
+        )
+        save_param(
+            x_R_intermediate.values,
+            [:Year, :GenTech, :Zone],
+            :Capacity_MW,
+            joinpath(export_file_path, "x_R.csv"),
+        )
+        save_param(
+            x_C_intermediate.values,
+            [:Year, :GenTech, :Zone],
+            :Capacity_MW,
+            joinpath(export_file_path, "x_C.csv"),
+        )
+        save_param(
+            x_stor_R_intermediate.values,
+            [:Year, :StorTech, :Zone],
+            :Capacity_MW,
+            joinpath(export_file_path, "x_stor_R.csv"),
+        )
+        save_param(
+            x_stor_C_intermediate.values,
+            [:Year, :StorTech, :Zone],
+            :Capacity_MW,
+            joinpath(export_file_path, "x_stor_C.csv"),
+        )
+        save_param(
+            charge_E_intermediate.values,
+            [:Year, :StorTech, :Zone, :Day, :Time],
+            :Charge_MWh,
+            joinpath(export_file_path, "charge_E.csv"),
+        )
+        save_param(
+            discharge_E_intermediate.values,
+            [:Year, :StorTech, :Zone, :Day, :Time],
+            :Discharge_MWh,
+            joinpath(export_file_path, "discharge_E.csv"),
+        )
+        save_param(
+            charge_C_intermediate.values,
+            [:Year, :StorTech, :Zone, :Day, :Time],
+            :Charge_MWh,
+            joinpath(export_file_path, "charge_C.csv"),
+        )
+        save_param(
+            discharge_C_intermediate.values,
+            [:Year, :StorTech, :Zone, :Day, :Time],
+            :Discharge_MWh,
+            joinpath(export_file_path, "discharge_C.csv"),
+        )
+        save_param(
+            energy_E_intermediate.values,
+            [:Year, :StorTech, :Zone, :Day, :Time],
+            :Energy_MWh,
+            joinpath(export_file_path, "energy_E.csv"),
+        )
+        save_param(
+            energy_C_intermediate.values,
+            [:Year, :StorTech, :Zone, :Day, :Time],
+            :Energy_MWh,
+            joinpath(export_file_path, "energy_C.csv"),
+        )
+        save_param(
+            flow_intermediate.values,
+            [:Year, :Line, :Day, :Time],
+            :Flow_MWh,
+            joinpath(export_file_path, "flow.csv"),
+        )
+        writedlm(joinpath(export_file_path, "objective_value.csv"), obj_intermediate.value)
+
     end
 
     utility._obj_value.value = objective_value(VIUDER_Utility)

@@ -368,7 +368,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
 
     delta_t = get_delta_t(model_data)
@@ -1636,7 +1637,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
 
     for y in model_data.index_y_fix

@@ -839,7 +839,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
     return 0.0
 end
@@ -5570,7 +5571,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
     diff = 0.0
 

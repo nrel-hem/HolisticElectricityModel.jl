@@ -83,7 +83,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
 
     ipp = get_agent(IPPGroup, agent_store)
@@ -125,7 +126,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
 
     utility = get_agent(Utility, agent_store)
@@ -166,7 +168,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
 
     reg_year, reg_year_index = get_reg_year(model_data)
@@ -419,7 +422,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
 
     reg_year, reg_year_index = get_reg_year(model_data)
@@ -471,6 +475,9 @@ function solve_agent_problem!(
         der_aggregator.aggregation_level(reg_year_index_pre, z, :) .= 0.0
     end
 
+    base_cem_dir = joinpath(export_file_path, "$(reg_year)_viu_dera_base")
+    mkdir(base_cem_dir)
+
     diff_one_base = solve_agent_problem!(
         utility,
         utility_opts,
@@ -480,8 +487,9 @@ function solve_agent_problem!(
         w_iter,
         window_length,
         jump_model,
-        export_file_path,
-        false
+        base_cem_dir,
+        false,
+        true
     )
     viu_obj_value_base = deepcopy(utility._obj_value)
 
@@ -497,7 +505,9 @@ function solve_agent_problem!(
                     total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
                     for h in model_data.index_h
                 )
-            
+
+                incentive_function_cem_dir = joinpath(export_file_path, "$(reg_year)_viu_dera_$(z)_agg_level_$(i)")
+                mkdir(incentive_function_cem_dir)
 
                 diff_one = solve_agent_problem!(
                     utility,
@@ -508,8 +518,9 @@ function solve_agent_problem!(
                     w_iter,
                     window_length,
                     jump_model,
-                    export_file_path,
-                    false
+                    incentive_function_cem_dir,
+                    false,
+                    true,
                 )
                 viu_obj_value = deepcopy(utility._obj_value)
 
