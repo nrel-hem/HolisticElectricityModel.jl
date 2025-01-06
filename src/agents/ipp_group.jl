@@ -839,7 +839,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
     return 0.0
 end
@@ -857,7 +858,7 @@ Lower level optimization results are used to set variable bounds for McCormick-e
 """
 function ipp_cap_lower(
     ipp, ipp_opts, model_data, delta_t, window_length, 
-    customers, der_aggregator, green_developer, solver
+    customers, der_aggregator, green_developer, utility, solver
 )
     MPPDCMER_lower = get_new_jump_model(solver)
 
@@ -950,13 +951,13 @@ function ipp_cap_lower(
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my_delay_update(y, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) - 
+            ) * (1 + utility.loss_dist) - 
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
                 customers.total_pv_stor_capacity_my(cust_year, z, h, m) # this actually needs to be a delayed update as well, but all the if-else in customer_group function makes this difficult. However, as long as the initial capacity does not change year over year for the simulation period this is fine (such as in this case).
                 for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-            ) +
+            ) * (1 + utility.loss_dist) +
             # green technology subscription at time t
             sum(
                 ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -1366,7 +1367,7 @@ Lower level dual optimization results are used to set variable bounds for McCorm
 """
 function ipp_cap_lower_dual(
     ipp, ipp_opts, model_data, delta_t, window_length, 
-    customers, der_aggregator, green_developer, solver
+    customers, der_aggregator, green_developer, utility, solver
 )
     MPPDCMER_lower_dual = get_new_jump_model(solver)
 
@@ -1473,12 +1474,12 @@ function ipp_cap_lower_dual(
                     sum(
                         customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my_delay_update(y, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
-                    ) +
+                    ) * (1 + utility.loss_dist) +
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
                         customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) * 
                         customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-                    ) -
+                    ) * (1 + utility.loss_dist) -
                     # green technology subscription at time t
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -2111,7 +2112,7 @@ end
 
 function ipp_cap_upper(
     mcbnds, ipp, ipp_opts, p_star, model_data, delta_t,
-    regulator, customers, der_aggregator, green_developer; 
+    regulator, customers, der_aggregator, green_developer, utility; 
     max_build=500.0, constraint_scaling = 1.0
 )
     reg_year = regulator.current_year
@@ -2404,12 +2405,12 @@ function ipp_cap_upper(
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) +
+            ) * (1 + utility.loss_dist) +
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
                 customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-            )
+            ) * (1 + utility.loss_dist)
     end
     fill!(ipp.Max_Net_Load_my, NaN)
     Max_Net_Load_my_dict = Dict()
@@ -2632,12 +2633,12 @@ function ipp_cap_upper(
                         sum(
                             customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                             h in model_data.index_h, m in customers.index_m
-                        ) +
+                        ) * (1 + utility.loss_dist) +
                         # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                         sum(
                             customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) * 
                             customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-                        ) -
+                        ) * (1 + utility.loss_dist) -
                         # green technology subscription at time t
                         sum(
                             ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -3097,12 +3098,12 @@ function ipp_cap_upper(
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                 h in model_data.index_h, m in customers.index_m
-            ) -
+            ) * (1 + utility.loss_dist) -
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
                 customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-            ) +
+            ) * (1 + utility.loss_dist) +
             # green technology subscription at time t
             sum(
                 ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -3857,12 +3858,12 @@ function ipp_cap_upper(
                     sum(
                         customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
-                    ) + 
+                    ) * (1 + utility.loss_dist) + 
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
                         customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
                         customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-                    ) -
+                    ) * (1 + utility.loss_dist) -
                     # green technology subscription at time t
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -4817,7 +4818,7 @@ end
 
 function ipp_calc_duality_gap(
     WMDER_IPP, ipp, p_star, model_data, delta_t,
-    customers, der_aggregator, green_developer
+    customers, der_aggregator, green_developer, utility
 )
 
     cust_year = customers.current_year
@@ -4920,12 +4921,12 @@ function ipp_calc_duality_gap(
                     sum(
                         customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
                         h in model_data.index_h, m in customers.index_m
-                    ) + 
+                    ) * (1 + utility.loss_dist) + 
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
                         customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
                         customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
-                    ) -
+                    ) * (1 + utility.loss_dist) -
                     # green technology subscription at time t
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
@@ -5385,7 +5386,7 @@ function solve_agent_problem_ipp_cap(
     window_length,
     jump_model
 )
-    # utility = get_agent(Utility, agent_store)
+    utility = get_agent(Utility, agent_store)
     regulator = get_agent(Regulator, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
     der_aggregator = get_agent(DERAggregator, agent_store)
@@ -5448,7 +5449,7 @@ function solve_agent_problem_ipp_cap(
             solver = lower_level_solver[1]
             MPPDCMER_lower = ipp_cap_lower(
                 ipp, ipp_opts, model_data, delta_t, window_length,
-                customers, der_aggregator, green_developer, solver
+                customers, der_aggregator, green_developer, utility, solver
             )
             push!(jump_model, MPPDCMER_lower)
             if termination_status(MPPDCMER_lower) != OPTIMAL
@@ -5456,7 +5457,7 @@ function solve_agent_problem_ipp_cap(
                 solver = lower_level_solver[1]
                 MPPDCMER_lower = ipp_cap_lower(
                     ipp, ipp_opts, model_data, delta_t, window_length,
-                    customers, der_aggregator, green_developer, solver
+                    customers, der_aggregator, green_developer, utility, solver
                 )
                 jump_model[end] = MPPDCMER_lower
                 # if termination_status(MPPDCMER_lower) != OPTIMAL
@@ -5473,7 +5474,7 @@ function solve_agent_problem_ipp_cap(
             solver = lower_level_solver[1]
             MPPDCMER_lower_dual = ipp_cap_lower_dual(
                 ipp, ipp_opts, model_data, delta_t, window_length,
-                customers, der_aggregator, green_developer, solver
+                customers, der_aggregator, green_developer, utility, solver
             )
             # jump_model[end] = MPPDCMER_lower_dual
         end
@@ -5500,7 +5501,7 @@ function solve_agent_problem_ipp_cap(
 
         WMDER_IPP = ipp_cap_upper(
             mcbnds, ipp, ipp_opts, p_star, model_data, delta_t,
-            regulator, customers, der_aggregator, green_developer
+            regulator, customers, der_aggregator, green_developer, utility
         )
         push!(jump_model, WMDER_IPP)
 
@@ -5514,7 +5515,7 @@ function solve_agent_problem_ipp_cap(
         objective_value(WMDER_IPP)
         lower_level_duality_gap = ipp_calc_duality_gap(
             WMDER_IPP, ipp, p_star, model_data, delta_t,
-            customers, der_aggregator, green_developer
+            customers, der_aggregator, green_developer, utility
         )
 
         if lower_level_duality_gap < ipp.lower_level_duality_gap(reg_year_index)
@@ -5570,7 +5571,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
     diff = 0.0
 
