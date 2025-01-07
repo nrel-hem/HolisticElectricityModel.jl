@@ -64,7 +64,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
 
     utility = get_agent(Utility, agent_store)
@@ -146,7 +147,8 @@ function solve_agent_problem!(
     window_length,
     jump_model,
     export_file_path,
-    update_results::Bool
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
 
     reg_year, reg_year_index = get_reg_year(model_data)

@@ -438,7 +438,8 @@ function solve_equilibrium_problem!(
                             window_length,
                             jump_model,
                             export_file_path,
-                            true
+                            true,
+                            false,
                         )
                     end
                     @assert !isnothing(diff_one) "Nothing returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
