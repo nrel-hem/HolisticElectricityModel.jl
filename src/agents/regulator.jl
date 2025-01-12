@@ -2358,7 +2358,7 @@ function solve_agent_problem!(
 
         valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
 
-        for (county_fips, ba) in model_data.county_to_ba
+        for (county_fips, ba) in model_data.z_to_h
             h = Symbol("Res_$county_fips")  
             z = Symbol(ba)                
             valid_combinations[(z, h)] = true
@@ -2428,7 +2428,7 @@ function solve_agent_problem!(
         # Assign TOU sector rates to each customer type in the sector
         valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
 
-        for (county_fips, ba) in model_data.county_to_ba
+        for (county_fips, ba) in model_data.z_to_h
             h = Symbol("Res_$county_fips")  
             z = Symbol(ba)                
             valid_combinations[(z, h)] = true
@@ -4342,7 +4342,7 @@ function solve_agent_problem!(
             
         valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
 
-        for (county_fips, ba) in model_data.county_to_ba
+        for (county_fips, ba) in model_data.z_to_h
             h = Symbol("Res_$county_fips")  
             z = Symbol(ba)                
             valid_combinations[(z, h)] = true
@@ -4405,7 +4405,7 @@ function solve_agent_problem!(
             
         valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
 
-        for (county_fips, ba) in model_data.county_to_ba
+        for (county_fips, ba) in model_data.z_to_h
             h = Symbol("Res_$county_fips")  
             z = Symbol(ba)                
             valid_combinations[(z, h)] = true

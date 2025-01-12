@@ -18,7 +18,7 @@ mutable struct HEMData
     index_z::Dimension # zone index
     index_sector::Dimension # zone index
     h_to_sector::Dict{Symbol, Symbol}
-    county_to_ba::Dict{String, String}
+    z_to_h::Dict{Symbol, Symbol}
     # Parameters
     omega::ParamArray # number of hours per timeslice
     year::ParamArray
@@ -136,23 +136,28 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
     end
 
 
-    county_id_mapping_path = joinpath(input_filename, "county_id_mapping.csv")
+    index_z_h_mapping_file = joinpath(input_filename, "index_z_h_mapping.csv")
 
-    if isfile(county_id_mapping_path)
-        county_id_mapping = CSV.read(county_id_mapping_path, DataFrame)
+    if isfile(index_z_h_mapping_file)
+        # Read the CSV file, specifying the column names and types
+        index_z_h_mapping = CSV.read(
+            index_z_h_mapping_file,
+            DataFrame;
+            header = [:index_z, :index_h],
+            types = Dict(
+                :index_z => String,
+                :index_h => String
+            )
+        )
 
+        # Convert the index_h and index_sector columns to Symbols
+        keys = Symbol.(index_z_h_mapping[!, :index_z])
+        values = Symbol.(index_z_h_mapping[!, :index_h])
 
-        county_id_mapping.County_FIPS = map(x -> lpad(string(x), 5, '0'), county_id_mapping.County_FIPS)
-        county_id_mapping.BA = map(x -> "p$x", county_id_mapping.PCA_ID)
-
-        prefix = "Res"
-        county_id_mapping[!, :index_h] = string.(prefix, "_", county_id_mapping.County_FIPS)
-
-        county_id_mapping[!, :index_z] = county_id_mapping.BA
-
-        county_to_ba = Dict(county_id_mapping.County_FIPS .=> county_id_mapping.BA)
+        # Create a Dict{Symbol, Symbol}
+        z_to_h = Dict(zip(keys, values))
     else
-        error("county_id_mapping.csv not found at $county_id_mapping_path")
+        error("index_z_h_mapping.csv not found in $index_z_h_mapping_file")
     end
 
 
@@ -193,7 +198,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         index_z,
         index_sector,
         h_to_sector, 
-        county_to_ba,
+        z_to_h,
         omega,
         year,
         time,
