@@ -6,15 +6,15 @@ CurrentModule = HolisticElectricityModel
 
 ## Overview
 
-`HolisticElectricityModel.jl` is a [`Julia`](http://www.julialang.org) package
-that provides a computational framework for analyzing electricity systems in their entirety, from the points of view of all key stakeholders. Within HEM, various stakeholders can operate as independent agents with different constraints and objectives under different regulatory structures. HEM iteratively captures the interactions between the different agents and the influence of their decisions on the evolution of the system under study until it converges to a stable equillibrium. 
+`HolisticElectricityModel.jl` (HEM) is a [`Julia`](http://www.julialang.org) package
+that provides a computational framework for analyzing electricity systems in their entirety, from the points of view of all key stakeholders. Within HEM, various stakeholders operate as independent agents with different constraints, objectives, and decision-making processes. HEM iteratively captures the interactions between the different agents and the influence of their decisions on the evolution of the system under study year by year. 
 
-*N. Guo et al., "Integrated, Multi-Stakeholder Analysis of Electricity System Structures: Methodology and a Case Study," in IEEE Transactions on Energy Markets, Policy and Regulation, vol. 1, no. 4, pp. 237-247, Dec. 2023, doi: 10.1109/TEMPR.2023.3277345.*
+*Guo, Nongchao, Elaine Hale, Jessica Lau, Jenny Heeter, Mark O’Malley, Bryan Palmintier, and Shanti Pless. 2023. “Integrated, Multi-Stakeholder Analysis of Electricity System Structures: Methodology and a Case Study.” IEEE Transactions on Energy Markets, Policy and Regulation 1 (4): 237–47. https://doi.org/10.1109/TEMPR.2023.3277345.*
 
 ## Installation
 
 ### NREL HPC Instructions
-(*Skip this step if Julia is already installed in the HPC*)
+(*Skip this step if Julia is already installed on the HPC*)
 - Go to https://julialang.org/downloads and copy the link to the latest supported Julia Linux image (currently Julia 1.10.0).
 - ssh to NREL HPC (currently Kestrel) and download the image.
 ```bash

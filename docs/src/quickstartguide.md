@@ -4,9 +4,9 @@
 
 - **Julia**: HolisticElectricityModel is written in Julia. Instructions to install Julia can be found in the [julia website](https://julialang.org/downloads/).  If this is your first time using Julia visit the official [Getting started with Julia](https://julialang.org/learning/).
 
-- **Solvers**: Running HEM requires access to LP and MIP solvers. Because different choices can be made in this regard, we recommend setting up your computational environment based on one of the environments under [runner](https://github.com/nrel-hem/HolisticElectricityModel.jl/tree/main/runner). Currently, it is recommended to use Gurobi for HPC and Xpress for local runs.
+- **Solvers**: Running HEM requires access to LP and MIP solvers. Because different choices can be made in this regard, we recommend setting up your computational environment based on one of the environments under [runner](https://github.com/nrel-hem/HolisticElectricityModel.jl/tree/main/runner). At NREL we recommend using Gurobi for HPC and Xpress for local runs.
 
-- **Data**: The data for which the simulation will be run needs to be pre-populated and placed in the local directory. Detailed instructions on how to generate the run inputs can be found in the [HolisticElectricityModelData.jl](https://github.com/nrel-hem/HolisticElectricityModelData.jl) repository.
+- **Data**: The data for which the simulation will be run needs to be pre-populated and placed in the local directory. Instructions on how to generate run inputs can be found in the [HolisticElectricityModelData.jl](https://github.com/nrel-hem/HolisticElectricityModelData.jl) repository.
 
 
 ## Running Your First Model
@@ -27,7 +27,7 @@
 > salloc -N 1 -t 60 --account=hem --partition=debug
 # ... Wait for a compute node
 > cd HolisticElectricityModel.jl
-> module load gurobi/11.0.0
+> module load gurobi/11.0.2
 > julia --project=runner/Gurobi script/hem.jl
 ```
 
