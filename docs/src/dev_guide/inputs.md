@@ -6,6 +6,7 @@ Inputs used to run the Holistic Electricity Model: [indices](#indices) and [para
 Indices are the dimensions along which the rest of the data are organized, such as the types of generation and storage resources, number of independent power producers, the balancing areas considered, the representative days and hours in the model, etc. Indices are always single-dimensional, with individual values arrayed in the first row of a .csv file (i.e., serialized as a row vector).
 
 In limited cases, mappings between two or three indices must also be provided. Mapping files contain two or three columns labeled with the name of each index being mapped. The presence of an entry is interpreted as membership or a scaling factor of 1.0, whereas absence from the file is interpreted as non-membership or a scaling factor of 0.0.
+
 ### Common Indices
 
  - **index_y.csv**: Simulation years, e.g., 2020, 2021, .... The file is used to generate two indices within HEM. The current simulation window is defined by `index_y`. `index_y_fix` represents the full simulation horizon (equal to the years listed in the .csv file) and does not change. Year indices are used in HEM as both strings (for labeling other data) and integers (for iterating and performing calculations).

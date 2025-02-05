@@ -30,7 +30,7 @@ The Holistic Electricity Model (HEM) is a computational framework for analyzing 
     ```
 - Once on a login node, make it so the required packages will load. Also, load the latest suported Gurobi solver (currently 11.0.0):
     ```bash
-    > module load gurobi/11.0.0
+    > module load gurobi/11.0.2
     > julia --project=runner/Gurobi
     ```
 
@@ -71,7 +71,7 @@ based on one of the environments under [runner](https://github.com/nrel-hem/Holi
 - Load the Gurobi module
 
     ```
-    module load gurobi/11.0.0
+    module load gurobi/11.0.2
     ```
     and then use the `hem.jl` script for your model runs.
   
@@ -80,7 +80,7 @@ based on one of the environments under [runner](https://github.com/nrel-hem/Holi
     > salloc -N 1 -t 60 --account=hem --partition=debug
     # ... Wait for a compute node
     > cd HolisticElectricityModel.jl
-    > module load gurobi/11.0.0
+    > module load gurobi/11.0.2
     > julia --project=runner/Gurobi script/hem.jl
     ```
 

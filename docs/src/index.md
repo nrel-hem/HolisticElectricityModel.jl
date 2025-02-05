@@ -33,7 +33,7 @@ $ source ~/.bashrc
 ```
 - Once on a login node, make it so the required packages will load. Also, load the latest suported Gurobi solver (currently 11.0.0):
 ```bash
-> module load gurobi/11.0.0
+> module load gurobi/11.0.2
 > julia --project=runner/Gurobi
 ```
 

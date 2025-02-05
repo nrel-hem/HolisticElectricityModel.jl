@@ -18,7 +18,7 @@
 - Load the Gurobi module
 
 ```bash
-> module load gurobi/11.0.0
+> module load gurobi/11.0.2
 ```
     and then use the `hem.jl` script for your model runs.
   
