@@ -9,8 +9,10 @@ end
 
 pages = OrderedDict(
         "Welcome Page" => "index.md",
+        "Quick Start Guide" => "quickstartguide.md",
         "Developer Guide" => Any[
             "dev_guide/logging.md",
+            "dev_guide/inputs.md"
         ],
         "API" => "HolisticElectricityModel.md"
 )
@@ -42,6 +44,7 @@ makedocs(
     modules = [HolisticElectricityModel],
     format = Documenter.HTML(prettyurls = haskey(ENV, "GITHUB_ACTIONS"),),
     sitename = "HolisticElectricityModel.jl",
+    authors = "Elaine Hale, Nongchao Guo, Daniel Thom, Haley Ross, Purboday Ghosh, and Burcin Cakir Erdener",
     pages = Any[p for p in pages]
 )
 
