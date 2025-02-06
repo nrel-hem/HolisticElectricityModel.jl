@@ -1,4 +1,5 @@
 # HolisticElectricityModel.jl
+[![Documentation](https://img.shields.io/badge/docs-ready-blue.svg)](https://nrel-hem.github.io/HolisticElectricityModel.jl/)
 
 The Holistic Electricity Model (HEM) is a computational framework for analyzing electricity systems in their entirety, from the points of view of all key stakeholders.
 
