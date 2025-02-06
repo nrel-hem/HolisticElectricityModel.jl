@@ -52,7 +52,7 @@ deploydocs(
     repo = "https://github.nrel.gov/HEM/HolisticElectricityModel.jl",
     target = "build",
     branch = "gh-pages",
-    devbranch = "master",
+    devbranch = "main",
     devurl = "dev",
     versions = ["stable" => "v^", "v#.#"],
     push_preview = true,
