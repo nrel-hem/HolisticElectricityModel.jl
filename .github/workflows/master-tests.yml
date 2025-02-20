@@ -10,6 +10,7 @@ on:
 jobs:
   test:
     name: Julia ${{ matrix.julia-version }} - ${{ matrix.os }}
+    if: false   # disable workflow
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

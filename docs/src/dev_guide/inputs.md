@@ -23,27 +23,27 @@ In limited cases, mappings between two or three indices must also be provided. M
 
  - **index_sector.csv**: High-level customer groups used to establish classes for rate-making. Example values are `Residential, Commercial, Industrial`.
 
- - **index_h_sector_mapping.csv**: File that maps each customer type in index\_h to a high-level customer group (for rate-making) in index\_sector. It consists of two columns, `index_h` and `index_sector`.
+ - **index\_h\_sector_mapping.csv**: File that maps each customer type in index\_h to a high-level customer group (for rate-making) in index\_sector. It consists of two columns, `index_h` and `index_sector`.
 
 ### Agent-Specfic Indices
 
 #### Regulator
 
- - **index_rate_tou.csv**: Index for supported time-of-use rate periods. Example values are `Off-Peak, On-Peak, Mid-Peak`.
+ - **index\_rate\_tou.csv**: Index for supported time-of-use rate periods. Example values are `Off-Peak, On-Peak, Mid-Peak`.
 
- - **tou_rate_structure_\$(tou_suffix).csv**: Time-of-use rate period assigned to each representative day and hour combination. The column names are `index_d`, `index_t` and `index_rate_tou`. Here, the input file selected depends on the `tou_suffix` specified in the config.yaml file under `regulator_options`.
+ - **tou\_rate\_structure\_\$(tou\_suffix).csv**: Time-of-use rate period assigned to each representative day and hour combination. The column names are `index_d`, `index_t` and `index_rate_tou`. Here, the input file selected depends on the `tou_suffix` specified in the config.yaml file under `regulator_options`.
 
 #### Utility and IPPGroup
 
- - **index_k_existing.csv**: Existing bulk generation technologies, e.g., `coaloldscr`, `gas-ct`, `nuclear`, `wind-ofs` etc.
+ - **index\_k\_existing.csv**: Existing bulk generation technologies, e.g., `coaloldscr`, `gas-ct`, `nuclear`, `wind-ofs` etc.
 
- - **index_k_new.csv**: Bulk generation technologies available for new investment, e.g., `coaloldscr`, `gas-ct`, `nuclear`, `wind-ofs` etc.
+ - **index\_k\_new.csv**: Bulk generation technologies available for new investment, e.g., `coaloldscr`, `gas-ct`, `nuclear`, `wind-ofs` etc.
 
  - **index_rps.csv**: [Renewable Potfolio Standard (RPS)](https://www.nrel.gov/state-local-tribal/basics-portfolio-standards.html) qualified technologies, e.g., `biopower`, `wind-ofs` etc.
 
- - **index_stor_existing.csv**: Existing bulk storage technologies, e.g., `battery_1`, `battery_2` etc.
+ - **index\_stor\_existing.csv**: Existing bulk storage technologies, e.g., `battery_1`, `battery_2` etc.
 
- - **index_stor_new.csv**: Bulk storage technologies available for new investment, e.g., `battery_1`, `battery_2` etc.
+ - **index\_stor\_new.csv**: Bulk storage technologies available for new investment, e.g., `battery_1`, `battery_2` etc.
 
  - **index_l.csv**: Transmission lines. Each line is represented as `\$(origin_zone)||\$(destination_zone)`, e.g., `p100||p101`. Both `origin_zone` and `destination_zone` are required to be elements of `index_z`.
 
@@ -54,6 +54,7 @@ In limited cases, mappings between two or three indices must also be provided. M
  - **index_m.csv**: Behind-The-Meter (BTM) technologies, e.g., `BTMPV, BTMStorage`. Currently these index values are hard-coded into the model and would be difficult to change/remove.
 
 #### Green Developer
+*Agent code and data are nominally available, but have not been used in analysis, tested recently, or maintained.*
 
  - **index_j.csv**: Green technology types. Example values are `biopower, wind-ons, wind-ofs`. This index is related to the `GreenDeveloper` agent and direct purchases of clean electricity by customers through power purchase agreements.
 
@@ -323,6 +324,8 @@ Parameters contain numeric data defined over zero, one, or more indices. If the 
 
  - **NetCONE.csv**: Net Cost of New Entry for capacity market (\$/MW-yr). Column names are the years in index\_y (e.g., `2021, 2022, ...`).
 
+ - **DC_length.csv**: Capacity market demand curve length (zero-crossing point of the demand curve) for each year in index\_y. Column names are years in index\_y (e.g., `2021, 2022`).
+
 ### Technology Parameters
 
 #### Technology Performance for Existing and Future Resources (Utility and IPPGroup)
@@ -363,9 +366,9 @@ Parameters contain numeric data defined over zero, one, or more indices. If the 
 
 #### Technology Performance for Customers (CustomerGroup)
 
- - **rte_dist_stor.csv**: Distributed storage round trip efficiency (fraction) for a customer type in index\_h and a zone in index\_z. Column names are index\_z, followed by the customer type values in index\_h (e.g., `Commercial, Residential, Industrial`).
+ - **rte\_dist\_stor.csv**: Distributed storage round trip efficiency (fraction) for a customer type in index\_h and a zone in index\_z. Column names are index\_z, followed by the customer type values in index\_h (e.g., `Commercial, Residential, Industrial`).
 
- - **duration_dist_stor.csv**: Distributed storage duration (hours) for a customer type in index\_h and a zone in index\_z. Column names are index\_z, followed by the customer type values in index\_h (e.g., `Commercial, Residential, Industrial`).
+ - **duration\_dist\_stor.csv**: Distributed storage duration (hours) for a customer type in index\_h and a zone in index\_z. Column names are index\_z, followed by the customer type values in index\_h (e.g., `Commercial, Residential, Industrial`).
 
  - **OptimalDER.csv**: Optimal DER capacity (MWh) of the BTM technologies for each each zone in index\_z and customer group in index\_h. Column names are index\_z, index\_h, folowed by the technology names in index\_m (e.g., `BTMPV, BTMStorage`).
 
@@ -378,7 +381,5 @@ Parameters contain numeric data defined over zero, one, or more indices. If the 
  - **Bass_P.csv**: Coefficient of innovation (p) values for the Bass diffusion model (used to construct the PV adoption model) for each cutomer type in index\_h, zone in index\_z and BTM technology combination. Column names are index\_z, index\_h, followed by the values in index\_m (e.g., `BTMPV, BTMStorage`).
 
  - **Bass_Q.csv**: Coefficient of imitation (q) values for the Bass diffusion model (used to construct the PV adoption model) for each cutomer type in index\_h, zone in index\_z and BTM technology combination. Column names are index\_z, index\_h, followed by the values in index\_m (e.g., `BTMPV, BTMStorage`).
-
- - **DC_length.csv**: Capacity market demand curve length for each year in index\_y. Column names are years in index\_y(e.g., `2021, 2022`).
 
  - **WTP.csv**: Wllingness to pay (\$/MW) for each year in index\_y. Column names are the years in index\_y (e.g., `2021, 2022`).
