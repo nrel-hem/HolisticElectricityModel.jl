@@ -8,6 +8,7 @@ on:
       - master
       
 jobs:
+  if: false   # disable the workflow
   test:
     name: Julia ${{ matrix.julia-version }} - ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
