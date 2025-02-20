@@ -1,8 +1,8 @@
 name: Master - CI
 
 on:
-  # schedule:
-  # - cron: "0 0 * * 1-5"
+  schedule:
+  - cron: "0 0 * * 1-5"
   push:
     branches:
       - master
@@ -10,6 +10,7 @@ on:
 jobs:
   test:
     name: Julia ${{ matrix.julia-version }} - ${{ matrix.os }}
+    if: false   # disable workflow
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
