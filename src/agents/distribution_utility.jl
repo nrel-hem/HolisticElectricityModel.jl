@@ -280,31 +280,31 @@ function existing_distribution_account(
 
     total_sale_initial =
         sum(
-            customers.gamma(h) * model_data.omega(t) * customers.d_my(first(model_data.index_y_fix), h, t) for
-            h in model_data.index_h, t in model_data.index_t
+            customers.gamma(z, h) * model_data.omega(d) * customers.d_my(first(model_data.index_y_fix), h, z, d, t) for
+            z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
         ) +
         # export
         sum(
-            model_data.omega(t) * utility.eximport_my(first(model_data.index_y_fix), t) for
-            t in model_data.index_t
+            model_data.omega(d) * utility.eximport_my(first(model_data.index_y_fix), z, d, t) for
+            z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         ) -
         # DG
         sum(
-            model_data.omega(t) * (
-                customers.rho_DG(h, m, t) *
-                customers.x_DG_E_my(first(model_data.index_y_fix), h, m)
-            ) for t in model_data.index_t, h in model_data.index_h, m in customers.index_m
+            model_data.omega(d) * (
+                customers.rho_DG(h, m, z, d, t) *
+                customers.x_DG_E_my(first(model_data.index_y_fix), h, z, m)
+            ) for t in model_data.index_t, h in model_data.index_h, m in customers.index_m, z in model_data.index_z, d in model_data.index_d
         )
     
     distribution_capex_balance_norm =
         distribution_capex_balance_model.constant +
         distribution_capex_balance_model.total_sales_coefficient * normalize(total_sale_initial, "total_sales", capex_balance_norm_inputs) +
         distribution_capex_balance_model.residential_customer_coefficient *
-        normalize(customers.gamma(:Residential), "residential", capex_balance_norm_inputs) +
+        normalize(sum(customers.gamma(:, :Residential)), "residential", capex_balance_norm_inputs) +
         distribution_capex_balance_model.commercial_customer_coefficient *
-        normalize(customers.gamma(:Commercial), "commercial", capex_balance_norm_inputs) +
+        normalize(sum(customers.gamma(:, :Commercial)), "commercial", capex_balance_norm_inputs) +
         distribution_capex_balance_model.industrial_customer_coefficient *
-        normalize(customers.gamma(:Industrial), "industrial", capex_balance_norm_inputs)
+        normalize(sum(customers.gamma(:, :Industrial)), "industrial", capex_balance_norm_inputs)
 
     distribution_capex_balance_reverse = denormalize(distribution_capex_balance_norm, "distribution_capex_balance", capex_balance_norm_inputs)
 
@@ -344,29 +344,29 @@ function new_distribution_account(
 
     total_sale =
         sum(
-            customers.gamma(h) * model_data.omega(t) * customers.d(h, t) for
-            h in model_data.index_h, t in model_data.index_t
+            customers.gamma(z, h) * model_data.omega(d) * customers.d(h, z, d, t) for
+            h in model_data.index_h, t in model_data.index_t, z in model_data.index_z, d in model_data.index_d
         ) +
         # export
         sum(
-            model_data.omega(t) * utility.eximport_my(reg_year_index, t) for
-            t in model_data.index_t
+            model_data.omega(d) * utility.eximport_my(reg_year_index, z, d, t) for
+            z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         ) -
         # DG
         sum(
-            model_data.omega(t) * (
-                customers.rho_DG(h, m, t) *
-                customers.x_DG_E_my(first(model_data.index_y), h, m) + sum(
-                    customers.rho_DG(h, m, t) * customers.x_DG_new_my(Symbol(Int(y)), h, m)
+            model_data.omega(d) * (
+                customers.rho_DG(h, m, z, d, t) *
+                customers.x_DG_E_my(first(model_data.index_y), h, z, m) + sum(
+                    customers.rho_DG(h, m, z, d, t) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m)
                     for y = model_data.year(first(model_data.index_y_fix)):reg_year
                 )
-            ) for t in model_data.index_t, h in model_data.index_h, m in customers.index_m
+            ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t, h in model_data.index_h, m in customers.index_m
         )
 
     # customer module updates customers.x_DG_E to be the DPV at the beginning of the year,
-    # to use end of the year, add customers.x_DG_new_my(reg_year_index, h, m)
+    # to use end of the year, add customers.x_DG_new_my(reg_year_index, h, z, m)
     dpv_pca =
-        sum(customers.x_DG_E(h, m) for h in model_data.index_h, m in customers.index_m)
+        sum(customers.x_DG_E(h, z, m) for h in model_data.index_h, z in model_data.index_z, m in customers.index_m)
     
     distribution_capex_addition_norm =
         distribution_capex_addition_model.constant +
@@ -375,11 +375,11 @@ function new_distribution_account(
         distribution_capex_addition_model.dpv_coefficient * normalize(dpv_pca, "dpv", capex_addition_norm_inputs) +
         distribution_capex_addition_model.total_sales_coefficient * normalize(total_sale, "total_sales", capex_addition_norm_inputs) +
         distribution_capex_addition_model.residential_customer_coefficient *
-        normalize(customers.gamma(:Residential), "residential", capex_addition_norm_inputs) +
+        normalize(sum(customers.gamma(:, :Residential)), "residential", capex_addition_norm_inputs) +
         distribution_capex_addition_model.commercial_customer_coefficient *
-        normalize(customers.gamma(:Commercial), "commercial", capex_addition_norm_inputs) +
+        normalize(sum(customers.gamma(:, :Commercial)), "commercial", capex_addition_norm_inputs) +
         distribution_capex_addition_model.industrial_customer_coefficient *
-        normalize(customers.gamma(:Industrial), "industrial", capex_addition_norm_inputs)
+        normalize(sum(customers.gamma(:, :Industrial)), "industrial", capex_addition_norm_inputs)
 
     distribution_om_cost_norm =
         distribution_om_cost_model.constant +
@@ -387,11 +387,11 @@ function new_distribution_account(
         normalize(distribution_utility.SAIDI(reg_year_index), "saidi", om_cost_norm_inputs) +
         distribution_om_cost_model.total_sales_coefficient * normalize(total_sale, "total_sales", om_cost_norm_inputs) +
         distribution_om_cost_model.residential_customer_coefficient *
-        normalize(customers.gamma(:Residential), "residential", om_cost_norm_inputs) +
+        normalize(sum(customers.gamma(:, :Residential)), "residential", om_cost_norm_inputs) +
         distribution_om_cost_model.commercial_customer_coefficient *
-        normalize(customers.gamma(:Commercial), "commercial", om_cost_norm_inputs) +
+        normalize(sum(customers.gamma(:, :Commercial)), "commercial", om_cost_norm_inputs) +
         distribution_om_cost_model.industrial_customer_coefficient *
-        normalize(customers.gamma(:Industrial), "industrial", om_cost_norm_inputs)
+        normalize(sum(customers.gamma(:, :Industrial)), "industrial", om_cost_norm_inputs)
 
     distribution_capex_addition_reverse = denormalize(distribution_capex_addition_norm, "distribution_capex_addition", capex_addition_norm_inputs)
     distribution_om_cost_reverse = denormalize(distribution_om_cost_norm, "distribution_om_cost", om_cost_norm_inputs)
@@ -455,6 +455,11 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, <:UseCase, <:UseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
+    window_length,
+    jump_model,
+    export_file_path,
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
 
     regulator = get_agent(Regulator, agent_store)
@@ -488,7 +493,7 @@ function solve_agent_problem!(
     revenue_requirement =
         debt_interest + return_to_equity + income_tax + operational_cost + distribution_existing_annual_depreciation + distribution_new_annual_accounting_depreciation
 
-    regulator.distribution_cost(reg_year_index, :) .= revenue_requirement
+    regulator.distribution_cost(:, reg_year_index) .= revenue_requirement
 
     distribution_utility.current_year = reg_year_index
 

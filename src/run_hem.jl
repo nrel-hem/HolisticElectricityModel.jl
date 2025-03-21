@@ -34,7 +34,7 @@ function run_hem(
     ipp = IPPGroup(input_dir, model_data)
     green_developer = GreenDeveloper(input_dir, model_data)
     dera = DERAggregator(input_dir, model_data, dera_options)
-    # distribution_utility = DistributionUtility(input_dir, model_data)
+    distribution_utility = DistributionUtility(input_dir, model_data)
 
     # the sequence of simulation matters a lot! (e.g., the year DER aggregation is picked is dependent on this)
     agents_and_opts = [
@@ -44,7 +44,7 @@ function run_hem(
         AgentAndOptions(customers, customer_options),
         AgentAndOptions(green_developer, green_developer_options),
         AgentAndOptions(dera, dera_options),
-        # AgentAndOptions(distribution_utility, NullAgentOptions()),
+        AgentAndOptions(distribution_utility, NullAgentOptions()),
     ]
 
     output_dir = joinpath(input_dir, get_file_prefix(options, agents_and_opts))
