@@ -1,8 +1,3 @@
-# Question: Also, when should I specify types?
-# Answer: When necessary for dispatch, and often for clarity. 
-#         Always use AbstractString, not String.
-#         Iterables can be tricky--go with duck typing when you can in that case
-
 """
     read_set(filename, filename)
 
@@ -41,13 +36,8 @@ function read_param(
     description::AbstractString = "",
 )
     vals = read_record_file(KeyedArray, dirpath, filename, 1)
-    result = ParamArray(
-        name,
-        (index,),
-        vals,
-        prose_name = prose_name,
-        description = description,
-    )
+    result =
+        ParamArray(name, (index,), vals, prose_name = prose_name, description = description)
     @debug "Loaded $filename" result
     return result
 end
@@ -282,7 +272,7 @@ close(logger)
 function configure_logging(;
     console_level = Logging.Error,
     file_level = Logging.Info,
-    filename::Union{Nothing, AbstractString} = "hem.log",
+    filename::Union{Nothing,AbstractString} = "hem.log",
 )
     return IS.configure_logging(
         console = true,

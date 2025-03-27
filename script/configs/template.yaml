@@ -1,0 +1,70 @@
+# ------------------------------------------------------------------------------
+# Data Selection
+# ------------------------------------------------------------------------------
+
+data_selection:
+  # Specify the path to the inputs for the model. If using HolisticElectricityModelData.jl, it should point to the test case folder under runs/.
+  # If on Windows, enter paths like "C:\\projects\\HolisticElectricityModelData.jl\\runs\\..."
+  input_path: "../HolisticElectricityModelData.jl/runs/ba_6_base_2020_future_15_ipps_1/"
+
+# ------------------------------------------------------------------------------
+# Simulation Parameters
+# ------------------------------------------------------------------------------
+
+simulation_parameters:
+  # CHOOSE ONE
+  solver: "Xpress" # "Gurobi"
+
+# ------------------------------------------------------------------------------
+# Holistic Energy Model (HEM) model-wide options
+# ------------------------------------------------------------------------------
+
+hem_options:
+  # CHOOSE ONE
+  market_structure: "wholesale_market" # "vertically_integrated_utility"
+  # CHOOSE ONE
+  der_use_case: "der_use_case" # "null_use_case"
+  # CHOOSE ONE
+  supply_choice_use_case: "supply_choice_use_case" # "null_use_case"
+  # CHOOSE ONE
+  der_aggregation_use_case: "der_aggregation_use_case" # null_use_case
+
+# ------------------------------------------------------------------------------
+# Regulator options
+# ------------------------------------------------------------------------------
+regulator_options:
+  # CHOOSE ONE
+  rate_design: "flat_rate" # "time_of_use"
+  # CHOOSE ONE
+  net_metering_policy: "excess_retail_rate" # "excess_marginal_cost", "excess_zero"
+  # CHOOSE ONE
+  tou_suffix : "NE2025" # "NE2035"
+  # OPTIONALLY SET TO NON-DEFAULT VALUE
+  planning_reserve_margin : 0.129
+  # OPTIONALLY SET TO NON-DEFAULT VALUE
+  allowed_return_on_investment : 0.112
+
+# ------------------------------------------------------------------------------
+# Independent Power Producer (IPP) options
+# ------------------------------------------------------------------------------
+
+ipp_options:
+  # CHOOSE ONE
+  ipp_algorithm: "mppdcmer_transportation_storage" # "lagrange_decomposition", "mpppcmer", "miqp"
+
+# ------------------------------------------------------------------------------
+# Customer options
+# ------------------------------------------------------------------------------
+customer_options:
+  # CHOOSE ONE
+  pv_adoption_type: "compete_der_configs" # "standalone_pv", "solar_plus_storage"
+
+# ------------------------------------------------------------------------------
+# DER Aggregator options
+# ------------------------------------------------------------------------------
+der_aggregator_options:
+  # CHOOSE AN INTEGER 1:5
+  incentive_curve: 1
+  # CHOOSE A FRACTION [0,1]
+  frac_viu_cost_savings_as_revenue: 0.5
+  

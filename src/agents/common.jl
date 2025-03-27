@@ -3,6 +3,41 @@
 const DEFAULT_ID = "default"
 const HEM_TIMER = TimerOutputs.TimerOutput()
 
+abstract type Options end
+
+get_file_prefix(::Options) = String("")
+
+# Struct with no fields used to dispatch -- this is the traits pattern
+abstract type MarketStructure end
+struct VIU <: MarketStructure end
+struct WM <: MarketStructure end
+
+abstract type UseCase end
+struct NullUseCase <: UseCase end
+struct DERAdoption <: UseCase end
+struct SupplyChoice <: UseCase end
+struct DERAggregation <: UseCase end
+
+struct HEMOptions{T <: MarketStructure, 
+    U <: Union{NullUseCase,DERAdoption},
+    V <: Union{NullUseCase,SupplyChoice},
+    W <: Union{NullUseCase,DERAggregation}} <: Options
+market_structure::T
+
+# use case switches
+der_use_case::U
+supply_choice_use_case::V
+der_aggregation_use_case::W
+end
+
+function get_file_prefix(options::HEMOptions)
+return join([# "$(typeof(options.der_use_case))", 
+   # "$(typeof(options.supply_choice_use_case))",
+   "$(typeof(options.der_aggregation_use_case))",
+   "$(typeof(options.market_structure))"],"_")
+end
+
+
 mutable struct HEMData
     # Configuration
     epsilon::ParamScalar # iteration tolerance
@@ -16,9 +51,11 @@ mutable struct HEMData
     index_h::Dimension # customer types
     index_j::Dimension # green tariff technologies
     index_z::Dimension # zone index
-    index_sector::Dimension # zone index
-    h_to_sector::Dict{Symbol, Symbol}
+    index_sector::Dimension # sector index (for rate-making)
+    # TODO: Replace data type
+    h_to_sector::Dict{Symbol, Symbol} # map from customer type to sector
     z_to_h::Dict{Symbol, Symbol}
+
     # Parameters
     omega::ParamArray # number of hours per timeslice
     year::ParamArray
@@ -36,7 +73,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "simulation years",
     )
     # "index_y_fix" represents the full simulation horizon (does not change)
-    # "index_y" represents the simulation years in a particular window (gets updated on line 296)
+    # "index_y" represents the simulation years in a particular window (gets updated in solve_equilibrium_problem!)
     # e.g., when we simulate years 2021-2030, "index_y_fix" will be [2021, ..., 2030]
     # if the planning window is 5-year for utility or IPPs, so the first index_y will be
     # [2021, ..., 2025], after solving the first window, index_y will be updated to [2022, ..., 2026] etc.
@@ -183,6 +220,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         index_t,
         description = "Time"
     )
+    # TODO: Remove hard-coding. (This start year is also specified in HEMData.jl)
     year_start = ParamScalar("year_start", 2020, description = "simulation start year")
 
     # Return HEMData, passing the constructed h_to_sector
@@ -239,45 +277,12 @@ function get_prev_two_reg_year(model_data::HEMData, w_iter::Integer)
 end
 
 
-# Struct with no fields used to dispatch -- this is the traits pattern
-abstract type MarketStructure end
-struct VerticallyIntegratedUtility <: MarketStructure end
-struct WholesaleMarket <: MarketStructure end
-
-abstract type UseCase end
-struct NullUseCase <: UseCase end
-struct DERAdoption <: UseCase end
-struct SupplyChoice <: UseCase end
-struct DERAggregation <: UseCase end
-
-abstract type Options end
-
-get_file_prefix(::Options) = String("")
-
-struct HEMOptions{T <: MarketStructure, 
-                  U <: Union{NullUseCase,DERAdoption},
-                  V <: Union{NullUseCase,SupplyChoice},
-                  W <: Union{NullUseCase,DERAggregation}} <: Options
-    market_structure::T
-
-    # use case switches
-    der_use_case::U
-    supply_choice_use_case::V
-    der_aggregation_use_case::W
-end
-
-function get_file_prefix(options::HEMOptions)
-    return join(["$(typeof(options.der_use_case))", 
-                 "$(typeof(options.supply_choice_use_case))",
-                 "$(typeof(options.der_aggregation_use_case))",
-                 "$(typeof(options.market_structure))"],"_")
-end
-
 """
 Abstract type for agents.
 
 Required interfaces:
 - get_id(agent::Agent)::String
+- get_current_year(agent::Agent, model_data::HEMData)::Tuple{Float64,Symbol}
 - solve_agent_problem!(
       agents::AgentGroup,
       agent_opts::AgentOptions,
@@ -301,6 +306,15 @@ each model year.
 """
 function update_cumulative!(model_data::HEMData, agent::AbstractAgent)
     return
+end
+
+"""
+Get the last year for which agent's data have been updated. Provided so other 
+agents can access the right data for agent.
+"""
+function get_current_year(agent::AbstractAgent, model_data::HEMData)
+    yr = model_data.year(agent.current_year)
+    return yr, Symbol(Int(yr))
 end
 
 # There is currently no behavioral difference between the structs AgentGroup and Agent, but
@@ -454,7 +468,8 @@ function solve_equilibrium_problem!(
                             window_length,
                             jump_model,
                             export_file_path,
-                            true
+                            true,
+                            false,
                         )
                     end
                     @assert !isnothing(diff_one) "Nothing returned by solve_agent_problem!($(typeof(agent))): $(diff_one)"
@@ -491,14 +506,14 @@ function solve_equilibrium_problem!(
         save_results(agent, options, hem_opts, export_file_path)
     end
 
-    # if hem_opts.market_structure isa VerticallyIntegratedUtility
+    # if hem_opts.market_structure isa VIU
     #     x = store.data[Utility]["default"]
     #     Welfare_supply =
     #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
     #     y = store.data[CustomerGroup]["default"]
     #     Welfare_demand =
     #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    # elseif hem_opts.market_structure isa WholesaleMarket
+    # elseif hem_opts.market_structure isa WM
     #     x = store.data[IPPGroup]["default"]
     #     Welfare_supply =
     #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
@@ -509,13 +524,14 @@ function solve_equilibrium_problem!(
 
     # if hem_opts.supply_choice_use_case isa NullUseCase
     #     Welfare_green_developer = [
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix), 
-    #         initialize_keyed_array(model_data.index_y_fix)]
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #         initialize_keyed_array(model_data.index_y_fix),
+    #     ]
     # else
     #     z = store.data[GreenDeveloper]["default"]
     #     Welfare_green_developer =

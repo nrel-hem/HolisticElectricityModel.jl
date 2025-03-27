@@ -5,8 +5,7 @@ using Test
 
 using HolisticElectricityModel
 
-# driver_name = "driver_gurobi.jl"
-driver_name = "driver_xpress.jl"
+driver_name = "hem.jl"
 
 BASE_DIR = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
 
