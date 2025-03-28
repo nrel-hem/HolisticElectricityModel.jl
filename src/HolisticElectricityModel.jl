@@ -69,8 +69,14 @@ export solve_agent_problem_decomposition_by_year_feasible_obj
 export solve_agent_problem_decomposition_by_year_master
 
 # Data Structures
+export Dimension
+export DimensionSet
+export ParamScalar
+export ParamArray
 export initialize_param
 export make_keyed_array
+export read_set
+export read_param
 
 # Solvers
 export import_solver_package

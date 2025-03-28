@@ -1069,6 +1069,10 @@ function solve_agent_problem!(
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
     delta_t = get_delta_t(model_data)
 
+    # z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, 1)
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
+    @show z_to_h_dict
+
     # the aggregator problem hasn't solved yet, so use last year's participation rates
     reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
 
@@ -1150,16 +1154,16 @@ function solve_agent_problem!(
     fill!(utility.Net_Load_my, NaN)
     for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         utility.Net_Load_my(y, z, d, t, :) .=
-            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - 
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in z_to_h_dict[z]) - 
             # total DG generation at time t
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
-                h in model_data.index_h, m in customers.index_m
+                h in z_to_h_dict[z], m in customers.index_m
             ) * (1 + utility.loss_dist) +
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
-                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                customers.total_pv_stor_capacity_my(y, z, h, m) for h in z_to_h_dict[z], m in (:BTMStorage, :BTMPV)
             ) * (1 + utility.loss_dist)
     end
     fill!(utility.Max_Net_Load_my, NaN)
@@ -1267,22 +1271,22 @@ function solve_agent_problem!(
             sum(charge_E[y, s, z, d, t] for s in utility.index_stor_existing) -
             sum(charge_C[y, s, z, d, t] for s in utility.index_stor_new) -
             # demand at time t
-            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - utility.eximport_my(y, z, d, t) +
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in z_to_h_dict[z]) - utility.eximport_my(y, z, d, t) +
             # total DG generation at time t
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(y, z, h, m) for
-                h in model_data.index_h, m in customers.index_m
+                h in z_to_h_dict[z], m in customers.index_m
             ) * (1 + utility.loss_dist) -
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) *
-                customers.total_pv_stor_capacity_my(y, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                customers.total_pv_stor_capacity_my(y, z, h, m) for h in z_to_h_dict[z], m in (:BTMStorage, :BTMPV)
             ) * (1 + utility.loss_dist) +
             # green technology subscription at time t
             sum(
                 utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
+                for j in model_data.index_j, h in z_to_h_dict[z]
             )
         end
 
@@ -1713,7 +1717,7 @@ function solve_agent_problem!(
             sum(
                 utility.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
+                for j in model_data.index_j, h in z_to_h_dict[z]
             ) -
             # flow out of zone z
             sum(utility.trans_topology(l, z) * flow_cap[y, l] for l in utility.index_l) -
