@@ -1541,9 +1541,10 @@ function solve_agent_problem!(
         sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
     
         # Calculate sector-level rates for each combination of z, sector, d, t
+        h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
             # Collect all customer types in this sector
-            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
     
             # Aggregate numerator and denominator over customer types
             numerator_energy_demand = sum(
@@ -1556,60 +1557,29 @@ function solve_agent_problem!(
 
             sector_rates[(z, sector, d, t)] = (numerator_energy_demand / denominator_net_demand) + 
                                               (numerator_other_cost / denominator_net_demand_wo_green)
-
-        end
-
-        valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
-
-        for (county_fips, ba) in model_data.z_to_h
-            h = Symbol("Res_$county_fips")  
-            z = Symbol(ba)                
-            valid_combinations[(z, h)] = true
         end       
         
         # Assign rates to customers
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]  
-            if sector == :Residential
-                if get(valid_combinations, (z, h), false)
-                    rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
-                    if haskey(sector_rates, rate_key)
-                        rate = sector_rates[rate_key]
-                        regulator.p(z, h, d, t, :) .= rate
-                    else
-                        @warn "Rate not found for Residential: z=$(z), h=$(h), d=$(d), t=$(t)"
-                        regulator.p(z, h, d, t, :) .= 0.0 
-                    end
-                else
-                    # Invalid combination - assign zero rate
-                    regulator.p(z, h, d, t, :) .= 0.0
-                end
-            elseif sector == :Commercial || sector == :Industrial
-                rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
-                if haskey(sector_rates, rate_key)
-                    rate = sector_rates[rate_key]
-                    regulator.p(z, h, d, t, :) .= rate
-                else
-                    @warn "Rate not found for Commercial/Industrial: z=$(z), h=$(h), d=$(d), t=$(t)"
-                    regulator.p(z, h, d, t, :) .= 0.0
-                end
-            else
-                @warn "Unknown sector $(sector) for customer $(h)"
-                regulator.p(z, h, d, t, :) .= 0.0
+        h_to_sector = Dict(model_data.index_h_sector_map)
+        for (z, h) in model_data.index_z_h_map
+            for d in model_data.index_d, t in model_data.index_t
+                regulator.p(z, h, d, t, :) .= sector_rates[(
+                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
+                )]
             end
         end      
 
         # Replace NaN values with 0.0
         replace!(regulator.p.values, NaN => 0.0)
-
     
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
         sector_tou_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
     
+        h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
             
-            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
                             
             tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
     
@@ -1627,51 +1597,19 @@ function solve_agent_problem!(
                                                   (numerator_other_cost / denominator_net_demand_wo_green)
 
         end
-    
-        # Assign TOU sector rates to each customer type in the sector
-        valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
-
-        for (county_fips, ba) in model_data.z_to_h
-            h = Symbol("Res_$county_fips")  
-            z = Symbol(ba)                
-            valid_combinations[(z, h)] = true
-        end       
         
         # Assign rates to customers
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]  
-            if sector == :Residential
-                if get(valid_combinations, (z, h), false)
-                    rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
-                    if haskey(sector_tou_rates, rate_key)
-                        rate = sector_tou_rates[rate_key]
-                        regulator.p(z, h, d, t, :) .= rate
-                    else
-                        @warn "Rate not found for Residential: z=$(z), h=$(h), d=$(d), t=$(t)"
-                        regulator.p(z, h, d, t, :) .= 0.0 
-                    end
-                else
-                    # Invalid combination - assign zero rate
-                    regulator.p(z, h, d, t, :) .= 0.0
-                end
-            elseif sector == :Commercial || sector == :Industrial
-                rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
-                if haskey(sector_tou_rates, rate_key)
-                    rate = sector_tou_rates[rate_key]
-                    regulator.p(z, h, d, t, :) .= rate
-                else
-                    @warn "Rate not found for Commercial/Industrial: z=$(z), h=$(h), d=$(d), t=$(t)"
-                    regulator.p(z, h, d, t, :) .= 0.0
-                end
-            else
-                @warn "Unknown sector $(sector) for customer $(h)"
-                regulator.p(z, h, d, t, :) .= 0.0
+        h_to_sector = Dict(model_data.index_h_sector_map)
+        for (z, h) in model_data.index_z_h_map
+            for d in model_data.index_d, t in model_data.index_t  
+                regulator.p(z, h, d, t, :) .= sector_tou_rates[(
+                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
+                )]
             end
         end      
 
         # Replace NaN values with 0.0
-        replace!(regulator.p.values, NaN => 0.0)
-    
+        replace!(regulator.p.values, NaN => 0.0)    
     end
 
     # TODO: Call a function instead of using if-then
@@ -2784,9 +2722,10 @@ function solve_agent_problem!(
         fill!(regulator.p, NaN)
         sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
             
+        h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
 
-            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
             
             energy_cost = sum(energy_cost_allocation_h(z, h) for h in customer_types)
             demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
@@ -2797,43 +2736,13 @@ function solve_agent_problem!(
 
         end
             
-        valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
-
-        for (county_fips, ba) in model_data.z_to_h
-            h = Symbol("Res_$county_fips")  
-            z = Symbol(ba)                
-            valid_combinations[(z, h)] = true
-        end       
-        
         # Assign rates to customers
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]  
-            if sector == :Residential
-                if get(valid_combinations, (z, h), false)
-                    rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
-                    if haskey(sector_rates, rate_key)
-                        rate = sector_rates[rate_key]
-                        regulator.p(z, h, d, t, :) .= rate
-                    else
-                        @warn "Rate not found for Residential: z=$(z), h=$(h), d=$(d), t=$(t)"
-                        regulator.p(z, h, d, t, :) .= 0.0 
-                    end
-                else
-                    # Invalid combination - assign zero rate
-                    regulator.p(z, h, d, t, :) .= 0.0
-                end
-            elseif sector == :Commercial || sector == :Industrial
-                rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
-                if haskey(sector_rates, rate_key)
-                    rate = sector_rates[rate_key]
-                    regulator.p(z, h, d, t, :) .= rate
-                else
-                    @warn "Rate not found for Commercial/Industrial: z=$(z), h=$(h), d=$(d), t=$(t)"
-                    regulator.p(z, h, d, t, :) .= 0.0
-                end
-            else
-                @warn "Unknown sector $(sector) for customer $(h)"
-                regulator.p(z, h, d, t, :) .= 0.0
+        h_to_sector = Dict(model_data.index_h_sector_map)
+        for (z, h) in model_data.index_z_h_map
+            for d in model_data.index_d, t in model_data.index_t
+                regulator.p(z, h, d, t, :) .= sector_rates[(
+                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
+                )]
             end
         end      
 
@@ -2844,9 +2753,9 @@ function solve_agent_problem!(
         fill!(regulator.p, NaN)
         sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
 
+        h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            
-            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
                             
             tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
 
@@ -2860,49 +2769,18 @@ function solve_agent_problem!(
 
         end
             
-        valid_combinations = Dict{Tuple{Symbol, Symbol}, Bool}()
-
-        for (county_fips, ba) in model_data.z_to_h
-            h = Symbol("Res_$county_fips")  
-            z = Symbol(ba)                
-            valid_combinations[(z, h)] = true
-        end       
-        
         # Assign rates to customers
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]  
-            if sector == :Residential
-                if get(valid_combinations, (z, h), false)
-                    rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
-                    if haskey(sector_rates, rate_key)
-                        rate = sector_rates[rate_key]
-                        regulator.p(z, h, d, t, :) .= rate
-                    else
-                        @warn "Rate not found for Residential: z=$(z), h=$(h), d=$(d), t=$(t)"
-                        regulator.p(z, h, d, t, :) .= 0.0 
-                    end
-                else
-                    # Invalid combination - assign zero rate
-                    regulator.p(z, h, d, t, :) .= 0.0
-                end
-            elseif sector == :Commercial || sector == :Industrial
-                rate_key = (Symbol(z), sector, Symbol(d), Symbol(t))
-                if haskey(sector_rates, rate_key)
-                    rate = sector_rates[rate_key]
-                    regulator.p(z, h, d, t, :) .= rate
-                else
-                    @warn "Rate not found for Commercial/Industrial: z=$(z), h=$(h), d=$(d), t=$(t)"
-                    regulator.p(z, h, d, t, :) .= 0.0
-                end
-            else
-                @warn "Unknown sector $(sector) for customer $(h)"
-                regulator.p(z, h, d, t, :) .= 0.0
+        h_to_sector = Dict(model_data.index_h_sector_map)
+        for (z, h) in model_data.index_z_h_map
+            for d in model_data.index_d, t in model_data.index_t
+                regulator.p(z, h, d, t, :) .= sector_rates[(
+                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
+                )]
             end
         end      
 
         # Replace NaN values with 0.0
-        replace!(regulator.p.values, NaN => 0.0)
-    
+        replace!(regulator.p.values, NaN => 0.0)    
     end
 
     # TODO: Call a function instead of using if-then

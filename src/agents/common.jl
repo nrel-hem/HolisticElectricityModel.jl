@@ -18,16 +18,19 @@ struct DERAdoption <: UseCase end
 struct SupplyChoice <: UseCase end
 struct DERAggregation <: UseCase end
 
-struct HEMOptions{T <: MarketStructure, 
+struct HEMOptions{
+    T <: MarketStructure, 
     U <: Union{NullUseCase,DERAdoption},
     V <: Union{NullUseCase,SupplyChoice},
-    W <: Union{NullUseCase,DERAggregation}} <: Options
-market_structure::T
+    W <: Union{NullUseCase,DERAggregation}
+} <: Options
+    # market structure switch
+    market_structure::T
 
-# use case switches
-der_use_case::U
-supply_choice_use_case::V
-der_aggregation_use_case::W
+    # use case switches
+    der_use_case::U
+    supply_choice_use_case::V
+    der_aggregation_use_case::W
 end
 
 function get_file_prefix(options::HEMOptions)
@@ -48,13 +51,13 @@ mutable struct HEMData
     index_s::Dimension # year index (for new resources depreciation schedule)
     index_d::Dimension # representative day index
     index_t::Dimension # time index (within each representative day)
-    index_h::Dimension # customer types
+    index_h::Dimension # customer groups
     index_j::Dimension # green tariff technologies
     index_z::Dimension # zone index
     index_sector::Dimension # sector index (for rate-making)
-    # TODO: Replace data type
-    h_to_sector::Dict{Symbol, Symbol} # map from customer type to sector
-    z_to_h::Dict{Symbol, Symbol}
+
+    index_h_sector_map::DimensionSet # map from customer group to sector
+    index_z_h_map::DimensionSet      # map from zone to cutomer group
 
     # Parameters
     omega::ParamArray # number of hours per timeslice
@@ -142,62 +145,28 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
     index_sector = read_set(
         input_filename,
         "index_sector",
-        "index_sector",
+        "index_sector";
         prose_name = "customer group index sector",
         description = "customer high level groups",
-        
     )
 
-    index_h_sector_mapping_file = joinpath(input_filename, "index_h_sector_mapping.csv")
+    index_h_sector_map = read_set(
+        "index_h_sector_map",
+        input_filename,
+        "index_h_sector_mapping",
+        [index_h, index_sector];
+        prose_name = "Map from index_h to index_sector",
+        description = "Defines which customer groups (load and DER adoption) are in each sector (for ratemaking)"
+    )
 
-    if isfile(index_h_sector_mapping_file)
-        # Read the CSV file, specifying the column names and types
-        index_h_sector_mapping = CSV.read(
-            index_h_sector_mapping_file,
-            DataFrame;
-            header = [:index_h, :index_sector],
-            types = Dict(
-                :index_h => String,
-                :index_sector => String
-            )
-        )
-
-        # Convert the index_h and index_sector columns to Symbols
-        keys = Symbol.(index_h_sector_mapping[!, :index_h])
-        values = Symbol.(index_h_sector_mapping[!, :index_sector])
-
-        # Create a Dict{Symbol, Symbol}
-        h_to_sector = Dict(zip(keys, values))
-    else
-        error("index_h_sector_mapping.csv not found in $index_h_sector_mapping_file")
-    end
-
-
-    index_z_h_mapping_file = joinpath(input_filename, "index_z_h_mapping.csv")
-
-    if isfile(index_z_h_mapping_file)
-        # Read the CSV file, specifying the column names and types
-        index_z_h_mapping = CSV.read(
-            index_z_h_mapping_file,
-            DataFrame;
-            header = [:index_z, :index_h],
-            types = Dict(
-                :index_z => String,
-                :index_h => String
-            )
-        )
-
-        # Convert the index_h and index_sector columns to Symbols
-        keys = Symbol.(index_z_h_mapping[!, :index_z])
-        values = Symbol.(index_z_h_mapping[!, :index_h])
-
-        # Create a Dict{Symbol, Symbol}
-        z_to_h = Dict(zip(keys, values))
-    else
-        error("index_z_h_mapping.csv not found in $index_z_h_mapping_file")
-    end
-
-
+    index_z_h_map = read_set(
+        "index_z_h_map",
+        input_filename,
+        "index_z_h_mapping",
+        [index_z, index_h];
+        prose_name = "Map from index_z to index_h",
+        description = "Defines which customer groups (load and DER participation) are present in each zone (bulk power BA)"
+    )
 
     omega = read_param(
         "omega",
@@ -221,6 +190,8 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "Time"
     )
     # TODO: Remove hard-coding. (This start year is also specified in HEMData.jl)
+    # Perhaps requires loading the HEMData config, which currently isn't stored in
+    # the input directory.
     year_start = ParamScalar("year_start", 2020, description = "simulation start year")
 
     # Return HEMData, passing the constructed h_to_sector
@@ -235,8 +206,8 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         index_j,
         index_z,
         index_sector,
-        h_to_sector, 
-        z_to_h,
+        index_h_sector_map,
+        index_z_h_map,
         omega,
         year,
         time,

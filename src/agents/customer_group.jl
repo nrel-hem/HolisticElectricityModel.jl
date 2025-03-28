@@ -383,9 +383,10 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ),
     )
 
-    function generate_coefficients(index_h, h_to_sector, coefficients)
+    function generate_coefficients(index_h, index_h_to_sector_map, coefficients)
+        map_dict = Dict(index_h_to_sector_map.set)
         return [
-            get(coefficients, h_to_sector[h], 0.0) for h in index_h
+            get(coefficients, map_dict[h], 0.0) for h in index_h
         ]
     end
     
@@ -442,7 +443,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             ParamArray(
                 param_name,
                 (model_data.index_h,),
-                generate_coefficients(model_data.index_h, model_data.h_to_sector, param_coefficients[param_name]);
+                generate_coefficients(model_data.index_h, model_data.index_h_sector_map, param_coefficients[param_name]);
                 description = description
             ) for (param_name, description) in [
                 ("WholesaleMarket_coefficient", "% of load served by an ISO (regression parameter)"),
@@ -450,7 +451,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
                 ("RetailCompetition_coefficient", "% of C&I customers that are eligible for retail choice (regression parameter)"),
                 ("RPS_coefficient", "RPS percentage requirement in 2019 (regression parameter)")
             ]
-        ]...  
+        ]...
     )
     
         
