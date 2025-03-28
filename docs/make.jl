@@ -49,7 +49,7 @@ makedocs(
 )
 
 deploydocs(
-    repo = "https://github.nrel.gov/HEM/HolisticElectricityModel.jl",
+    repo = "https://github.com/nrel-hem/HolisticElectricityModel.jl/",
     target = "build",
     branch = "gh-pages",
     devbranch = "main",
