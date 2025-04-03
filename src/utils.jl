@@ -298,7 +298,7 @@ end
 
 function read_dataframe(::Type{CSV.File}, filename::AbstractString)
     open(filename) do io
-        CSV.read(io, DataFrame)
+        CSV.read(io, DataFrame, delim = ",")
     end
 end
 
