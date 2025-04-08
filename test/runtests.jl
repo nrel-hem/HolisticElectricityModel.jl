@@ -14,9 +14,7 @@ Aqua.test_undefined_exports(HolisticElectricityModel)
 #     I would expect all tests to run and then tell me which ones failed?
 #Aqua.test_ambiguities(HolisticElectricityModel)
 Aqua.test_stale_deps(HolisticElectricityModel; ignore=[:JuliaFormatter,:Aqua,:TestSetExtensions,:Xpress,:Gurobi,:Revise])
-# EH: This next test is failing and I don't know how to fix. 
-#     I would expect all tests to run and then tell me which ones failed?
-#Aqua.test_deps_compat(HolisticElectricityModel)
+Aqua.test_deps_compat(HolisticElectricityModel; ignore=[:JuliaFormatter,:Aqua,:TestSetExtensions,:Revise, :Logging])
 
 BASE_DIR = abspath(joinpath(dirname(Base.find_package("HolisticElectricityModel")), ".."))
 DATA_DIR = joinpath(BASE_DIR, "..", "HolisticElectricityModelData.jl")
@@ -28,6 +26,43 @@ LOG_LEVELS = Dict(
     "Warn" => Logging.Warn,
     "Error" => Logging.Error,
 )
+
+DISABLED_TEST_FILES = ["test_hem.jl"]
+
+macro includetests(testarg...)
+    if length(testarg) == 0
+        tests = []
+    elseif length(testarg) == 1
+        tests = testarg[1]
+    else
+        error("@includetests takes zero or one argument")
+    end
+
+    quote
+        tests = $tests
+        rootfile = @__FILE__
+        if length(tests) == 0
+            tests = readdir(dirname(rootfile))
+            tests = filter(
+                f ->
+                    startswith(f, "test_") && endswith(f, ".jl") && f != basename(rootfile),
+                tests,
+            )
+        else
+            tests = map(f -> string(f, ".jl"), tests)
+        end
+        println()
+        if !isempty(DISABLED_TEST_FILES)
+            @warn("Some tests are disabled $DISABLED_TEST_FILES")
+        end
+        for test in tests
+            test ∈ DISABLED_TEST_FILES && continue
+            print(splitext(test)[1], ": ")
+            include(test)
+            println()
+        end
+    end
+end
 
 function get_logging_level_from_env(env_name::String, default)
     level = get(ENV, env_name, default)
