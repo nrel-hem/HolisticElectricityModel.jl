@@ -223,7 +223,8 @@ end
 function Utility(
     input_filename::String,
     model_data::HEMData,
-    regulator::Regulator;
+    # see TODO below
+    # regulator::Regulator;
     id = DEFAULT_ID,
 )
     index_k_existing = read_set(
