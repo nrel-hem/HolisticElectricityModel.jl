@@ -305,6 +305,21 @@ get_file_prefix(::AbstractAgent) = String("")
 abstract type AgentOptions <: Options end
 struct NullAgentOptions <: AgentOptions end
 
+"""
+Struct to store parsed agent options.
+"""
+struct AgentOptionsStore
+    data::Dict{DataType, AgentOptions}
+end
+
+function get_agent_option(::Type{T}, options::AgentOptionsStore) where T <: AbstractAgent
+    if haskey(options.data, T)
+        return options.data[T]
+    else
+        error("No agent options found for agent type: $(T).")
+    end
+end
+
 struct AgentAndOptions{T <: AbstractAgent, U <: AgentOptions}
     agent::T
     options::U
