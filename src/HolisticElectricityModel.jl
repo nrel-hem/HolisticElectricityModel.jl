@@ -38,6 +38,7 @@ export DistributionUtility
 export DERAggregator
 
 # Agent Options
+export AgentOptionsStore
 export RegulatorOptions
 export CustomerOptions
 export GreenDeveloperOptions

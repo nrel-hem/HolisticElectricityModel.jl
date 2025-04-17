@@ -64,21 +64,27 @@ function get_der_aggregator_options(config::Dict{Any,Any})
 end
 
 function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{VIU})
-    return Dict(
-        "regulator_options" => get_regulator_options(config),
-        "utility_options" => get_utility_options(),
-        "customer_options" => get_customer_options(config),
-        "green_developer_options" => get_green_developer_options(),
-        "der_aggregator_options" => get_der_aggregator_options(config)
+    return AgentOptionsStore(
+        Dict(
+            Regulator => get_regulator_options(config),
+            Utility => get_utility_options(),
+            CustomerGroup => get_customer_options(config),
+            GreenDeveloper => get_green_developer_options(),
+            DERAggregator => get_der_aggregator_options(config),
+            # DistributionUtility => NullAgentOptions()
+        )
     )
 end
 
 function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{WM})
-    return Dict(
-        "regulator_options" => get_regulator_options(config),
-        "ipp_options" => get_ipp_options(config),
-        "customer_options" => get_customer_options(config),
-        "green_developer_options" => get_green_developer_options(),
-        "der_aggregator_options" => get_der_aggregator_options(config)
+    return AgentOptionsStore(
+        Dict(
+            Regulator => get_regulator_options(config),
+            IPPGroup => get_ipp_options(config),
+            CustomerGroup => get_customer_options(config),
+            GreenDeveloper => get_green_developer_options(),
+            DERAggregator => get_der_aggregator_options(config),
+            # DistributionUtility => NullAgentOptions()
+        )
     )
 end

@@ -1,39 +1,53 @@
-function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, agent_options::Dict{<:AbstractString,AgentOptions}, ::HEMOptions{VIU})
-    regulator = Regulator(input_dir, model_data, agent_options["regulator_options"])
+function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{VIU})
+
+    regulator_options = get_agent_option(Regulator, agent_options)
+    utility_options = get_agent_option(Utility, agent_options)
+    customer_options = get_agent_option(CustomerGroup, agent_options)
+    green_developer_options = get_agent_option(GreenDeveloper, agent_options)
+    dera_options = get_agent_option(DERAggregator, agent_options)
+
+    regulator = Regulator(input_dir, model_data, regulator_options)
     utility = Utility(input_dir, model_data)
     customers = CustomerGroup(input_dir, model_data)
     green_developer = GreenDeveloper(input_dir, model_data)
-    dera = DERAggregator(input_dir, model_data, agent_options["der_aggregator_options"])
+    dera = DERAggregator(input_dir, model_data, dera_options)
     # distribution_utility = DistributionUtility(input_dir, model_data)
 
     # the sequence of simulation matters a lot! (e.g., the year DER aggregation is picked is dependent on this)
     agents_and_opts = [
-        AgentAndOptions(utility, agent_options["utility_options"]),
-        AgentAndOptions(regulator, agent_options["regulator_options"]),
-        AgentAndOptions(customers, agent_options["customer_options"]),
-        AgentAndOptions(green_developer, agent_options["green_developer_options"]),
-        AgentAndOptions(dera, agent_options["der_aggregator_options"]),
+        AgentAndOptions(utility, utility_options),
+        AgentAndOptions(regulator, regulator_options),
+        AgentAndOptions(customers, customer_options),
+        AgentAndOptions(green_developer, green_developer_options),
+        AgentAndOptions(dera, dera_options),
         # AgentAndOptions(distribution_utility, NullAgentOptions()),
     ]
 
     return agents_and_opts
 end
 
-function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, agent_options::Dict{<:AbstractString,AgentOptions}, ::HEMOptions{WM})
-    regulator = Regulator(input_dir, model_data, agent_options["regulator_options"])
+function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{WM})
+
+    regulator_options = get_agent_option(Regulator, agent_options)
+    ipp_options = get_agent_option(IPPGroup, agent_options)
+    customer_options = get_agent_option(CustomerGroup, agent_options)
+    green_developer_options = get_agent_option(GreenDeveloper, agent_options)
+    dera_options = get_agent_option(DERAggregator, agent_options)
+
+    regulator = Regulator(input_dir, model_data, regulator_options)
     ipp = IPPGroup(input_dir, model_data)
     customers = CustomerGroup(input_dir, model_data)
     green_developer = GreenDeveloper(input_dir, model_data)
-    dera = DERAggregator(input_dir, model_data, agent_options["der_aggregator_options"])
+    dera = DERAggregator(input_dir, model_data, dera_options)
     # distribution_utility = DistributionUtility(input_dir, model_data)
 
     # the sequence of simulation matters a lot! (e.g., the year DER aggregation is picked is dependent on this)
     agents_and_opts = [
-        AgentAndOptions(ipp, agent_options["ipp_options"]),
-        AgentAndOptions(regulator, agent_options["regulator_options"]),
-        AgentAndOptions(customers, agent_options["customer_options"]),
-        AgentAndOptions(green_developer, agent_options["green_developer_options"]),
-        AgentAndOptions(dera, agent_options["der_aggregator_options"]),
+        AgentAndOptions(ipp, ipp_options),
+        AgentAndOptions(regulator, regulator_options),
+        AgentAndOptions(customers, customer_options),
+        AgentAndOptions(green_developer, green_developer_options),
+        AgentAndOptions(dera, dera_options),
         # AgentAndOptions(distribution_utility, NullAgentOptions()),
     ]
 
@@ -57,7 +71,7 @@ Solve the problem with the given inputs.
 function run_hem(
     input_dir::AbstractString,
     options::HEMOptions;
-    agent_options::Dict{<:AbstractString,AgentOptions},
+    agent_options::AgentOptionsStore,
     max_iterations=1,
     window_length=1,
     force=false,
