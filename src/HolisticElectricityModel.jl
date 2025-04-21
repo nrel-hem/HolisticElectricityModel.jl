@@ -89,6 +89,7 @@ using Logging
 using JuMP
 using XLSX
 using DelimitedFiles
+using Statistics
 using Lazy: @forward
 import AxisKeys
 import AxisKeys: KeyedArray
