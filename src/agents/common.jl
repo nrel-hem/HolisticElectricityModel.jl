@@ -388,6 +388,14 @@ function iter_agents_and_options(store::AgentStore)
     return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
 end
 
+function get_bulk_system_agent(store::AgentStore, :: HEMOptions{VIU})
+    return get_agent(Utility, store)
+end
+
+function get_bulk_system_agent(store::AgentStore, :: HEMOptions{WM})
+    return get_agent(IPPGroup, store)
+end
+
 function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndOptions})
     # create vector of items that may contribute information
     items = Vector{AgentOrOptions}()
