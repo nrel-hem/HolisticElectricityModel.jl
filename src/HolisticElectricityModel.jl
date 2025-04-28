@@ -95,6 +95,7 @@ using JuMP
 using XLSX
 using DelimitedFiles
 using Lazy: @forward
+using TableTransforms
 import AxisKeys
 import AxisKeys: KeyedArray
 import CSV
