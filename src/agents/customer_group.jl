@@ -855,7 +855,7 @@ function solve_agent_problem!(
     output_intermediate_results::Bool
 )
     regulator = get_agent(Regulator, agent_store)
-    utility = get_agent(Utility, agent_store)
+    utility_or_ipp = get_bulk_system_agent(agent_store, hem_opts)
     der_aggregator = get_agent(DERAggregator, agent_store)
 
     # the year consumer is making DER investment decision
@@ -912,7 +912,7 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t *
                 regulator.p(z, h, d, t) *
-                customers.d(h, z, d, t) / (1 + utility.loss_dist) for d in model_data.index_d, t in model_data.index_t
+                customers.d(h, z, d, t) / (1 + utility_or_ipp.loss_dist) for d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -942,10 +942,10 @@ function solve_agent_problem!(
         end
         @objective(Customer_PV_Storage_Opti, Min, objective_function_dist)
 
-        # for net load balance constraints, need to convert things to kWh, otherwise customers.d(h, z, d, t) / (1 + utility.loss_dist) and 
+        # for net load balance constraints, need to convert things to kWh, otherwise customers.d(h, z, d, t) / (1 + utility_or_ipp.loss_dist) and 
         net_load_balance = 
             (d, t) -> begin
-                (net_load[d, t] - customers.d(h, z, d, t) / (1 + utility.loss_dist) 
+                (net_load[d, t] - customers.d(h, z, d, t) / (1 + utility_or_ipp.loss_dist) 
                             + customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG(z, h, :BTMPV) 
                             - stor_charge[d, t] + stor_discharge[d, t])
             end
@@ -1146,7 +1146,7 @@ function solve_agent_problem!(
                 model_data.omega(d) * delta_t *
                 regulator.p(z, h, d, t) *
                 min(
-                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility_or_ipp.loss_dist),
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG(z, h, :BTMPV),
                 ) for d in model_data.index_d, t in model_data.index_t
             ) +
@@ -1157,7 +1157,7 @@ function solve_agent_problem!(
                 max(
                     0,
                     customers.rho_DG(h, :BTMPV, z, d, t) * customers.Opti_DG(z, h, :BTMPV) -
-                    customers.d(h, z, d, t) / (1 + utility.loss_dist),
+                    customers.d(h, z, d, t) / (1 + utility_or_ipp.loss_dist),
                 ) for d in model_data.index_d, t in model_data.index_t
             )
         Payment_after_PVOnly(z, h, :) .= Payment_before_PVStor(z, h) - pvonly_savings

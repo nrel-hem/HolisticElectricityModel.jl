@@ -38,6 +38,7 @@ export DistributionUtility
 export DERAggregator
 
 # Agent Options
+export AgentOptionsStore
 export RegulatorOptions
 export CustomerOptions
 export GreenDeveloperOptions
@@ -88,6 +89,7 @@ using Logging
 using JuMP
 using XLSX
 using DelimitedFiles
+using Statistics
 using Lazy: @forward
 using TableTransforms
 import AxisKeys
