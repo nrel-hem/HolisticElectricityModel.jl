@@ -653,7 +653,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
 
     # populate total_*_capacity_my variables for DER with all existing/prescribed capacity for all years
     for y in model_data.index_y
-        for z in model_data.index_z, h in model_data.index_h
+        for (z, h) in model_data.index_z_h_map
             for m in index_m
                 result.total_der_capacity_my(y, z, h, m, :) .= x_DG_E_my(y, h, z, m)
                 result.total_pv_stor_capacity_my(y, z, h, m, :) .= existing_pv_stor_capacity_my(y, h, z, m)
@@ -664,6 +664,14 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             result.total_pv_only_capacity_my_delay_update(y, z, h, :BTMPV, :) .= existing_pv_only_capacity_my(y, h, z, :BTMPV)
         end
     end
+
+    # replace NaN values with 0.0
+    # replace!(result.total_der_capacity_my.values, NaN => 0.0)
+    # replace!(result.total_pv_stor_capacity_my.values, NaN => 0.0)
+    # replace!(result.total_der_capacity_my_delay_update.values, NaN => 0.0)
+    # replace!(result.total_pv_stor_capacity_my_delay_update.values, NaN => 0.0)
+    # replace!(result.total_pv_only_capacity_my.values, NaN => 0.0)
+    # replace!(result.total_pv_only_capacity_my_delay_update.values, NaN => 0.0)
 
     return result
 end
@@ -918,7 +926,7 @@ function solve_agent_problem!(
     end
 
     Payment_after_PVStor = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
 
         Customer_PV_Storage_Opti = get_new_jump_model(customer_opts.solvers)
 
@@ -1005,6 +1013,8 @@ function solve_agent_problem!(
             net_load_minus[d, t] >= -customers.BIGM * (1 - net_load_sign[d, t])
         )
 
+        discharged_energy = (d, t) -> customers.rte_dist_stor(z, h) > 0.0 ? stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t : 0.0
+
         @constraint(
             Customer_PV_Storage_Opti,
             Eq_stor_energy_balance[
@@ -1012,7 +1022,7 @@ function solve_agent_problem!(
                 t in model_data.index_t.elements[2:end],
             ],
             stor_energy[d, t] == stor_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
-                - stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t
+                - discharged_energy(d, t) +
                 + stor_charge[d, t] * delta_t
         )
 
@@ -1022,8 +1032,15 @@ function solve_agent_problem!(
                 d in model_data.index_d,
                 t in [model_data.index_t.elements[1]],
             ],
-            stor_energy[d, t] == customers.initial_energy_dist_stor(z, h, d) - stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t + stor_charge[d, t] * delta_t
+            stor_energy[d, t] == customers.initial_energy_dist_stor(z, h, d) - discharged_energy(d, t) + stor_charge[d, t] * delta_t
         )
+        
+        if sum(isnan(customers.duration_dist_stor(z, h))) > 0
+            println("customers.duration_dist_stor(z, h) has Nan values for $z, $h")
+        end
+        if sum(isnan(customers.Opti_DG(z, h, :BTMStorage))) > 0
+            println("customers.Opti_DG(z, h, :BTMStorage) has Nan values for $z, $h")
+        end
 
         @constraint(
             Customer_PV_Storage_Opti,

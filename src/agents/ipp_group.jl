@@ -930,6 +930,46 @@ function ipp_cap_lower(
     end
     @objective(MPPDCMER_lower, Min, objective_function_lower)
 
+    for h in model_data.index_h
+        if ismissing(customers.rho_DG(h,:,:,:,:))
+            println("customers.rho_DG for h = $h is missing")
+        end
+        if ismissing(customers.total_der_capacity_my_delay_update(:,:,h,:))
+            println("customers.total_der_capacity_my_delay_update for h = $h is missing")
+        end
+        if ismissing(customers.gamma(:, h))
+            println("customers.gamma for h = $h is missing")
+        end
+        if ismissing(customers.d_my(:, h, :, :, :))
+            println("customers.d_my for h = $h is missing")
+        end
+        if ismissing(customers.total_pv_stor_capacity_my(:, :, h, :))
+            println("customers.total_pv_stor_capacity_my for h = $h is missing")
+        end
+        if ismissing(green_developer.green_tech_buildout_my(:, :, :, h))
+            println("green_developer.green_tech_buildout_my for h = $h is missing")
+        end
+
+        if any(isnan, customers.rho_DG(h,:,:,:,:))
+            println("customers.rho_DG for h = $h has NaN values")
+        end
+        if any(isnan, customers.total_der_capacity_my_delay_update(:,:,h,:))
+            println("customers.total_der_capacity_my_delay_update for h = $h has NaN values")
+        end
+        if any(isnan, customers.gamma(:, h))
+            println("customers.gamma for h = $h has NaN values")
+        end
+        if any(isnan, customers.d_my(:, h, :, :, :))
+            println("customers.d_my for h = $h has NaN values")
+        end
+        if any(isnan, customers.total_pv_stor_capacity_my(:, :, h, :))
+            println("customers.total_pv_stor_capacity_my for h = $h has NaN values")
+        end
+        if any(isnan, green_developer.green_tech_buildout_my(:, :, :, h))
+            println("green_developer.green_tech_buildout_my for h = $h has NaN values")
+        end
+    end
+
     # Constraints
     supply_demand_balance_lower =
         (y, z, d, t) -> begin

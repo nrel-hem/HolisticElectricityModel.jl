@@ -205,6 +205,8 @@ function solve_agent_problem!(
             total_der_stor_capacity(z, h, :) .= customers.x_DG_E_my(reg_year_index, h, z, :BTMStorage)
         end
     end
+
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
     
     for z in model_data.index_z
         for i in 1:incentive_function_dimension - 1
@@ -226,7 +228,7 @@ function solve_agent_problem!(
             dera_stor_capacity =
                 begin
 
-                sum(dera_stor_capacity_h(h) for h in model_data.index_h)
+                sum(dera_stor_capacity_h(h) for h in z_to_h_dict[z])
 
             end
 
@@ -244,7 +246,7 @@ function solve_agent_problem!(
             dera_pv_capacity =
                 begin
 
-                sum(dera_pv_capacity_h(h) for h in model_data.index_h)
+                sum(dera_pv_capacity_h(h) for h in z_to_h_dict[z])
 
             end
 

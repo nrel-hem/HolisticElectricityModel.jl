@@ -94,7 +94,7 @@ function read_param(
 
     for (i, ax) in enumerate(ar_axes)
         elements = dims[i].elements
-        if ax != elements
+        if !issetequal(ax, elements)
             throw(
                 ArgumentError(
                     "dimension elements of KeyedArray axis $i ($ax) does not match passed dimension $i's ($elements)",
