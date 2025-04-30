@@ -306,6 +306,21 @@ get_file_prefix(::AbstractAgent) = String("")
 abstract type AgentOptions <: Options end
 struct NullAgentOptions <: AgentOptions end
 
+"""
+Struct to store parsed agent options.
+"""
+struct AgentOptionsStore
+    data::Dict{DataType, AgentOptions}
+end
+
+function get_agent_option(::Type{T}, options::AgentOptionsStore) where T <: AbstractAgent
+    if haskey(options.data, T)
+        return options.data[T]
+    else
+        error("No agent options found for agent type: $(T).")
+    end
+end
+
 struct AgentAndOptions{T <: AbstractAgent, U <: AgentOptions}
     agent::T
     options::U
@@ -372,6 +387,14 @@ end
 
 function iter_agents_and_options(store::AgentStore)
     return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
+end
+
+function get_bulk_system_agent(store::AgentStore, :: HEMOptions{VIU})
+    return get_agent(Utility, store)
+end
+
+function get_bulk_system_agent(store::AgentStore, :: HEMOptions{WM})
+    return get_agent(IPPGroup, store)
 end
 
 function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndOptions})
