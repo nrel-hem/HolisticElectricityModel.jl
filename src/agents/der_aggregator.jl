@@ -207,6 +207,7 @@ function solve_agent_problem!(
     end
 
     z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
+    sector_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_sector)
     
     for z in model_data.index_z
         for i in 1:incentive_function_dimension - 1

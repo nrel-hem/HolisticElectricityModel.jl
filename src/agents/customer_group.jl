@@ -666,12 +666,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     end
 
     # replace NaN values with 0.0
-    # replace!(result.total_der_capacity_my.values, NaN => 0.0)
-    # replace!(result.total_pv_stor_capacity_my.values, NaN => 0.0)
-    # replace!(result.total_der_capacity_my_delay_update.values, NaN => 0.0)
-    # replace!(result.total_pv_stor_capacity_my_delay_update.values, NaN => 0.0)
-    # replace!(result.total_pv_only_capacity_my.values, NaN => 0.0)
-    # replace!(result.total_pv_only_capacity_my_delay_update.values, NaN => 0.0)
+    replace!(result.rho_DG.values, NaN => 0.0)
 
     return result
 end
