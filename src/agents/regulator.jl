@@ -406,6 +406,7 @@ function solve_agent_problem!(
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     # this total_der_pv_capacity is the approximate capacity of pv portion of pv+storage tech, not all dpv capacity
     total_der_pv_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
+
     for z in model_data.index_z, h in model_data.index_h
         if w_iter >= 2
             total_der_stor_capacity(z, h, :) .=
@@ -416,8 +417,16 @@ function solve_agent_problem!(
         else
             total_der_stor_capacity(z, h, :) .= customers.x_DG_E_my(reg_year_index_dera, h, z, :BTMStorage)
         end
-        total_der_pv_capacity(z, h, :) .= total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
-    end
+    
+        # Safeguard against division by zero
+        if customers.Opti_DG_E(z, h, :BTMStorage) == 0.0
+            total_der_pv_capacity(z, h, :) .= 0.0
+        else
+            total_der_pv_capacity(z, h, :) .= (total_der_stor_capacity(z, h) / 
+                                               customers.Opti_DG_E(z, h, :BTMStorage)) * 
+                                              customers.Opti_DG_E(z, h, :BTMPV)
+        end
+    end  
     
     # pure volumetric rate
     energy_cost = make_keyed_array(model_data.index_z)
@@ -853,10 +862,13 @@ function solve_agent_problem!(
     # the script here assumes these DER tech m are adopted by different customers
     # need information on how many households adopt stand-alone tech, and how many adopt multiple techs?
     # TODO: we might want to iterate on regulator's module a few times since regulator.p_ex is used as inputs to calculate the rates.
+
+    # Initialize the keyed array
     der_excess_cost_h = make_keyed_array(model_data.index_z, model_data.index_h)
+
     for z in model_data.index_z, h in model_data.index_h
         der_excess_cost_h(z, h, :) .= 
-        # der excess for pv-only customers
+        # DER excess for PV-only customers
         sum(
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
@@ -885,8 +897,8 @@ function solve_agent_problem!(
                 customers.Opti_DG_E(z, h, :BTMPV)
             )
             for d in model_data.index_d, t in model_data.index_t
-        ) + 
-        # der excess for pv+storage customers who did not participate in aggregation
+        ) +
+        # DER excess for PV+Storage customers not in aggregation
         sum(
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
@@ -939,7 +951,9 @@ function solve_agent_problem!(
             )
     end
 
+    # Initialize the keyed array
     net_demand_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
+
     for z in model_data.index_z, h in model_data.index_h
         net_demand_h_wo_loss(z, h, :) .= 
             # Demand without loss
@@ -947,13 +961,7 @@ function solve_agent_problem!(
                 customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist) for
                 d in model_data.index_d, t in model_data.index_t
             ) -
-            # DG
-            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-            # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-            # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-            # 100 MW instead of 80 MW.
-
-            # behind the meter generation for pv-only customers
+            # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -979,7 +987,7 @@ function solve_agent_problem!(
                 )
                 for d in model_data.index_d, t in model_data.index_t
             ) - 
-            # behind the meter generation for pv+storage customers who did not participate in aggregation
+            # Behind-the-meter generation for PV+Storage customers not in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -999,10 +1007,13 @@ function solve_agent_problem!(
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
                 for d in model_data.index_d, t in model_data.index_t
             ) -
-            # green technology subscription
+
             sum(
-                model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):reg_year)
+                model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) *
+                sum(
+                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
+                    for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
+                )
                 for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
             )
     end
@@ -1016,11 +1027,10 @@ function solve_agent_problem!(
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
-            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-            # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-            # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-            # 100 MW instead of 80 MW.
-            # behind the meter generation for pv-only customers
+            # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # For example, two households with 100 MW load each (without loss); if one has DER generating
+            # 120 MW of energy, they do not need to pay for energy, but the other still has to pay 100 MW instead of 80 MW.
+            # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1045,8 +1055,8 @@ function solve_agent_problem!(
                     customers.Opti_DG_E(z, h, :BTMPV)
                 )
                 for d in model_data.index_d, t in model_data.index_t
-            ) - 
-            # behind the meter generation for pv+storage customers who did not participate in aggregation
+            ) -
+            # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1067,7 +1077,6 @@ function solve_agent_problem!(
                 for d in model_data.index_d, t in model_data.index_t
             )
     end
-
     #=
     energy_cost_t = Dict(t => sum(utility.v_E(k, t)*utility.y_E(k, t) for k in utility.index_k_existing) +
         sum(utility.v_C(k, t)*utility.y_C(k, t) for k in utility.index_k_new) for t in model_data.index_t)
@@ -1280,7 +1289,7 @@ function solve_agent_problem!(
                 ) * total_der_pv_capacity(z, h) /
                 customers.Opti_DG_E(z, h, :BTMPV)
             ) + 
-            # der excess for pv+storage customers who did not participate in aggregation
+            # DER excess for PV+Storage customers who did not participate in aggregation
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
             (
@@ -1348,12 +1357,7 @@ function solve_agent_problem!(
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist)
                 ) -
-                # DG
-                # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-                # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-                # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-                # 100 MW instead of 80 MW.
-                # behind the meter generation for pv-only customers
+                # Behind-the-meter generation for PV+Storage customers not participating in aggregation
                 model_data.omega(d) * delta_t *
                 (
                     min(
@@ -1393,10 +1397,13 @@ function solve_agent_problem!(
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z)) -
-                # green technology subscription
+                # Green technology subscription
                 sum(
-                    model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):reg_year)
+                    model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) *
+                    sum(
+                        green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
+                        for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
+                    )
                     for j in model_data.index_j
                 )
         end
@@ -1534,9 +1541,10 @@ function solve_agent_problem!(
         sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
     
         # Calculate sector-level rates for each combination of z, sector, d, t
+        h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
             # Collect all customer types in this sector
-            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
     
             # Aggregate numerator and denominator over customer types
             numerator_energy_demand = sum(
@@ -1549,24 +1557,29 @@ function solve_agent_problem!(
 
             sector_rates[(z, sector, d, t)] = (numerator_energy_demand / denominator_net_demand) + 
                                               (numerator_other_cost / denominator_net_demand_wo_green)
+        end       
+        
+        # Assign rates to customers
+        h_to_sector = Dict(model_data.index_h_sector_map)
+        for (z, h) in model_data.index_z_h_map
+            for d in model_data.index_d, t in model_data.index_t
+                regulator.p(z, h, d, t, :) .= sector_rates[(
+                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
+                )]
+            end
+        end      
 
-        end
-    
-        # Assign sector-level rates to each customer type in the sector
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]
-            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
-        end
-    
+        # Replace NaN values with 0.0
         replace!(regulator.p.values, NaN => 0.0)
     
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
         sector_tou_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
     
+        h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
             
-            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
                             
             tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
     
@@ -1584,15 +1597,20 @@ function solve_agent_problem!(
                                                   (numerator_other_cost / denominator_net_demand_wo_green)
 
         end
-    
-        # Assign TOU sector rates to each customer type in the sector
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]
-            regulator.p(z, h, d, t, :) .= sector_tou_rates[(z, sector, d, t)]
-        end
-    
-        replace!(regulator.p.values, NaN => 0.0)
-    end    
+        
+        # Assign rates to customers
+        h_to_sector = Dict(model_data.index_h_sector_map)
+        for (z, h) in model_data.index_z_h_map
+            for d in model_data.index_d, t in model_data.index_t  
+                regulator.p(z, h, d, t, :) .= sector_tou_rates[(
+                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
+                )]
+            end
+        end      
+
+        # Replace NaN values with 0.0
+        replace!(regulator.p.values, NaN => 0.0)    
+    end
 
     # TODO: Call a function instead of using if-then
     if regulator_opts.net_metering_policy isa ExcessRetailRate
@@ -1672,6 +1690,7 @@ function solve_agent_problem!(
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
     # this total_der_pv_capacity is the approximate capacity of pv portion of pv+storage tech, not all dpv capacity
     total_der_pv_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
+
     for z in model_data.index_z, h in model_data.index_h
         if w_iter >= 2
             total_der_stor_capacity(z, h, :) .=
@@ -1682,9 +1701,17 @@ function solve_agent_problem!(
         else
             total_der_stor_capacity(z, h, :) .= customers.x_DG_E_my(reg_year_index_dera, h, z, :BTMStorage)
         end
-        total_der_pv_capacity(z, h, :) .= total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
+    
+        # Safeguard against division by zero
+        if customers.Opti_DG_E(z, h, :BTMStorage) == 0.0
+            total_der_pv_capacity(z, h, :) .= 0.0
+        else
+            total_der_pv_capacity(z, h, :) .= (total_der_stor_capacity(z, h) / 
+                                               customers.Opti_DG_E(z, h, :BTMStorage)) * 
+                                              customers.Opti_DG_E(z, h, :BTMPV)
+        end
     end
-
+    
     net_demand_w_loss = make_keyed_array(model_data.index_z)
     for z in model_data.index_z
         net_demand_w_loss(z, :) .= 
@@ -1785,10 +1812,11 @@ function solve_agent_problem!(
     # from both BTM PV and BTM Storage, and customers.x_DG_E_my(first(model_data.index_y), h, z, :BTMPV) / customers.Opti_DG_E(z, h, :BTMPV) and 
     # customers.x_DG_new_my(Symbol(Int(y)), h, z, :BTMPV) / customers.Opti_DG_my(Symbol(Int(y)), z, h, :BTMPV) denoting how many households are there.
     # need to think more broadly about number of households when adopting multiple DERs.
+
     der_excess_cost_h = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
         der_excess_cost_h(z, h, :) .= 
-        # der excess for pv-only customers
+        # DER excess for PV-only customers
         sum(
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
@@ -1818,7 +1846,7 @@ function solve_agent_problem!(
             )
             for d in model_data.index_d, t in model_data.index_t
         ) + 
-        # der excess for pv+storage customers who did not participate in aggregation
+        # DER excess for PV+Storage customers who did not participate in aggregation
         sum(
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
@@ -1842,6 +1870,7 @@ function solve_agent_problem!(
             for d in model_data.index_d, t in model_data.index_t
         )
     end
+
 
     net_demand_h_w_loss = make_keyed_array(model_data.index_z, model_data.index_h)
     for z in model_data.index_z, h in model_data.index_h
@@ -1880,12 +1909,8 @@ function solve_agent_problem!(
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
-            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-            # e.g. two household, with 100 MWh load each (without loss), if one of them has DER and generated 
-            # 120 MWh of energy, he/she does not need to pay for energy, but the other one still have to pay 
-            # 100 MWh instead of 80 MWh.
-            
-            # behind the meter generation for pv-only customers
+            # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1910,8 +1935,8 @@ function solve_agent_problem!(
                     customers.Opti_DG_E(z, h, :BTMPV)
                 )
                 for d in model_data.index_d, t in model_data.index_t
-            ) - 
-            # behind the meter generation for pv+storage customers who did not participate in aggregation
+            ) -
+            # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1933,8 +1958,11 @@ function solve_agent_problem!(
             ) - 
             # green technology subscription
             sum(
-                model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):reg_year)
+                model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) *
+                sum(
+                    green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
+                    for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
+                )
                 for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
             )
     end
@@ -1948,11 +1976,8 @@ function solve_agent_problem!(
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
-            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-            # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-            # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-            # 100 MW instead of 80 MW.
-            # behind the meter generation for pv-only customers
+            # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1977,8 +2002,8 @@ function solve_agent_problem!(
                     customers.Opti_DG_E(z, h, :BTMPV)
                 )
                 for d in model_data.index_d, t in model_data.index_t
-            ) - 
-            # behind the meter generation for pv+storage customers who did not participate in aggregation
+            ) -
+            # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -2167,7 +2192,7 @@ function solve_agent_problem!(
                 ) * total_der_pv_capacity(z, h) /
                 customers.Opti_DG_E(z, h, :BTMPV)
             ) + 
-            # der excess for pv+storage customers who did not participate in aggregation
+            # DER excess for PV+Storage customers who did not participate in aggregation
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
             (
@@ -2243,7 +2268,7 @@ function solve_agent_problem!(
         end
         net_demand_h_t_w_loss(z, h, tou, :) .= net_demand_h_t_w_loss_temp
     end
-
+   
     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
         net_demand_h_t_wo_loss_temp = 0.0
@@ -2256,12 +2281,12 @@ function solve_agent_problem!(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist)
                 ) -
                 # DG
-                # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-                # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-                # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+                # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
+                # For example, two households with 100 MW load each (without loss). If one has DER generating 
+                # 120 MW of energy, they do not need to pay for energy, but the other still has to pay 
                 # 100 MW instead of 80 MW.
-
-                # behind the meter generation for pv-only customers
+    
+                # Behind-the-meter generation for PV-only customers
                 model_data.omega(d) * delta_t *
                 (
                     min(
@@ -2303,8 +2328,11 @@ function solve_agent_problem!(
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z)) -
                 # green technology subscription
                 sum(
-                    model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
-                    model_data.year(first(model_data.index_y_fix)):reg_year)
+                    model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) *
+                    sum(
+                        green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
+                        for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
+                    )
                     for j in model_data.index_j
                 )
         end
@@ -2323,12 +2351,8 @@ function solve_agent_problem!(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist)
                 ) -
                 # DG
-                # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-                # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-                # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-                # 100 MW instead of 80 MW.
-
-                # behind the meter generation for pv-only customers
+                # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
+                # Behind-the-meter generation for PV-only customers
                 model_data.omega(d) * delta_t *
                 (
                     min(
@@ -2678,7 +2702,6 @@ function solve_agent_problem!(
     end
     replace!(energy_cost_allocation_h_t, NaN => 0.0)
 
-
     p_before = ParamArray(regulator.p, "p_before")
     fill!(p_before, NaN)
     for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
@@ -2699,9 +2722,10 @@ function solve_agent_problem!(
         fill!(regulator.p, NaN)
         sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
             
+        h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
 
-            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
             
             energy_cost = sum(energy_cost_allocation_h(z, h) for h in customer_types)
             demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
@@ -2712,20 +2736,26 @@ function solve_agent_problem!(
 
         end
             
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]
-            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
-        end
-            
+        # Assign rates to customers
+        h_to_sector = Dict(model_data.index_h_sector_map)
+        for (z, h) in model_data.index_z_h_map
+            for d in model_data.index_d, t in model_data.index_t
+                regulator.p(z, h, d, t, :) .= sector_rates[(
+                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
+                )]
+            end
+        end      
+
+        # Replace NaN values with 0.0
         replace!(regulator.p.values, NaN => 0.0)
         
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
         sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
 
+        h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            
-            customer_types = [h for h in model_data.index_h if model_data.h_to_sector[h] == sector]
+            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
                             
             tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
 
@@ -2739,12 +2769,18 @@ function solve_agent_problem!(
 
         end
             
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
-            sector = model_data.h_to_sector[h]
-            regulator.p(z, h, d, t, :) .= sector_rates[(z, sector, d, t)]
-        end
-        
-        replace!(regulator.p.values, NaN => 0.0)
+        # Assign rates to customers
+        h_to_sector = Dict(model_data.index_h_sector_map)
+        for (z, h) in model_data.index_z_h_map
+            for d in model_data.index_d, t in model_data.index_t
+                regulator.p(z, h, d, t, :) .= sector_rates[(
+                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
+                )]
+            end
+        end      
+
+        # Replace NaN values with 0.0
+        replace!(regulator.p.values, NaN => 0.0)    
     end
 
     # TODO: Call a function instead of using if-then
