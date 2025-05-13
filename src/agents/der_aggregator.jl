@@ -96,7 +96,7 @@ function solve_agent_problem!(
         der_aggregator.aggregation_level(reg_year_index, z, :) .= 0.0
     end
 
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         der_aggregator.dera_stor_my(reg_year_index, z, h, :) .= 0.0
         der_aggregator.dera_pv_my(reg_year_index, z, h, :) .= 0.0
     end
@@ -139,7 +139,7 @@ function solve_agent_problem!(
         der_aggregator.aggregation_level(reg_year_index, z, :) .= 0.0
     end
 
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         der_aggregator.dera_stor_my(reg_year_index, z, h, :) .= 0.0
         der_aggregator.dera_pv_my(reg_year_index, z, h, :) .= 0.0
     end
@@ -194,7 +194,7 @@ function solve_agent_problem!(
     obj_by_segment = Dict(z => zeros(incentive_function_dimension - 1) for z in model_data.index_z)
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         if w_iter >= 2
             total_der_stor_capacity(z, h, :) .=
                 customers.x_DG_E_my(reg_year_index, h, z, :BTMStorage) + sum(
@@ -207,9 +207,11 @@ function solve_agent_problem!(
     end
 
     z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
-    sector_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_sector)
-    
     for z in model_data.index_z
+
+        rte_dist_stor = findfirst(x -> x!= 0, customers.rte_dist_stor(z,:))
+        duration_dist_stor = findfirst(x -> x!= 0, customers.duration_dist_stor(z,:))
+
         for i in 1:incentive_function_dimension - 1
             # x (incentive) should be $/MW (per year)?
             DERAggregator_WM = get_new_jump_model(dera_opts.solvers)
@@ -275,7 +277,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
                 ],
-                dera_energy[d, t] == dera_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - dera_discharge[d, t] / customers.rte_dist_stor(z, :Commercial) * delta_t +
+                dera_energy[d, t] == dera_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - dera_discharge[d, t] / rte_dist_stor * delta_t +
                     dera_charge[d, t] * delta_t
             )
 
@@ -285,7 +287,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
                 ],
-                dera_energy[d, t] == customers.initial_energy_dist_stor(z, :Commercial, d) - dera_discharge[d, t] / customers.rte_dist_stor(z, :Commercial) * delta_t + dera_charge[d, t] * delta_t
+                dera_energy[d, t] == first(customers.initial_energy_dist_stor(z,:,d)) - dera_discharge[d, t] / rte_dist_stor * delta_t + dera_charge[d, t] * delta_t
             )
 
             @constraint(
@@ -294,7 +296,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t,
                 ],
-                dera_energy[d, t] <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity
+                dera_energy[d, t] <= duration_dist_stor * dera_stor_capacity
             )
 
             @constraint(
@@ -303,7 +305,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t,
                 ],
-                dera_discharge[d, t] <= customers.rte_dist_stor(z, :Commercial) * dera_stor_capacity
+                dera_discharge[d, t] <= rte_dist_stor * dera_stor_capacity
             )
 
             @constraint(
@@ -331,7 +333,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
                 ],
-                dera_discharge[d, t] * delta_t <= customers.initial_energy_dist_stor(z, :Commercial, d)
+                dera_discharge[d, t] * delta_t <= first(customers.initial_energy_dist_stor(z,:,d))
             )
 
             @constraint(
@@ -340,7 +342,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
                 ],
-                dera_charge[d, t] * delta_t <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity -
+                dera_charge[d, t] * delta_t <= duration_dist_stor * dera_stor_capacity -
                 dera_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
             )
 
@@ -350,8 +352,8 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
                 ],
-                dera_charge[d, t] * delta_t <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity -
-                customers.initial_energy_dist_stor(z, :Commercial, d)
+                dera_charge[d, t] * delta_t <= duration_dist_stor * dera_stor_capacity -
+                first(customers.initial_energy_dist_stor(z,:,d))
             )
 
             @constraint(
@@ -360,7 +362,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t.elements,
                 ],
-                dera_charge[d, t] + dera_discharge[d, t] / customers.rte_dist_stor(z, :Commercial) <= 
+                dera_charge[d, t] + dera_discharge[d, t] / rte_dist_stor <= 
                 dera_stor_capacity
             )
 
@@ -393,7 +395,7 @@ function solve_agent_problem!(
 
     dera_agg_stor_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
     dera_agg_pv_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         dera_agg_stor_capacity_h(z, h, :) .= der_aggregator.aggregation_level(reg_year_index, z) * total_der_stor_capacity(z, h)
         if customers.Opti_DG_E(z, h, :BTMStorage) == 0.0 || customers.Opti_DG_E(z, h, :BTMPV) == 0.0
             dera_agg_pv_capacity_h(z, h, :) .= 0.0
@@ -407,8 +409,8 @@ function solve_agent_problem!(
     # TODO: I think this might also be happening in the IPPGroup right now. Choose one location?
     for z in model_data.index_z
         # simply assign DERAggregator to a random ipp (ipp1)
-        ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
-        ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
+        ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in z_to_h_dict[z])
+        ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in z_to_h_dict[z])
     end
 
     der_aggregator.current_year = reg_year_index
@@ -462,7 +464,7 @@ function solve_agent_problem!(
     cem_cost_saving_function = Dict(z => copy(cem_cost_saving_function_one) for z in model_data.index_z)
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         if w_iter >= 2
             total_der_stor_capacity(z, h, :) .=
                 customers.x_DG_E_my(reg_year_index, h, z, :BTMStorage) + sum(
@@ -500,17 +502,18 @@ function solve_agent_problem!(
     )
     viu_obj_value_base = deepcopy(utility._obj_value)
 
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_h)
     for z in model_data.index_z
-        if sum(total_der_stor_capacity(z, h) for h in model_data.index_h) != 0.0
+        if sum(total_der_stor_capacity(z, h) for h in z_to_h_dict[z]) != 0.0
             for i in 1:incentive_function_dimension - 1
                 # set der aggregation level to points on the curve before running CEM
                 der_aggregator.aggregation_level(reg_year_index_pre, z, :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"]
-                utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) for h in model_data.index_h)
+                utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * sum(total_der_stor_capacity(z, h) for h in z_to_h_dict[z])
                 utility.x_E_my(z, Symbol("dera_pv"), :) .= der_aggregator.dera_stor_incentive_function[i+1, "participation"] * 
                 sum(
                     customers.Opti_DG_E(z, h, :BTMStorage) == 0 || customers.Opti_DG_E(z, h, :BTMPV) == 0 ? 0.0 : 
                     total_der_stor_capacity(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)
-                    for h in model_data.index_h
+                    for h in z_to_h_dict[z]
                 )
 
                 incentive_function_cem_dir = joinpath(export_file_path, "$(reg_year)_viu_dera_$(z)_agg_level_$(i)")
@@ -559,6 +562,10 @@ function solve_agent_problem!(
     end
 
     for z in model_data.index_z
+
+        rte_dist_stor = findfirst(x -> x!= 0, customers.rte_dist_stor(z,:))
+        duration_dist_stor = findfirst(x -> x!= 0, customers.duration_dist_stor(z,:))
+
         for i in 1:incentive_function_dimension - 1
             # x (incentive) should be $/MW (per year)?
             DERAggregator_VIU = get_new_jump_model(dera_opts.solvers)
@@ -579,7 +586,7 @@ function solve_agent_problem!(
 
             dera_stor_capacity =
                 begin
-                sum(dera_stor_capacity_h(h) for h in model_data.index_h)
+                sum(dera_stor_capacity_h(h) for h in z_to_h_dict[z])
             end
 
             # when it comes to the aggregated pv capacity, use aggregated storage capacity, divide by optimal storage size to get the number of households that's participating the dera aggregation,
@@ -593,7 +600,7 @@ function solve_agent_problem!(
 
             dera_pv_capacity =
                 begin
-                sum(dera_pv_capacity_h(h) for h in model_data.index_h)
+                sum(dera_pv_capacity_h(h) for h in z_to_h_dict[z])
             end
 
             objective_revenue = begin
@@ -614,7 +621,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
                 ],
-                dera_energy[d, t] == dera_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - dera_discharge[d, t] / customers.rte_dist_stor(z, :Commercial) * delta_t +
+                dera_energy[d, t] == dera_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]] - dera_discharge[d, t] / rte_dist_stor * delta_t +
                     dera_charge[d, t] * delta_t
             )
 
@@ -624,7 +631,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
                 ],
-                dera_energy[d, t] == customers.initial_energy_dist_stor(z, :Commercial, d) - dera_discharge[d, t] / customers.rte_dist_stor(z, :Commercial) * delta_t + dera_charge[d, t] * delta_t
+                dera_energy[d, t] == first(customers.initial_energy_dist_stor(z,:,d)) - dera_discharge[d, t] / rte_dist_stor * delta_t + dera_charge[d, t] * delta_t
             )
 
             @constraint(
@@ -633,7 +640,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t,
                 ],
-                dera_energy[d, t] <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity
+                dera_energy[d, t] <= duration_dist_stor * dera_stor_capacity
             )
 
             @constraint(
@@ -642,7 +649,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t,
                 ],
-                dera_discharge[d, t] <= customers.rte_dist_stor(z, :Commercial) * dera_stor_capacity
+                dera_discharge[d, t] <= rte_dist_stor * dera_stor_capacity
             )
 
             @constraint(
@@ -670,7 +677,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
                 ],
-                dera_discharge[d, t] * delta_t <= customers.initial_energy_dist_stor(z, :Commercial, d)
+                dera_discharge[d, t] * delta_t <= first(customers.initial_energy_dist_stor(z, :, d))
             )
 
             @constraint(
@@ -679,7 +686,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t.elements[2:end],
                 ],
-                dera_charge[d, t] * delta_t <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity -
+                dera_charge[d, t] * delta_t <= duration_dist_stor * dera_stor_capacity -
                 dera_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
             )
 
@@ -689,8 +696,8 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in [model_data.index_t.elements[1]],
                 ],
-                dera_charge[d, t] * delta_t <= customers.duration_dist_stor(z, :Commercial) * dera_stor_capacity -
-                customers.initial_energy_dist_stor(z, :Commercial, d)
+                dera_charge[d, t] * delta_t <= duration_dist_stor * dera_stor_capacity -
+                first(customers.initial_energy_dist_stor(z, :, d))
             )
 
             @constraint(
@@ -699,7 +706,7 @@ function solve_agent_problem!(
                     d in model_data.index_d,
                     t in model_data.index_t.elements,
                 ],
-                dera_charge[d, t] + dera_discharge[d, t] / customers.rte_dist_stor(z, :Commercial) <= 
+                dera_charge[d, t] + dera_discharge[d, t] / rte_dist_stor <= 
                 dera_stor_capacity
             )
 
@@ -734,7 +741,7 @@ function solve_agent_problem!(
 
     dera_agg_stor_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
     dera_agg_pv_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         dera_agg_stor_capacity_h(z, h, :) .= der_aggregator.aggregation_level(reg_year_index, z) * total_der_stor_capacity(z, h)
         dera_agg_pv_capacity_h(z, h, :) .= customers.Opti_DG_E(z, h, :BTMStorage) == 0 || customers.Opti_DG_E(z, h, :BTMPV) == 0 ? 
         0.0 : dera_agg_stor_capacity_h(z, h) / customers.Opti_DG_E(z, h, :BTMStorage) * customers.Opti_DG_E(z, h, :BTMPV)   
@@ -743,8 +750,8 @@ function solve_agent_problem!(
     end
 
     for z in model_data.index_z
-        utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in model_data.index_h)
-        utility.x_E_my(z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in model_data.index_h)
+        utility.x_stor_E_my(z, Symbol("der_aggregator"), :) .= sum(dera_agg_stor_capacity_h(z, h) for h in z_to_h_dict[z])
+        utility.x_E_my(z, Symbol("dera_pv"), :) .= sum(dera_agg_pv_capacity_h(z, h) for h in z_to_h_dict[z])
     end
 
     der_aggregator.current_year = reg_year_index
