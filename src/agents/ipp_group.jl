@@ -934,45 +934,7 @@ function ipp_cap_lower(
     end
     @objective(MPPDCMER_lower, Min, objective_function_lower)
 
-    for h in model_data.index_h
-        if ismissing(customers.rho_DG(h,:,:,:,:))
-            println("customers.rho_DG for h = $h is missing")
-        end
-        if ismissing(customers.total_der_capacity_my_delay_update(:,:,h,:))
-            println("customers.total_der_capacity_my_delay_update for h = $h is missing")
-        end
-        if ismissing(customers.gamma(:, h))
-            println("customers.gamma for h = $h is missing")
-        end
-        if ismissing(customers.d_my(:, h, :, :, :))
-            println("customers.d_my for h = $h is missing")
-        end
-        if ismissing(customers.total_pv_stor_capacity_my(:, :, h, :))
-            println("customers.total_pv_stor_capacity_my for h = $h is missing")
-        end
-        if ismissing(green_developer.green_tech_buildout_my(:, :, :, h))
-            println("green_developer.green_tech_buildout_my for h = $h is missing")
-        end
-
-        if any(isnan, customers.rho_DG(h,:,:,:,:))
-            println("customers.rho_DG for h = $h has NaN values")
-        end
-        if any(isnan, customers.total_der_capacity_my_delay_update(:,:,h,:))
-            println("customers.total_der_capacity_my_delay_update for h = $h has NaN values")
-        end
-        if any(isnan, customers.gamma(:, h))
-            println("customers.gamma for h = $h has NaN values")
-        end
-        if any(isnan, customers.d_my(:, h, :, :, :))
-            println("customers.d_my for h = $h has NaN values")
-        end
-        if any(isnan, customers.total_pv_stor_capacity_my(:, :, h, :))
-            println("customers.total_pv_stor_capacity_my for h = $h has NaN values")
-        end
-        if any(isnan, green_developer.green_tech_buildout_my(:, :, :, h))
-            println("green_developer.green_tech_buildout_my for h = $h has NaN values")
-        end
-    end
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
 
     # Constraints
     supply_demand_balance_lower =
@@ -989,24 +951,24 @@ function ipp_cap_lower(
             sum(charge_E_bounds[y, p, s, z, d, t] for s in ipp.index_stor_existing, p in ipp.index_p) -
             sum(charge_C_bounds[y, p, s, z, d, t] for s in ipp.index_stor_new, p in ipp.index_p) -
             # demand at time t
-            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) -
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in z_to_h_dict[z]) -
             ipp.eximport_my(y, z, d, t) +
             # total DG generation at time t
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my_delay_update(y, z, h, m) for
-                h in model_data.index_h, m in customers.index_m
+                h in z_to_h_dict[z], m in customers.index_m
             ) * (1 + ipp.loss_dist) - 
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
                 customers.total_pv_stor_capacity_my(cust_year, z, h, m) # this actually needs to be a delayed update as well, but all the if-else in customer_group function makes this difficult. However, as long as the initial capacity does not change year over year for the simulation period this is fine (such as in this case).
-                for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                for h in z_to_h_dict[z], m in (:BTMStorage, :BTMPV)
             ) * (1 + ipp.loss_dist) +
             # green technology subscription at time t
             sum(
                 ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
+                for j in model_data.index_j, h in z_to_h_dict[z]
             )
         end
 
@@ -1506,29 +1468,31 @@ function ipp_cap_lower_dual(
         kappa_C_lower[index_y, ipp.index_p, ipp.index_stor_new, model_data.index_z, model_data.index_d, model_data.index_t] >= 0
     )
 
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
+
     # Objective
     objective_function_lower_dual = begin
         sum(
             sum(
                 miu_lower[y, z, d, t] * (
                     sum(
-                        customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h
+                        customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in z_to_h_dict[z]
                     ) + ipp.eximport_my(y, z, d, t) -
                     # total DG generation at time t
                     sum(
                         customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my_delay_update(y, z, h, m) for
-                        h in model_data.index_h, m in customers.index_m
+                        h in z_to_h_dict[z], m in customers.index_m
                     ) * (1 + ipp.loss_dist) +
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
                         customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) * 
-                        customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                        customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in z_to_h_dict[z], m in (:BTMStorage, :BTMPV)
                     ) * (1 + ipp.loss_dist) -
                     # green technology subscription at time t
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                         model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                        for j in model_data.index_j, h in model_data.index_h
+                        for j in model_data.index_j, h in z_to_h_dict[z]
                     )
                 ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             ) - 
@@ -2440,20 +2404,22 @@ function ipp_cap_upper(
         end
     end
 
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
+
     # adding capacity market parameters
     fill!(ipp.Net_Load_my, NaN)
     for y in model_data.index_y, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
         ipp.Net_Load_my(y, z, d, t, :) .=
-            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - 
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in z_to_h_dict[z]) - 
             # total DG generation at time t
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
-                h in model_data.index_h, m in customers.index_m
+                h in z_to_h_dict[z], m in customers.index_m
             ) * (1 + ipp.loss_dist) +
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
-                customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in z_to_h_dict[z], m in (:BTMStorage, :BTMPV)
             ) * (1 + ipp.loss_dist)
     end
     fill!(ipp.Max_Net_Load_my, NaN)
@@ -2584,7 +2550,7 @@ function ipp_cap_upper(
                 sum(
                     ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, h in model_data.index_h, z in model_data.index_z
+                    for j in model_data.index_j, (z, h) in model_data.index_z_h_map
                 ) - 
                 # put exogenous export on the supply-side
                 # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -2597,7 +2563,7 @@ function ipp_cap_upper(
             sum(
                 ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h, z in model_data.index_z
+                for j in model_data.index_j, (z, h) in model_data.index_z_h_map
             ) - 
             # put exogenous export on the supply-side
             # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -2670,24 +2636,24 @@ function ipp_cap_upper(
                     miu[y, z, d, t] * (
                         sum(
                             customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for
-                            h in model_data.index_h
+                            h in z_to_h_dict[z]
                         ) + 
                         ipp.eximport_my(y, z, d, t) -
                         # total DG generation at time t
                         sum(
                             customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
-                            h in model_data.index_h, m in customers.index_m
+                            h in z_to_h_dict[z], m in customers.index_m
                         ) * (1 + ipp.loss_dist) +
                         # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                         sum(
                             customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) * 
-                            customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                            customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in z_to_h_dict[z], m in (:BTMStorage, :BTMPV)
                         ) * (1 + ipp.loss_dist) -
                         # green technology subscription at time t
                         sum(
                             ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                             model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                            for j in model_data.index_j, h in model_data.index_h
+                            for j in model_data.index_j, h in z_to_h_dict[z]
                         )
                     ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 ) - ( # the reason I choose to do it this way (remove p_star from all p) is because there may be issue when p_star is the only IPP
@@ -3137,22 +3103,22 @@ function ipp_cap_upper(
             sum(charge_E[y, p, s, z, d, t] for s in ipp.index_stor_existing, p in ipp.index_p) -
             sum(charge_C[y, p, s, z, d, t] for s in ipp.index_stor_new, p in ipp.index_p) -
             # demand at time t
-            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h) - ipp.eximport_my(y, z, d, t) +
+            sum(customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in z_to_h_dict[z]) - ipp.eximport_my(y, z, d, t) +
             # total DG generation at time t
             sum(
                 customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
-                h in model_data.index_h, m in customers.index_m
+                h in z_to_h_dict[z], m in customers.index_m
             ) * (1 + ipp.loss_dist) -
             # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
             sum(
                 customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
-                customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in z_to_h_dict[z], m in (:BTMStorage, :BTMPV)
             ) * (1 + ipp.loss_dist) +
             # green technology subscription at time t
             sum(
                 ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
+                for j in model_data.index_j, h in z_to_h_dict[z]
             )
         end
 
@@ -3896,23 +3862,23 @@ function ipp_cap_upper(
             sum(
                 miu[y, z, d, t] * (
                     sum(
-                        customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h
+                        customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in z_to_h_dict[z]
                     ) + ipp.eximport_my(y, z, d, t) -
                     # total DG generation at time t
                     sum(
                         customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
-                        h in model_data.index_h, m in customers.index_m
+                        h in z_to_h_dict[z], m in customers.index_m
                     ) * (1 + ipp.loss_dist) + 
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
                         customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
-                        customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                        customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in z_to_h_dict[z], m in (:BTMStorage, :BTMPV)
                     ) * (1 + ipp.loss_dist) -
                     # green technology subscription at time t
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                         model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                        for j in model_data.index_j, h in model_data.index_h
+                        for j in model_data.index_j, h in z_to_h_dict[z]
                     )
                 ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             ) - 
@@ -4798,7 +4764,7 @@ function ipp_cap_upper(
             sum(
                 ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in model_data.index_h
+                for j in model_data.index_j, h in z_to_h_dict[z]
             ) -
             # flow out of zone z
             sum(ipp.trans_topology(l, z) * flow_cap[y, l] for l in ipp.index_l) -
@@ -4878,6 +4844,7 @@ function ipp_calc_duality_gap(
         lower_level_dual_obj[!, y] = Vector{Float64}(undef, 1)
         lower_level_duality_gap[!, y] = Vector{Float64}(undef, 1)
     end
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
     for y in model_data.index_y
         lower_level_primal_obj[1, y] = 
         sum(
@@ -4959,23 +4926,23 @@ function ipp_calc_duality_gap(
             sum(
                 value.(WMDER_IPP[:miu][y, z, d, t]) * (
                     sum(
-                        customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in model_data.index_h
+                        customers.gamma(z, h) * customers.d_my(y, h, z, d, t) for h in z_to_h_dict[z]
                     ) + ipp.eximport_my(y, z, d, t) -
                     # total DG generation at time t
                     sum(
                         customers.rho_DG(h, m, z, d, t) * customers.total_der_capacity_my(cust_year, z, h, m) for
-                        h in model_data.index_h, m in customers.index_m
+                        h in z_to_h_dict[z], m in customers.index_m
                     ) * (1 + ipp.loss_dist) + 
                     # remove aggregated behind-the-meter pv/storage generation/consumption since they're front-of-the-meter now
                     sum(
                         customers.rho_DG(h, m, z, d, t) * der_aggregator.aggregation_level(dera_year, z) *
-                        customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+                        customers.total_pv_stor_capacity_my(cust_year, z, h, m) for h in z_to_h_dict[z], m in (:BTMStorage, :BTMPV)
                     ) * (1 + ipp.loss_dist) -
                     # green technology subscription at time t
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                         model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                        for j in model_data.index_j, h in model_data.index_h
+                        for j in model_data.index_j, h in z_to_h_dict[z]
                     )
                 ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             ) - 
@@ -5363,7 +5330,7 @@ function ipp_cap_save_results(
                 sum(
                     ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, h in model_data.index_h, z in model_data.index_z
+                    for j in model_data.index_j, (z, h) in model_data.index_z_h_map
                 ) - 
                 # put exogenous export on the supply-side
                 # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -5377,7 +5344,7 @@ function ipp_cap_save_results(
                 sum(
                     ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, h in model_data.index_h, z in model_data.index_z
+                    for j in model_data.index_j, (z, h) in model_data.index_z_h_map
                 ) - 
                 # put exogenous export on the supply-side
                 # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -5438,7 +5405,7 @@ function solve_agent_problem_ipp_cap(
     reg_year, reg_year_index = get_reg_year(model_data)
     #### !!!! we also need to do delayed update for customers.total_pv_stor_capacity_my, but need to figure out all the if-else in customer_group !!!! ####
     # as long as the existing capacity for customers.total_pv_stor_capacity_my does not change from year to year for the simulation period this is fine (such as in this case).
-    for z in model_data.index_z, h in model_data.index_h, m in (:BTMStorage, :BTMPV)
+    for (z,h) in model_data.index_z_h_map, m in (:BTMStorage, :BTMPV)
         update_total_capacity!(customers.total_der_capacity_my_delay_update, customers.x_DG_new, model_data, reg_year, z, h, m)
     end
 
@@ -5465,19 +5432,21 @@ function solve_agent_problem_ipp_cap(
     cust_pre_year = customers.previous_year
     dera_pre_year = der_aggregator.previous_year
 
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
+
     # TODO: Only update here on first year? Or find a better place to initialize?
     for z in model_data.index_z
         # simply assign DERAggregator to a random ipp (ipp1)
         ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(
-            der_aggregator.dera_stor_my(dera_pre_year, z, h) for h in model_data.index_h
+            der_aggregator.dera_stor_my(dera_pre_year, z, h) for h in z_to_h_dict[z]
         )
         ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(
-            der_aggregator.dera_pv_my(dera_pre_year, z, h) for h in model_data.index_h
+            der_aggregator.dera_pv_my(dera_pre_year, z, h) for h in z_to_h_dict[z]
         )
     end
 
     # TODO: Only update in customers
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(cust_pre_year, h, :BTMStorage, z, d, t)
     end
 
@@ -5529,11 +5498,11 @@ function solve_agent_problem_ipp_cap(
 
         for z in model_data.index_z
             # simply assign DERAggregator to a random ipp (ipp1)
-            ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(der_aggregator.dera_stor_my(dera_year, z, h) for h in model_data.index_h)
-            ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(der_aggregator.dera_pv_my(dera_year, z, h) for h in model_data.index_h)
+            ipp.x_stor_E_my(:ipp1, z, Symbol("der_aggregator"), :) .= sum(der_aggregator.dera_stor_my(dera_year, z, h) for h in z_to_h_dict[z])
+            ipp.x_E_my(:ipp1, z, Symbol("dera_pv"), :) .= sum(der_aggregator.dera_pv_my(dera_year, z, h) for h in z_to_h_dict[z])
         end
     
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+        for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
             customers.rho_DG(h, :BTMStorage, z, d, t, :) .= customers.rho_DG_my(cust_year, h, :BTMStorage, z, d, t)
         end
 

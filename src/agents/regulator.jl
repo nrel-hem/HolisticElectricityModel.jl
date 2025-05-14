@@ -391,7 +391,7 @@ function solve_agent_problem!(
         y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
     )
 
-    for h in model_data.index_h, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
         # customers.DERGen(h, t, :) .= customers.DERGen_my(reg_year_index, h, t)
     end
@@ -407,7 +407,9 @@ function solve_agent_problem!(
     # this total_der_pv_capacity is the approximate capacity of pv portion of pv+storage tech, not all dpv capacity
     total_der_pv_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
 
-    for z in model_data.index_z, h in model_data.index_h
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
+
+    for (z, h) in model_data.index_z_h_map
         if w_iter >= 2
             total_der_stor_capacity(z, h, :) .=
                 customers.x_DG_E_my(reg_year_index_dera, h, z, :BTMStorage) + sum(
@@ -771,7 +773,7 @@ function solve_agent_problem!(
             #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
             sum(
                 customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
-                h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) +
             # exogenous export/import
             sum(
@@ -794,22 +796,22 @@ function solve_agent_problem!(
                         customers.rho_DG(h, m, z, d, t) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
-                ) for h in model_data.index_h, m in customers.index_m, d in model_data.index_d, t in model_data.index_t
+                ) for h in z_to_h_dict[z], m in customers.index_m, d in model_data.index_d, t in model_data.index_t
             ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
-                for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) * (1 + utility.loss_dist) + 
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
-                for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) * (1 + utility.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for j in model_data.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -822,7 +824,7 @@ function solve_agent_problem!(
             #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
             sum(
                 customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
-                h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
             # when it comes to cost allocation, simply use total DER generation to offset total load;
@@ -835,22 +837,22 @@ function solve_agent_problem!(
                         customers.rho_DG(h, m, z, d, t) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
-                ) for h in model_data.index_h, m in customers.index_m, d in model_data.index_d, t in model_data.index_t
+                ) for h in z_to_h_dict[z], m in customers.index_m, d in model_data.index_d, t in model_data.index_t
             ) * (1 + utility.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
-                for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) * (1 + utility.loss_dist) + 
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
-                for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) * (1 + utility.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for j in model_data.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -866,7 +868,7 @@ function solve_agent_problem!(
     # Initialize the keyed array
     der_excess_cost_h = make_keyed_array(model_data.index_z, model_data.index_h)
 
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         der_excess_cost_h(z, h, :) .= 
         # DER excess for PV-only customers
         sum(
@@ -924,7 +926,7 @@ function solve_agent_problem!(
     end
 
     net_demand_h_w_loss = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         # Demand
         net_demand_h_w_loss(z, h, :) .= sum(
                 customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
@@ -954,7 +956,7 @@ function solve_agent_problem!(
     # Initialize the keyed array
     net_demand_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
 
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         net_demand_h_wo_loss(z, h, :) .= 
             # Demand without loss
             sum(
@@ -1019,7 +1021,7 @@ function solve_agent_problem!(
     end
 
     net_demand_wo_green_tech_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         net_demand_wo_green_tech_h_wo_loss(z, h, :) .= 
             # Demand with loss
             sum(
@@ -1135,7 +1137,7 @@ function solve_agent_problem!(
                 #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
-                    h in model_data.index_h
+                    h in z_to_h_dict[z]
                 ) +
                 # exogenous export/import
                 sum(
@@ -1157,22 +1159,22 @@ function solve_agent_problem!(
                             customers.rho_DG(h, m, z, d, t) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
-                    ) for h in model_data.index_h, m in customers.index_m
+                    ) for h in z_to_h_dict[z], m in customers.index_m
                 ) * (1 + utility.loss_dist) +
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
-                    for h in model_data.index_h
+                    for h in z_to_h_dict[z]
                 ) * (1 + utility.loss_dist) + 
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
-                    for h in model_data.index_h
+                    for h in z_to_h_dict[z]
                 ) * (1 + utility.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j, h in model_data.index_h
+                    for j in model_data.index_j, h in z_to_h_dict[z]
                 )
         end
         net_demand_t_w_loss(z, tou, :) .= net_demand_t_w_loss_temp
@@ -1191,7 +1193,7 @@ function solve_agent_problem!(
                 #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
-                    h in model_data.index_h
+                    h in z_to_h_dict[z]
                 ) -
                 # DG
                 # when it comes to cost allocation, simply use total DER generation to offset total load;
@@ -1204,22 +1206,22 @@ function solve_agent_problem!(
                             customers.rho_DG(h, m, z, d, t) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
-                    ) for h in model_data.index_h, m in customers.index_m
+                    ) for h in z_to_h_dict[z], m in customers.index_m
                 ) * (1 + utility.loss_dist) + 
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
-                    for h in model_data.index_h
+                    for h in z_to_h_dict[z]
                 ) * (1 + utility.loss_dist) + 
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
-                    for h in model_data.index_h
+                    for h in z_to_h_dict[z]
                 ) * (1 + utility.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j, h in model_data.index_h
+                    for j in model_data.index_j, h in z_to_h_dict[z]
                 )
         end
         net_demand_t_w_loss_no_eximport(z, tou, :) .= net_demand_t_w_loss_no_eximport_temp
@@ -1256,7 +1258,7 @@ function solve_agent_problem!(
     end
 
     der_excess_cost_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         der_excess_cost_h_t_temp = 0.0
         for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
             d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
@@ -1314,7 +1316,7 @@ function solve_agent_problem!(
     end
 
     net_demand_h_t_w_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         net_demand_h_t_w_loss_temp = 0.0
         for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
             d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
@@ -1347,7 +1349,7 @@ function solve_agent_problem!(
     end
 
     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         net_demand_h_t_wo_loss_temp = 0.0
         for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
             d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
@@ -1413,7 +1415,7 @@ function solve_agent_problem!(
     # for the purpose of calculating net peak load, use load including distribution loss
     # green tech offset is included here because these investments are paid for by corresponding load (treated in the same way as DPV)
     net_demand_for_peak_h_t = make_keyed_array(model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t)
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         net_demand_for_peak_h_t(z, h, d, t, :) .=
             sum(
                 customers.gamma(z, h) * customers.d(h, z, d, t)
@@ -1441,7 +1443,7 @@ function solve_agent_problem!(
 
     # excluding green tech generation offset when it comes to sharing T&D costs
     net_demand_for_peak_wo_green_tech_h_t = make_keyed_array(model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t)
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         net_demand_for_peak_wo_green_tech_h_t(z, h, d, t, :) .=
             sum(
                 customers.gamma(z, h) * customers.d(h, z, d, t)
@@ -1463,13 +1465,13 @@ function solve_agent_problem!(
 
     # non-coincident peak load
     net_peak_load_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         net_peak_load_h(z, h, :) .=
             findmax(Dict((d, t) => net_demand_for_peak_h_t(z, h, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
 
     net_peak_load_wo_green_tech_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         net_peak_load_wo_green_tech_h(z, h, :) .=
             findmax(Dict((d, t) => net_demand_for_peak_wo_green_tech_h_t(z, h, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
@@ -1482,7 +1484,7 @@ function solve_agent_problem!(
 
     # Cost Classification/Allocation
     energy_cost_allocation_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         energy_cost_allocation_h(z, h, :) .=
             (energy_cost(z) - net_eximport_cost(z)) * net_demand_h_w_loss(z, h) / net_demand_w_loss_no_eximport(z) + der_excess_cost_h(z, h)
     end
@@ -1491,37 +1493,37 @@ function solve_agent_problem!(
     # allocate (revenue_requirement - energy_cost + net_eximport_cost) by net peak load with green tech generation offset;
     # allocate regulator.othercost (T&D costs) by net peak load without green tech generation offset;
     demand_cost_allocation_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         demand_cost_allocation_h(z, h, :) .=
             (revenue_requirement(z) - energy_cost(z) + net_eximport_cost(z)) * net_peak_load_h(z, h) / (
-                sum(net_peak_load_h(z, h) for h in model_data.index_h)
+                sum(net_peak_load_h(z, h) for h in z_to_h_dict[z])
             ) + 
             regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
-                sum(net_peak_load_wo_green_tech_h(z, h) for h in model_data.index_h)
+                sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
             )
     end
     replace!(demand_cost_allocation_h, NaN => 0.0)
 
     demand_cost_allocation_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         demand_cost_allocation_capacity_h(z, h, :) .=
             (revenue_requirement(z) - energy_cost(z) + net_eximport_cost(z)) * net_peak_load_h(z, h) / (
-                sum(net_peak_load_h(z, h) for h in model_data.index_h)
+                sum(net_peak_load_h(z, h) for h in z_to_h_dict[z])
             )
     end
     replace!(demand_cost_allocation_capacity_h, NaN => 0.0)
 
     demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         demand_cost_allocation_othercost_h(z, h, :) .=
             regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
-                sum(net_peak_load_wo_green_tech_h(z, h) for h in model_data.index_h)
+                sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
             )
     end
     replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
 
     energy_cost_allocation_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         energy_cost_allocation_h_t(z, h, tou, :) .=
             (energy_cost_t(z, tou) - net_eximport_cost_t(z, tou)) * net_demand_h_t_w_loss(z, h, tou) / net_demand_t_w_loss_no_eximport(z, tou) +
             der_excess_cost_h_t(z, h, tou)
@@ -1531,7 +1533,7 @@ function solve_agent_problem!(
     # compute the retail price
     p_before = ParamArray(regulator.p, "p_before")
     fill!(p_before, NaN)  # TODO DT: debug only
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         p_before(z, h, d, t, :) .= regulator.p_my(reg_year_index, z, h, d, t)
     end
 
@@ -1544,7 +1546,7 @@ function solve_agent_problem!(
         h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
             # Collect all customer types in this sector
-            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+            customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
     
             # Aggregate numerator and denominator over customer types
             numerator_energy_demand = sum(
@@ -1579,7 +1581,7 @@ function solve_agent_problem!(
         h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
             
-            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+            customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
                             
             tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
     
@@ -1617,7 +1619,7 @@ function solve_agent_problem!(
         regulator.p_ex = ParamArray(regulator.p)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         fill!(regulator.p_ex, NaN)
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+        for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
             regulator.p_ex(z, h, d, t, :) .=
                 utility.p_energy_cem_my(reg_year_index, z, d, t)
         end
@@ -1625,7 +1627,7 @@ function solve_agent_problem!(
         fill!(regulator.p_ex, 0.0)
     end
 
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         regulator.p_my(reg_year_index, z, h, d, t, :) .= regulator.p(z, h, d, t)
         regulator.p_ex_my(reg_year_index, z, h, d, t, :) .= regulator.p_ex(z, h, d, t)
     end
@@ -1678,7 +1680,9 @@ function solve_agent_problem!(
     # the year regulator is making a rate case
     reg_year, reg_year_index = get_reg_year(model_data)
 
-    for h in model_data.index_h, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
+
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
         # customers.DERGen(h, t, :) .= customers.DERGen_my(reg_year_index, h, t)
     end
@@ -1690,7 +1694,7 @@ function solve_agent_problem!(
     # this total_der_pv_capacity is the approximate capacity of pv portion of pv+storage tech, not all dpv capacity
     total_der_pv_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
 
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         if w_iter >= 2
             total_der_stor_capacity(z, h, :) .=
                 customers.x_DG_E_my(reg_year_index_dera, h, z, :BTMStorage) + sum(
@@ -1720,7 +1724,7 @@ function solve_agent_problem!(
             #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
             sum(
                 customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
-                h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) +
             # exogenous export/import
             sum(
@@ -1743,22 +1747,22 @@ function solve_agent_problem!(
                         customers.rho_DG(h, m, z, d, t) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
-                ) for h in model_data.index_h, m in customers.index_m, d in model_data.index_d, t in model_data.index_t
+                ) for h in z_to_h_dict[z], m in customers.index_m, d in model_data.index_d, t in model_data.index_t
             ) * (1 + ipp.loss_dist) + 
             # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
-                for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) * (1 + ipp.loss_dist) + 
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
-                for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) * (1 + ipp.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for j in model_data.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -1771,7 +1775,7 @@ function solve_agent_problem!(
             #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
             sum(
                 customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
-                h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
             # when it comes to cost allocation, simply use total DER generation to offset total load;
@@ -1784,22 +1788,22 @@ function solve_agent_problem!(
                         customers.rho_DG(h, m, z, d, t) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                         y in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
-                ) for h in model_data.index_h, m in customers.index_m, d in model_data.index_d, t in model_data.index_t
+                ) for h in z_to_h_dict[z], m in customers.index_m, d in model_data.index_d, t in model_data.index_t
             ) * (1 + ipp.loss_dist) + 
             # remove aggregated behind-the-meter storage generation/consumption since they're front-of-the-meter now
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
-                for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) * (1 + ipp.loss_dist) + 
             sum(
                 model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
-                for h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             ) * (1 + ipp.loss_dist) -
             # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+                for j in model_data.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -1813,7 +1817,7 @@ function solve_agent_problem!(
     # need to think more broadly about number of households when adopting multiple DERs.
 
     der_excess_cost_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         der_excess_cost_h(z, h, :) .= 
         # DER excess for PV-only customers
         sum(
@@ -1872,7 +1876,7 @@ function solve_agent_problem!(
 
 
     net_demand_h_w_loss = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         # Demand
         net_demand_h_w_loss(z, h, :) .= sum(
                 customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
@@ -1900,7 +1904,7 @@ function solve_agent_problem!(
     end
 
     net_demand_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         net_demand_h_wo_loss(z, h, :) .= 
             # Demand without loss
             sum(
@@ -1964,7 +1968,7 @@ function solve_agent_problem!(
     end
 
     net_demand_wo_green_tech_h_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         net_demand_wo_green_tech_h_wo_loss(z, h, :) .= 
             # Demand with loss
             sum(
@@ -2034,7 +2038,7 @@ function solve_agent_problem!(
                 #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
-                    h in model_data.index_h
+                    h in z_to_h_dict[z]
                 ) +
                 # exogenous export/import
                 sum(
@@ -2056,22 +2060,22 @@ function solve_agent_problem!(
                             customers.rho_DG(h, m, z, d, t) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
-                    ) for h in model_data.index_h, m in customers.index_m
+                    ) for h in z_to_h_dict[z], m in customers.index_m
                 ) * (1 + ipp.loss_dist) +
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
-                    for h in model_data.index_h
+                    for h in z_to_h_dict[z]
                 ) * (1 + ipp.loss_dist) + 
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
-                    for h in model_data.index_h
+                    for h in z_to_h_dict[z]
                 ) * (1 + ipp.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j, h in model_data.index_h
+                    for j in model_data.index_j, h in z_to_h_dict[z]
                 )
         end
         net_demand_t_w_loss(z, tou, :) .= net_demand_t_w_loss_temp
@@ -2090,7 +2094,7 @@ function solve_agent_problem!(
                 #      50 MW for export. It makes sense to allocate the same cost for internal load and export.
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for
-                    h in model_data.index_h
+                    h in z_to_h_dict[z]
                 ) -
                 # DG
                 # when it comes to cost allocation, simply use total DER generation to offset total load;
@@ -2103,22 +2107,22 @@ function solve_agent_problem!(
                             customers.rho_DG(h, m, z, d, t) * customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                             y in model_data.year(first(model_data.index_y_fix)):reg_year
                         )
-                    ) for h in model_data.index_h, m in customers.index_m
+                    ) for h in z_to_h_dict[z], m in customers.index_m
                 ) * (1 + ipp.loss_dist) + 
                 # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) 
-                    for h in model_data.index_h
+                    for h in z_to_h_dict[z]
                 ) * (1 + ipp.loss_dist) + 
                 sum(
                     model_data.omega(d) * delta_t * customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) 
-                    for h in model_data.index_h
+                    for h in z_to_h_dict[z]
                 ) * (1 + ipp.loss_dist) -
                 # green technology subscription
                 sum(
                     model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j, h in model_data.index_h
+                    for j in model_data.index_j, h in z_to_h_dict[z]
                 )
         end
         net_demand_t_w_loss_no_eximport(z, tou, :) .= net_demand_t_w_loss_no_eximport_temp
@@ -2155,7 +2159,7 @@ function solve_agent_problem!(
     end
 
     der_excess_cost_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         der_excess_cost_h_t_temp = 0.0
         for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
             d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
@@ -2233,7 +2237,7 @@ function solve_agent_problem!(
     end
 
     net_demand_h_t_w_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         net_demand_h_t_w_loss_temp = 0.0
         for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
             d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
@@ -2266,7 +2270,7 @@ function solve_agent_problem!(
     end
    
     net_demand_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         net_demand_h_t_wo_loss_temp = 0.0
         for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
             d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
@@ -2333,7 +2337,7 @@ function solve_agent_problem!(
     end
 
     net_demand_wo_green_tech_h_t_wo_loss = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         net_demand_wo_green_tech_h_t_wo_loss_temp = 0.0
         for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
             d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
@@ -2391,7 +2395,7 @@ function solve_agent_problem!(
 
     # for the purpose of calculating net peak load, use load including distribution loss
     net_demand_for_peak_h_t = make_keyed_array(model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t)
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         net_demand_for_peak_h_t(z, h, d, t, :) .=
             sum(
                 customers.gamma(z, h) * customers.d(h, z, d, t)
@@ -2420,7 +2424,7 @@ function solve_agent_problem!(
 
     # excluding green tech generation offset when it comes to sharing T&D costs
     net_demand_for_peak_wo_green_tech_h_t = make_keyed_array(model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t)
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         net_demand_for_peak_wo_green_tech_h_t(z, h, d, t, :) .=
             sum(
                 customers.gamma(z, h) * customers.d(h, z, d, t)
@@ -2442,13 +2446,13 @@ function solve_agent_problem!(
 
     # non-coincident peak load
     net_peak_load_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         net_peak_load_h(z, h, :) .=
             findmax(Dict((d, t) => net_demand_for_peak_h_t(z, h, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
 
     net_peak_load_wo_green_tech_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         net_peak_load_wo_green_tech_h(z, h, :) .=
             findmax(Dict((d, t) => net_demand_for_peak_wo_green_tech_h_t(z, h, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
@@ -2457,7 +2461,7 @@ function solve_agent_problem!(
     # Cost Classification/Allocation
     # for cost allocation under wholesale markets, make sure the costs charged match the load being charged
     local_net_load = make_keyed_array(model_data.index_z, model_data.index_h, model_data.index_d, model_data.index_t)
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         local_net_load(z, h, d, t, :) .= 
             customers.gamma(z, h) * customers.d(h, z, d, t) - 
                 sum(
@@ -2481,7 +2485,7 @@ function solve_agent_problem!(
             # aggregate across consumer class, then take the maximum of net load and zero.
             max(0.0, 
                 sum(
-                    local_net_load(z, h, d, t) for h in model_data.index_h
+                    local_net_load(z, h, d, t) for h in z_to_h_dict[z]
                 )
             ) + 
             # exogenous export
@@ -2494,7 +2498,7 @@ function solve_agent_problem!(
     end
 
     local_net_load_tou = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         local_net_load_tou_temp = 0.0
         for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
             d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
@@ -2543,7 +2547,7 @@ function solve_agent_problem!(
                         # remove aggregated behind-the-meter storage/pv generation/consumption since they're front-of-the-meter now
                         customers.rho_DG(h, :BTMStorage, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_stor_capacity(z, h) * (1 + ipp.loss_dist) + 
                         customers.rho_DG(h, :BTMPV, z, d, t) * der_aggregator.aggregation_level(reg_year_index_dera, z) * total_der_pv_capacity(z, h) * (1 + ipp.loss_dist)
-                        ) for h in model_data.index_h
+                        ) for h in z_to_h_dict[z]
                     )
                 ) + 
                 # exogenous export
@@ -2558,7 +2562,7 @@ function solve_agent_problem!(
     end
 
     energy_purchase_cost = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         energy_purchase_cost(z, h, :) .=
             sum(
                 model_data.omega(d) * delta_t * ipp.LMP_my(reg_year_index, z, d, t) *
@@ -2586,7 +2590,7 @@ function solve_agent_problem!(
     end
 
     energy_purchase_cost_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         energy_purchase_cost_t_temp = 0.0
         for i in 1:size(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :])[1]
             d = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_rate_tou.==String(tou)), :index_d][i])
@@ -2636,7 +2640,7 @@ function solve_agent_problem!(
     # note that this treatment is different from BTM resources
 
     energy_cost_allocation_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         energy_cost_allocation_h(z, h, :) .= 
             energy_purchase_cost(z, h) + 
             rec_purchase_cost(z) * 
@@ -2660,34 +2664,34 @@ function solve_agent_problem!(
     # The reason only net peak load of a customer type h of zone z is considered here is because export, green tech, and storage
     # are all considered in the supply-side of capacity markets.
     demand_cost_allocation_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         demand_cost_allocation_h(z, h, :) .= 
-        capacity_purchase_cost * net_peak_load_wo_green_tech_h(z, h) / sum(net_peak_load_wo_green_tech_h(z, h) for z in model_data.index_z, h in model_data.index_h) + 
+        capacity_purchase_cost * net_peak_load_wo_green_tech_h(z, h) / sum(net_peak_load_wo_green_tech_h(z, h) for z in model_data.index_z, h in z_to_h_dict[z]) + 
         regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
-            sum(net_peak_load_wo_green_tech_h(z, h) for h in model_data.index_h)
+            sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
         )
     end
     replace!(demand_cost_allocation_h, NaN => 0.0)
 
     demand_cost_allocation_capacity_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         demand_cost_allocation_capacity_h(z, h, :) .=
-        capacity_purchase_cost * net_peak_load_wo_green_tech_h(z, h) / sum(net_peak_load_wo_green_tech_h(z, h) for z in model_data.index_z, h in model_data.index_h)
+        capacity_purchase_cost * net_peak_load_wo_green_tech_h(z, h) / sum(net_peak_load_wo_green_tech_h(z, h) for z in model_data.index_z, h in z_to_h_dict[z])
     end
     replace!(demand_cost_allocation_capacity_h, NaN => 0.0)
 
     demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         demand_cost_allocation_othercost_h(z, h, :) .=
             regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
-                sum(net_peak_load_wo_green_tech_h(z, h) for h in model_data.index_h)
+                sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
             )
     end
     replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
 
 
     energy_cost_allocation_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
-    for z in model_data.index_z, h in model_data.index_h, tou in regulator.index_rate_tou
+    for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
         energy_cost_allocation_h_t(z, h, tou, :) .=
             energy_purchase_cost_t(z, h, tou) + 
             rec_purchase_cost_t(z, tou) * local_net_load_tou(z, h, tou) / energy_purchase_quantity_detailed_tou(z, tou) +
@@ -2697,13 +2701,13 @@ function solve_agent_problem!(
 
     p_before = ParamArray(regulator.p, "p_before")
     fill!(p_before, NaN)
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         p_before(z, h, d, t, :) .= regulator.p_my(reg_year_index, z, h, d, t)
     end
 
     p_before_wavg = ParamArray(regulator.p_td, "p_before_wavg")
     fill!(p_before_wavg, NaN)  # TODO DT: debug only
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         p_before_wavg(z, h, :) .= 
             sum(regulator.p_my(reg_year_index, z, h, d, t) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for d in model_data.index_d, t in model_data.index_t) / 
             sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) for d in model_data.index_d, t in model_data.index_t)
@@ -2718,7 +2722,7 @@ function solve_agent_problem!(
         h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
 
-            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+            customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
             
             energy_cost = sum(energy_cost_allocation_h(z, h) for h in customer_types)
             demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
@@ -2748,7 +2752,7 @@ function solve_agent_problem!(
 
         h_to_sector = Dict(model_data.index_h_sector_map)
         for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            customer_types = [h for h in model_data.index_h if h_to_sector[h] == sector]
+            customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
                             
             tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
 
@@ -2781,14 +2785,14 @@ function solve_agent_problem!(
         regulator.p_ex = ParamArray(regulator.p)
     elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
         fill!(regulator.p_ex, NaN)
-        for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+        for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
             regulator.p_ex(z, h, d, t, :) .= ipp.LMP_my(reg_year_index, z, d, t)
         end
     elseif regulator_opts.net_metering_policy isa ExcessZero
         fill!(regulator.p_ex, 0.0)
     end
 
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         regulator.p_my(reg_year_index, z, h, d, t, :) .= regulator.p(z, h, d, t)
         regulator.p_ex_my(reg_year_index, z, h, d, t, :) .= regulator.p_ex(z, h, d, t)
     end
@@ -2800,7 +2804,7 @@ function solve_agent_problem!(
 
     p_after_wavg = ParamArray(regulator.p_td, "p_after_wavg")
     fill!(p_after_wavg, NaN)  # TODO DT: debug only
-    for z in model_data.index_z, h in model_data.index_h
+    for (z,h) in model_data.index_z_h_map
         p_after_wavg(z, h, :) .= 
             sum(regulator.p_my(reg_year_index, z, h, d, t) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) for d in model_data.index_d, t in model_data.index_t) / 
             sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) for d in model_data.index_d, t in model_data.index_t)

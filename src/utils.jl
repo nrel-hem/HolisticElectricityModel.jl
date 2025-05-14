@@ -238,6 +238,9 @@ function compute_difference_percentage_maximum_one_norm(before_after_pairs)
     result_vec = []
     for (before, after) in before_after_pairs
         for i in Iterators.product(AxisKeys.axiskeys(before)...)
+            if isnan(before(i...))
+                continue
+            end
             result_one = 
                 before(i...) == 0.0 ? abs(after(i...) - before(i...)) : abs(after(i...) - before(i...)) / before(i...)
             push!(result_vec, result_one)

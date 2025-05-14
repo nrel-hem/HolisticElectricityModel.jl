@@ -502,7 +502,7 @@ function solve_agent_problem!(
     )
     viu_obj_value_base = deepcopy(utility._obj_value)
 
-    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_h)
+    z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
     for z in model_data.index_z
         if sum(total_der_stor_capacity(z, h) for h in z_to_h_dict[z]) != 0.0
             for i in 1:incentive_function_dimension - 1
