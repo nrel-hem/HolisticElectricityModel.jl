@@ -7,6 +7,7 @@ abstract type Options end
 
 get_file_prefix(::Options) = String("")
 
+# TODO: Add a MarketStructure to indicate Stage2
 # Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end
 struct VIU <: MarketStructure end
@@ -15,6 +16,7 @@ struct WM <: MarketStructure end
 abstract type UseCase end
 struct NullUseCase <: UseCase end
 struct DERAdoption <: UseCase end
+# TODO: Delete SupplyChoice and DistributionUtility altogether? Maybe make a tag to go back to first?
 struct SupplyChoice <: UseCase end
 struct DERAggregation <: UseCase end
 
@@ -30,6 +32,8 @@ supply_choice_use_case::V
 der_aggregation_use_case::W
 end
 
+# TODO: Rethink file prefixes to create shorter directory names
+#       If do this, might need to be able to provide mapping function when doing integration testing
 function get_file_prefix(options::HEMOptions)
 return join([# "$(typeof(options.der_use_case))", 
    # "$(typeof(options.supply_choice_use_case))",
@@ -45,10 +49,12 @@ mutable struct HEMData
     # Sets
     index_y::Dimension # year index
     index_y_fix::Dimension # year index
+    # TODO: Move to agents that use this.
     index_s::Dimension # year index (for new resources depreciation schedule)
     index_d::Dimension # representative day index
     index_t::Dimension # time index (within each representative day)
     index_h::Dimension # customer types
+    # TODO: Move to green developer
     index_j::Dimension # green tariff technologies
     index_z::Dimension # zone index
     index_sector::Dimension # sector index (for rate-making)
@@ -58,9 +64,11 @@ mutable struct HEMData
     omega::ParamArray # number of hours per timeslice
     year::ParamArray
     time::ParamArray
+    # TODO: Define with kwarg to constructor
     year_start::ParamScalar
 end
 
+# TODO: Change input_filename to input_dir
 function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
     # simulation year index
     index_y = read_set(
@@ -70,6 +78,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         prose_name = "simulation year index y",
         description = "simulation years",
     )
+    # TODO: Move information like the below to places where it will get captured in documentation
     # "index_y_fix" represents the full simulation horizon (does not change)
     # "index_y" represents the simulation years in a particular window (gets updated in solve_equilibrium_problem!)
     # e.g., when we simulate years 2021-2030, "index_y_fix" will be [2021, ..., 2030]
@@ -92,6 +101,7 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "new resource depreciation years",
     )
 
+    # TODO: Generalize descriptions
     # representative day and hour (from ReEDS)
     index_d = read_set(
         input_filename,
@@ -214,12 +224,16 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
     )
 end
 
+# TODO: Maybe convert delta_t to a parameter, since index_t doesn't have to have the
+#       structure implied by this function.
 function get_delta_t(model_data::HEMData)
     return (
         parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - 
         parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
     )
 end
+
+# TODO: Document the functions that follow.
 
 function get_reg_year(model_data::HEMData)
     reg_year = model_data.year(first(model_data.index_y))
@@ -246,6 +260,7 @@ function get_prev_two_reg_year(model_data::HEMData, w_iter::Integer)
     return prev_reg_year, Symbol(Int(prev_reg_year))
 end
 
+# TODO: Check that save_results argument names make sense
 
 """
 Abstract type for agents.
@@ -388,11 +403,11 @@ function iter_agents_and_options(store::AgentStore)
     return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
 end
 
-function get_bulk_system_agent(store::AgentStore, :: HEMOptions{VIU})
+function get_bulk_system_agent(store::AgentStore, ::HEMOptions{VIU})
     return get_agent(Utility, store)
 end
 
-function get_bulk_system_agent(store::AgentStore, :: HEMOptions{WM})
+function get_bulk_system_agent(store::AgentStore, ::HEMOptions{WM})
     return get_agent(IPPGroup, store)
 end
 
@@ -437,7 +452,6 @@ function solve_equilibrium_problem!(
 )
     store = AgentStore(agents_and_opts)
     TimerOutputs.reset_timer!(HEM_TIMER)
-
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
         for w in 1:(length(model_data.index_y_fix) - window_length + 1) # loop over windows
@@ -498,6 +512,8 @@ function solve_equilibrium_problem!(
         # push!(welfare, welfare_calculation(agent, options, model_data, hem_opts, other_agents))
         save_results(agent, options, hem_opts, export_file_path)
     end
+
+    # TODO: Delete welfare calculations as un-maintained (after tagging)
 
     # if hem_opts.market_structure isa VIU
     #     x = store.data[Utility]["default"]
