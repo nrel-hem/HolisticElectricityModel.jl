@@ -964,12 +964,12 @@ function solve_agent_problem!(
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
-             # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-             # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-             # 100 MW instead of 80 MW.
+            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+            # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+            # 100 MW instead of 80 MW.
 
-            # Behind-the-meter generation for PV-only customers
+            # behind the meter generation for pv-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -995,7 +995,7 @@ function solve_agent_problem!(
                 )
                 for d in model_data.index_d, t in model_data.index_t
             ) - 
-            # Behind-the-meter generation for PV+Storage customers not in aggregation
+            # behind the meter generation for pv+storage customers who did not participate in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1015,7 +1015,7 @@ function solve_agent_problem!(
                 ) * (1 - der_aggregator.aggregation_level(reg_year_index_dera, z))
                 for d in model_data.index_d, t in model_data.index_t
             ) -
-
+            # green technology subscription
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) *
                 sum(
@@ -1035,6 +1035,11 @@ function solve_agent_problem!(
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
+            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+            # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+            # 100 MW instead of 80 MW.
+            # behind the meter generation for pv-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1060,7 +1065,7 @@ function solve_agent_problem!(
                 )
                 for d in model_data.index_d, t in model_data.index_t
             ) -
-            # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
+            # behind the meter generation for pv+storage customers who did not participate in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1361,12 +1366,12 @@ function solve_agent_problem!(
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist)
                 ) -
-                 # DG
-                 # since this net demand is for rate calculation, we need to consider energy offset at the household level.
-                 # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
-                 # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
-                 # 100 MW instead of 80 MW.
-                 # behind the meter generation for pv-only customers
+                # DG
+                # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+                # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+                # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+                # 100 MW instead of 80 MW.
+                # behind the meter generation for pv-only customers
                 model_data.omega(d) * delta_t *
                 (
                     min(
@@ -1919,8 +1924,12 @@ function solve_agent_problem!(
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
-            # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
-            # Behind-the-meter generation for PV-only customers
+            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # e.g. two household, with 100 MWh load each (without loss), if one of them has DER and generated 
+            # 120 MWh of energy, he/she does not need to pay for energy, but the other one still have to pay 
+            # 100 MWh instead of 80 MWh.
+
+            # behind the meter generation for pv-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1983,8 +1992,11 @@ function solve_agent_problem!(
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
-            # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
-            # Behind-the-meter generation for PV-only customers
+            # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+            # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+            # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+            # 100 MW instead of 80 MW.
+            # behind the meter generation for pv-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -2010,7 +2022,7 @@ function solve_agent_problem!(
                 )
                 for d in model_data.index_d, t in model_data.index_t
             ) -
-            # Behind-the-meter generation for PV+Storage customers who did not participate in aggregation
+            # behind the meter generation for pv+storage customers who did not participate in aggregation
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -2199,7 +2211,7 @@ function solve_agent_problem!(
                 ) * total_der_pv_capacity(z, h) /
                 customers.Opti_DG_E(z, h, :BTMPV)
             ) + 
-            # DER excess for PV+Storage customers who did not participate in aggregation
+            # der excess for pv+storage customers who did not participate in aggregation
             model_data.omega(d) * delta_t *
             regulator.p_ex(z, h, d, t) *
             (
@@ -2288,12 +2300,12 @@ function solve_agent_problem!(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + ipp.loss_dist)
                 ) -
                 # DG
-                # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
-                # For example, two households with 100 MW load each (without loss). If one has DER generating 
-                # 120 MW of energy, they do not need to pay for energy, but the other still has to pay 
+                # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+                # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+                # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
                 # 100 MW instead of 80 MW.
-    
-                # Behind-the-meter generation for PV-only customers
+
+                # behind the meter generation for pv-only customers
                 model_data.omega(d) * delta_t *
                 (
                     min(
@@ -2355,8 +2367,12 @@ function solve_agent_problem!(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + ipp.loss_dist)
                 ) -
                 # DG
-                # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
-                # Behind-the-meter generation for PV-only customers
+                # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+                # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+                # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+                # 100 MW instead of 80 MW.
+
+                # behind the meter generation for pv-only customers
                 model_data.omega(d) * delta_t *
                 (
                     min(
