@@ -963,6 +963,12 @@ function solve_agent_problem!(
                 customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist) for
                 d in model_data.index_d, t in model_data.index_t
             ) -
+            # DG
+             # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+             # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+             # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+             # 100 MW instead of 80 MW.
+
             # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
@@ -1029,10 +1035,6 @@ function solve_agent_problem!(
                 d in model_data.index_d, t in model_data.index_t
             ) -
             # DG
-            # Since this net demand is for rate calculation, we need to consider energy offset at the household level.
-            # For example, two households with 100 MW load each (without loss); if one has DER generating
-            # 120 MW of energy, they do not need to pay for energy, but the other still has to pay 100 MW instead of 80 MW.
-            # Behind-the-meter generation for PV-only customers
             sum(
                 model_data.omega(d) * delta_t *
                 (
@@ -1359,7 +1361,12 @@ function solve_agent_problem!(
                 sum(
                     customers.gamma(z, h) * model_data.omega(d) * delta_t * customers.d(h, z, d, t) / (1 + utility.loss_dist)
                 ) -
-                # Behind-the-meter generation for PV+Storage customers not participating in aggregation
+                 # DG
+                 # since this net demand is for rate calculation, we need to consider energy offset at the household level.
+                 # e.g. two household, with 100 MW load each (without loss), if one of them has DER and generated 
+                 # 120 MW of energy, he/she does not need to pay for energy, but the other one still have to pay 
+                 # 100 MW instead of 80 MW.
+                 # behind the meter generation for pv-only customers
                 model_data.omega(d) * delta_t *
                 (
                     min(
@@ -1571,8 +1578,8 @@ function solve_agent_problem!(
             end
         end      
 
-        # Replace NaN values with 0.0
-        replace!(regulator.p.values, NaN => 0.0)
+        # throw error if any NaN values are found
+        any(isnan.(regulator.p)) && error("NaN values found in regulator retail price")
     
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
@@ -1610,8 +1617,8 @@ function solve_agent_problem!(
             end
         end      
 
-        # Replace NaN values with 0.0
-        replace!(regulator.p.values, NaN => 0.0)    
+        # throw error if any NaN values are found
+        any(isnan.(regulator.p)) && error("NaN values found in regulator retail price")       
     end
 
     # TODO: Call a function instead of using if-then
@@ -2743,8 +2750,8 @@ function solve_agent_problem!(
             end
         end      
 
-        # Replace NaN values with 0.0
-        replace!(regulator.p.values, NaN => 0.0)
+        # throw error if any NaN values are found
+        any(isnan.(regulator.p)) && error("NaN values found in regulator retail price") 
         
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
@@ -2776,8 +2783,8 @@ function solve_agent_problem!(
             end
         end      
 
-        # Replace NaN values with 0.0
-        replace!(regulator.p.values, NaN => 0.0)    
+        # throw error if any NaN values are found
+        any(isnan.(regulator.p)) && error("NaN values found in regulator retail price")     
     end
 
     # TODO: Call a function instead of using if-then

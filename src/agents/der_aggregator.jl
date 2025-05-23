@@ -209,8 +209,8 @@ function solve_agent_problem!(
     z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
     for z in model_data.index_z
 
-        rte_dist_stor = findfirst(x -> x!= 0, customers.rte_dist_stor(z,:))
-        duration_dist_stor = findfirst(x -> x!= 0, customers.duration_dist_stor(z,:))
+        rte_dist_stor = first(x for x in customers.rte_dist_stor(z,:) if x != 0)
+        duration_dist_stor = first(x for x in customers.duration_dist_stor(z,:) if x != 0)
 
         for i in 1:incentive_function_dimension - 1
             # x (incentive) should be $/MW (per year)?
@@ -563,8 +563,8 @@ function solve_agent_problem!(
 
     for z in model_data.index_z
 
-        rte_dist_stor = findfirst(x -> x!= 0, customers.rte_dist_stor(z,:))
-        duration_dist_stor = findfirst(x -> x!= 0, customers.duration_dist_stor(z,:))
+        rte_dist_stor = first(x for x in customers.rte_dist_stor(z,:) if x != 0)
+        duration_dist_stor = first(x for x in customers.duration_dist_stor(z,:) if x != 0)
 
         for i in 1:incentive_function_dimension - 1
             # x (incentive) should be $/MW (per year)?

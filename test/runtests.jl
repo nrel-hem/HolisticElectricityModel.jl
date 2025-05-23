@@ -6,6 +6,8 @@ import InfrastructureSystems
 const IS = InfrastructureSystems
 using HolisticElectricityModel
 const HEM = HolisticElectricityModel
+using DataFrames
+using CSV
 
 import Aqua
 Aqua.test_unbound_args(HolisticElectricityModel)

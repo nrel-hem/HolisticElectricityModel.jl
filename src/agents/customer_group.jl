@@ -384,7 +384,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     )
 
     function generate_coefficients(index_h, index_h_to_sector_map, coefficients)
-        map_dict = Dict(index_h_to_sector_map.set)
+        map_dict = Dict(index_h_to_sector_map)
         return [
             get(coefficients, map_dict[h], 0.0) for h in index_h
         ]
@@ -664,9 +664,6 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             result.total_pv_only_capacity_my_delay_update(y, z, h, :BTMPV, :) .= existing_pv_only_capacity_my(y, h, z, :BTMPV)
         end
     end
-
-    # replace NaN values with 0.0
-    replace!(result.rho_DG.values, NaN => 0.0)
 
     return result
 end

@@ -1070,9 +1070,7 @@ function solve_agent_problem!(
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
     delta_t = get_delta_t(model_data)
 
-    # z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, 1)
     z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
-    @show z_to_h_dict
 
     # the aggregator problem hasn't solved yet, so use last year's participation rates
     reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
