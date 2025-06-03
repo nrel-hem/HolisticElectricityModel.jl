@@ -55,6 +55,13 @@ validators = Dict(
             value -> check_path(value)
         ),
     ],
+    "run_options" => [
+        FieldValidatorHasDefault(
+            "output_dir",
+            value -> check_string(value),
+            nothing
+        ),
+    ],      
     "simulation_parameters" => [
         FieldValidatorBasic(
             "solver",

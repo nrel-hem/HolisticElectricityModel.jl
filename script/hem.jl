@@ -37,6 +37,8 @@ import_solver_package(solver)
 market_structure, der_use_case, supply_choice_use_case,
 der_aggregation_use_case = parse(config, "hem_options", validators)
 
+output_dir, = parse(config, "run_options", validators)
+
 hem_opts = HEMOptions(
     market_structure,
     der_use_case,
@@ -57,5 +59,6 @@ output_dir = run_hem(
     agent_options,
     force=true,
     jump_model=jump_model,
+    output_dir=output_dir
 )
 # ------------------------------------------------------------------------------
