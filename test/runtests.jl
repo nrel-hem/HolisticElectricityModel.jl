@@ -8,6 +8,7 @@ using HolisticElectricityModel
 const HEM = HolisticElectricityModel
 using DataFrames
 using CSV
+import YAML
 
 import Aqua
 Aqua.test_unbound_args(HolisticElectricityModel)

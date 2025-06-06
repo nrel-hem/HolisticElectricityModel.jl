@@ -27,6 +27,7 @@ export read_dataframe
 export AgentStore
 export iter_agents_and_options
 export get_file_prefix
+export save_config
 
 # Agents
 export Regulator
@@ -98,6 +99,7 @@ using DelimitedFiles
 using Statistics
 using Lazy: @forward
 using TableTransforms
+import YAML
 import AxisKeys
 import AxisKeys: KeyedArray
 import CSV
