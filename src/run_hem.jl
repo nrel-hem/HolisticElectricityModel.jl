@@ -63,7 +63,7 @@ function _get_dict_from_options(options::T) where T <: Options
         value = getfield(options, field)
         if value isa Options
             struct_dict["$(field)"] = _get_dict_from_options(value)
-        elseif value isa Number
+        elseif value isa Number || value isa AbstractString || value isa Bool
             struct_dict["$(field)"] = value
         else
             struct_dict["$(field)"] = "$(typeof(value))"
@@ -137,6 +137,7 @@ function run_hem(
         file_level=Logging.Info,
         filename=joinpath(output_dir, "run_hem.log"),
     )
+    save_config(options, agent_options, output_dir)
     try
         @info "Output directory: $(output_dir)"
         solve_equilibrium_problem!(
