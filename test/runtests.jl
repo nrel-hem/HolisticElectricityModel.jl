@@ -32,6 +32,8 @@ LOG_LEVELS = Dict(
 
 DISABLED_TEST_FILES = ["test_hem.jl"]
 
+TEST_DIR = dirname(@__FILE__)
+
 macro includetests(testarg...)
     if length(testarg) == 0
         tests = []
