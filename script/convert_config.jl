@@ -8,6 +8,7 @@ where <input_file_or_directory> is the path to a single YAML file or a directory
 If `overwrite` is true, the converted files will be saved with the same name as the input file.
 Otherwise, the converted files will be saved with "_converted" appended to the filename.
 """
+
 using YAML
 using HolisticElectricityModel
 
