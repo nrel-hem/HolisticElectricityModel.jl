@@ -1,0 +1,24 @@
+DataSelection:
+  input_path: "test/"
+RunOptions:
+  output_dir: "test/"
+SimulationParameters:
+  solver: "Xpress"
+HEMOptions:
+  market_structure: "WM"
+  der_use_case: "DERAdoption"
+  supply_choice_use_case: "NullUseCase"
+  der_aggregation_use_case: "DERAggregation"
+Regulator:
+  rate_design: "TOU"
+  net_metering_policy: "ExcessMarginalCost"
+  tou_suffix: "NE2035"
+  planning_reserve_margin: 0.129
+  allowed_return_on_investment: 0.112
+IPPGroup:
+  ipp_algorithm: "MPPDCMERTransStorage"
+CustomerGroup:
+  pv_adoption_type: "SolarPlusStorageOnly"
+DERAggregator:
+  incentive_curve: 1
+  frac_viu_cost_savings_as_revenue: 0.1

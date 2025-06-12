@@ -54,44 +54,6 @@ function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, 
     return agents_and_opts
 end
 
-function _get_dict_from_options(options::T) where T <: Options
-    struct_dict = Dict{String, Any}()
-    for field in fieldnames(T)
-        if field == :solvers
-            continue
-        end
-        value = getfield(options, field)
-        if value isa Options
-            struct_dict["$(field)"] = _get_dict_from_options(value)
-        elseif value isa Number || value isa AbstractString || value isa Bool
-            struct_dict["$(field)"] = value
-        else
-            struct_dict["$(field)"] = "$(typeof(value))"
-        end
-    end
-    return struct_dict
-end
-
-function save_config(
-    options::HEMOptions,
-    agent_options::AgentOptionsStore,
-    output_dir::AbstractString,
-)
-
-    config_file = joinpath(output_dir, "config.yaml")
-    run_config = OrderedDict{Any, Any}(
-        "$(nameof(typeof(options)))" => _get_dict_from_options(options),
-    )
-    for (agent_type, agent_opts) in agent_options.data
-        run_config["$(agent_type)"] = _get_dict_from_options(agent_opts)
-    end
-    open(config_file, "w") do file
-        # write structs as attribute name => value pairs
-        YAML.write(file, run_config)
-    end
-    @info "Saved configuration to $config_file"
-end
-
 """
 Solve the problem with the given inputs.
 
@@ -137,7 +99,7 @@ function run_hem(
         file_level=Logging.Info,
         filename=joinpath(output_dir, "run_hem.log"),
     )
-    save_config(options, agent_options, output_dir)
+
     try
         @info "Output directory: $(output_dir)"
         solve_equilibrium_problem!(

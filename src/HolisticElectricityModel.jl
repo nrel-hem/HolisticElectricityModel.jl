@@ -27,7 +27,6 @@ export read_dataframe
 export AgentStore
 export iter_agents_and_options
 export get_file_prefix
-export save_config
 
 # Agents
 export Regulator

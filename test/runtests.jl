@@ -30,7 +30,7 @@ LOG_LEVELS = Dict(
     "Error" => Logging.Error,
 )
 
-DISABLED_TEST_FILES = ["test_hem.jl"]
+DISABLED_TEST_FILES = ["test_hem.jl", "test_config.jl"]
 
 TEST_DIR = dirname(@__FILE__)
 
