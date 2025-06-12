@@ -1,3 +1,13 @@
+"""
+Convert configuration files from the old format to the new format.
+To run this script, run:
+```julia`
+julia convert_config.jl <input_file_or_directory> [overwrite]
+```
+where <input_file_or_directory> is the path to a single YAML file or a directory containing YAML files.
+If `overwrite` is true, the converted files will be saved with the same name as the input file.
+Otherwise, the converted files will be saved with "_converted" appended to the filename.
+"""
 using YAML
 using HolisticElectricityModel
 
