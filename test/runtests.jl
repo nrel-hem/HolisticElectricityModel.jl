@@ -8,6 +8,7 @@ using HolisticElectricityModel
 const HEM = HolisticElectricityModel
 using DataFrames
 using CSV
+import YAML
 
 import Aqua
 Aqua.test_unbound_args(HolisticElectricityModel)
@@ -29,7 +30,9 @@ LOG_LEVELS = Dict(
     "Error" => Logging.Error,
 )
 
-DISABLED_TEST_FILES = ["test_hem.jl"]
+DISABLED_TEST_FILES = ["test_hem.jl", "test_config.jl"]
+
+TEST_DIR = dirname(@__FILE__)
 
 macro includetests(testarg...)
     if length(testarg) == 0

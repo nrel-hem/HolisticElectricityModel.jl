@@ -1584,7 +1584,8 @@ function solve_agent_problem!(
         end      
 
         # throw error if any NaN values are found
-        any(isnan.(regulator.p)) && error("NaN values found in regulator retail price")
+        any(isnan.(regulator.p(z, h, d, t, :)) for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t) && 
+            error("NaN values found in regulator retail price")
     
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
@@ -1623,7 +1624,8 @@ function solve_agent_problem!(
         end      
 
         # throw error if any NaN values are found
-        any(isnan.(regulator.p)) && error("NaN values found in regulator retail price")       
+        any(isnan.(regulator.p(z, h, d, t, :)) for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t) && 
+            error("NaN values found in regulator retail price")      
     end
 
     # TODO: Call a function instead of using if-then
@@ -2767,7 +2769,8 @@ function solve_agent_problem!(
         end      
 
         # throw error if any NaN values are found
-        any(isnan.(regulator.p)) && error("NaN values found in regulator retail price") 
+        any(isnan.(regulator.p(z, h, d, t, :)) for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t) && 
+            error("NaN values found in regulator retail price")
         
     elseif regulator_opts.rate_design isa TOU
         fill!(regulator.p, NaN)
@@ -2800,7 +2803,8 @@ function solve_agent_problem!(
         end      
 
         # throw error if any NaN values are found
-        any(isnan.(regulator.p)) && error("NaN values found in regulator retail price")     
+        any(isnan.(regulator.p(z, h, d, t, :)) for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t) && 
+            error("NaN values found in regulator retail price")
     end
 
     # TODO: Call a function instead of using if-then

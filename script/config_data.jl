@@ -2,60 +2,67 @@
 
 reeds_bas = collect("p$n" for n = 1:134)
 
-null_use_case_identifier = "null_use_case"
+null_use_case_identifier = "NullUseCase"
 
 market_structure_map = Dict(
-    "wholesale_market" => WM(),
-    "vertically_integrated_utility" => VIU()
+    "WM" => WM(),
+    "VIU" => VIU()
 )
 
 der_use_case_map = Dict(
-    "der_use_case" => DERAdoption(),
+    "DERAdoption" => DERAdoption(),
     null_use_case_identifier => NullUseCase()
 )
 
 supply_choice_use_case_map = Dict(
-    "supply_choice_use_case" => SupplyChoice(),
+    "SupplyChoice" => SupplyChoice(),
     null_use_case_identifier => NullUseCase()
 )
 
 der_aggregation_use_case_map = Dict(
-    "der_aggregation_use_case" => DERAggregation(),
+    "DERAggregation" => DERAggregation(),
     null_use_case_identifier => NullUseCase()
 )
 
 rate_design_map = Dict(
-    "flat_rate" => FlatRate(),
-    "time_of_use" => TOU()
+    "FlatRate" => FlatRate(),
+    "TOU" => TOU()
 )
 
 net_metering_policy_map = Dict(
-    "excess_retail_rate" => ExcessRetailRate(),
-    "excess_marginal_cost" => ExcessMarginalCost(),
-    "excess_zero" => ExcessZero()
+    "ExcessRetailRate" => ExcessRetailRate(),
+    "ExcessMarginalCost" => ExcessMarginalCost(),
+    "ExcessZero" => ExcessZero()
 )
 
 ipp_algorithm_map = Dict(
-    "lagrange_decomposition" => LagrangeDecomposition(),
-    "mppdcmer_transportation_storage" => MPPDCMERTransStorage(),
-    "mppdcmer" => MPPDCMER(),
-    "miqp" => MIQP()
+    "LagrangeDecomposition" => LagrangeDecomposition(),
+    "MPPDCMERTransStorage" => MPPDCMERTransStorage(),
+    "MPPDCMER" => MPPDCMER(),
+    "MIQP" => MIQP()
 )
 
 pv_adoption_type_map = Dict(
-    "standalone_pv" => StandalonePVOnly(),
-    "solar_plus_storage" => SolarPlusStorageOnly(),
-    "compete_der_configs" => CompeteDERConfigs()
+    "StandalonePVOnly" => StandalonePVOnly(),
+    "SolarPlusStorageOnly" => SolarPlusStorageOnly(),
+    "CompeteDERConfigs" => CompeteDERConfigs()
 )
 
 validators = Dict(
-    "data_selection" => [
+    "DataSelection" => [
         FieldValidatorBasic(
             "input_path",
             value -> check_path(value)
         ),
     ],
-    "simulation_parameters" => [
+    "RunOptions" => [
+        FieldValidatorHasDefault(
+            "output_dir",
+            value -> check_string(value),
+            nothing
+        ),
+    ],      
+    "SimulationParameters" => [
         FieldValidatorBasic(
             "solver",
             value -> check_chain(value, [
@@ -64,7 +71,7 @@ validators = Dict(
             ])
         ),
     ],
-    "hem_options" => [
+    "HEMOptions" => [
         FieldValidatorBasic(
             "market_structure",
             value -> check_and_return_from_map(value, market_structure_map)
@@ -82,7 +89,7 @@ validators = Dict(
             value -> check_and_return_from_map(value, der_aggregation_use_case_map)
         ),
     ],
-    "regulator_options" => [
+    "Regulator" => [
         FieldValidatorBasic(
             "rate_design",
             value -> check_and_return_from_map(value, rate_design_map)
@@ -107,19 +114,19 @@ validators = Dict(
             0.112
         )
     ],
-    "ipp_options" => [
+    "IPPGroup" => [
         FieldValidatorBasic(
             "ipp_algorithm",
             value -> check_and_return_from_map(value, ipp_algorithm_map)
         )
     ],
-    "customer_options" => [
+    "CustomerGroup" => [
         FieldValidatorBasic(
             "pv_adoption_type",
             value -> check_and_return_from_map(value, pv_adoption_type_map)
         )
     ],
-    "der_aggregator_options" => [
+    "DERAggregator" => [
         FieldValidatorHasDefault(
             "incentive_curve",
             value -> check_integer(value; min=1, max=5),

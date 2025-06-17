@@ -1,6 +1,3 @@
-
-test_dir = dirname(@__FILE__)
-
 @testset "test read_param with county level index" begin
     index_z = Dimension("index_z", [:p129, :p130, :p131])
     index_h = Dimension("index_h",
@@ -25,7 +22,7 @@ test_dir = dirname(@__FILE__)
 
     valid_param = read_param(
         "test_param",
-        joinpath(test_dir, "data"),
+        joinpath(TEST_DIR, "data"),
         "test_input_param_county",
         index_t,
         [index_h, index_m, index_z, index_d]
@@ -38,7 +35,7 @@ test_dir = dirname(@__FILE__)
     @test_throws ArgumentError begin
         read_param(
             "test_param",
-            joinpath(test_dir, "data"),
+            joinpath(TEST_DIR, "data"),
             "test_input_param_county_invalid",
             index_t,
             [index_h, index_m, index_z, index_d]
@@ -46,7 +43,7 @@ test_dir = dirname(@__FILE__)
     end
 
     param_df = CSV.read(
-        joinpath(test_dir, "data", "test_input_param_county.csv"),
+        joinpath(TEST_DIR, "data", "test_input_param_county.csv"),
         DataFrame,
     )
 
@@ -57,3 +54,4 @@ test_dir = dirname(@__FILE__)
     end
 
 end
+ 

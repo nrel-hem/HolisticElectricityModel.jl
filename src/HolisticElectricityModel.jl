@@ -98,6 +98,7 @@ using DelimitedFiles
 using Statistics
 using Lazy: @forward
 using TableTransforms
+import YAML
 import AxisKeys
 import AxisKeys: KeyedArray
 import CSV

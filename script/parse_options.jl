@@ -1,6 +1,6 @@
 function get_regulator_options(config::Dict{Any,Any})
     rate_design, net_metering_policy, tou_suffix, planning_reserve_margin,
-    allowed_return_on_investment = parse(config, "regulator_options", validators)
+    allowed_return_on_investment = parse(config, "Regulator", validators)
 
     return RegulatorOptions(
         rate_design,
@@ -11,9 +11,9 @@ function get_regulator_options(config::Dict{Any,Any})
     )
 end
 
-function get_ipp_options(config::Dict{Any,Any})
+function get_ipp_options(config::Dict{Any,Any}, solver::Symbol)
     # Get the optimizer depending on the solver defined the config
-    ipp_algorithm, = parse(config, "ipp_options", validators)
+    ipp_algorithm, = parse(config, "IPPGroup", validators)
 
     ipp_solvers = Dict()
     addsolvers_ipp!(ipp_solvers, :Ipopt)
@@ -21,15 +21,15 @@ function get_ipp_options(config::Dict{Any,Any})
     return IPPOptions(ipp_algorithm, ipp_solvers)
 end
 
-function get_utility_options()
+function get_utility_options(solver::Symbol)
     return UtilityOptions(JuMP.optimizer_with_attributes(
         () -> get_optimizer_for_solver(solver),
         # "OUTPUTLOG" => 0,
     ))
 end
 
-function get_customer_options(config::Dict{Any,Any})
-    pv_adoption_type, = parse(config, "customer_options", validators)
+function get_customer_options(config::Dict{Any,Any}, solver::Symbol)
+    pv_adoption_type, = parse(config, "CustomerGroup", validators)
 
     return CustomerOptions(
         pv_adoption_type,
@@ -40,7 +40,7 @@ function get_customer_options(config::Dict{Any,Any})
     )
 end
 
-function get_green_developer_options()
+function get_green_developer_options(solver::Symbol)
     return GreenDeveloperOptions(
         JuMP.optimizer_with_attributes(
             () -> get_optimizer_for_solver(solver)
@@ -49,9 +49,9 @@ function get_green_developer_options()
     )
 end
 
-function get_der_aggregator_options(config::Dict{Any,Any})
+function get_der_aggregator_options(config::Dict{Any,Any}, solver::Symbol)
     incentive_curve, frac_viu_cost_savings_as_revenue =
-        parse(config, "der_aggregator_options", validators)
+        parse(config, "DERAggregator", validators)
 
     return DERAggregatorOptions(
         JuMP.optimizer_with_attributes(
@@ -63,27 +63,27 @@ function get_der_aggregator_options(config::Dict{Any,Any})
     )
 end
 
-function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{VIU})
+function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{VIU}, solver::Symbol)
     return AgentOptionsStore(
         Dict(
             Regulator => get_regulator_options(config),
-            Utility => get_utility_options(),
-            CustomerGroup => get_customer_options(config),
-            GreenDeveloper => get_green_developer_options(),
-            DERAggregator => get_der_aggregator_options(config),
+            Utility => get_utility_options(solver),
+            CustomerGroup => get_customer_options(config, solver),
+            GreenDeveloper => get_green_developer_options(solver),
+            DERAggregator => get_der_aggregator_options(config, solver),
             # DistributionUtility => NullAgentOptions()
         )
     )
 end
 
-function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{WM})
+function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{WM}, solver::Symbol)
     return AgentOptionsStore(
         Dict(
             Regulator => get_regulator_options(config),
-            IPPGroup => get_ipp_options(config),
-            CustomerGroup => get_customer_options(config),
-            GreenDeveloper => get_green_developer_options(),
-            DERAggregator => get_der_aggregator_options(config),
+            IPPGroup => get_ipp_options(config, solver),
+            CustomerGroup => get_customer_options(config, solver),
+            GreenDeveloper => get_green_developer_options(solver),
+            DERAggregator => get_der_aggregator_options(config, solver),
             # DistributionUtility => NullAgentOptions()
         )
     )
