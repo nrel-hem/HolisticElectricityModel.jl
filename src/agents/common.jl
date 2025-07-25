@@ -7,7 +7,6 @@ abstract type Options end
 
 get_file_prefix(::Options) = String("")
 
-# TODO: Add a MarketStructure to indicate Stage2
 # Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end
 struct VIU <: MarketStructure end
@@ -17,7 +16,6 @@ struct RetailMarket <: MarketStructure end
 abstract type UseCase end
 struct NullUseCase <: UseCase end
 struct DERAdoption <: UseCase end
-# TODO: Delete SupplyChoice and DistributionUtility altogether? Maybe make a tag to go back to first?
 struct DERAggregation <: UseCase end
 
 struct HEMOptions{T <: MarketStructure, 
@@ -499,7 +497,6 @@ function solve_equilibrium_problem!(
                 end
             end
 
-            # save_welfare(welfare, export_file_path)
             i >= max_iter && error("Reached max iterations $max_iter with no solution")
             @info "Problem solved!"
 
@@ -509,45 +506,8 @@ function solve_equilibrium_problem!(
     end
 
     for (agent, options) in iter_agents_and_options(store)
-        # push!(welfare, welfare_calculation(agent, options, model_data, hem_opts, other_agents))
         save_results(agent, options, hem_opts, export_file_path)
     end
-
-    # TODO: Delete welfare calculations as un-maintained (after tagging)
-
-    # if hem_opts.market_structure isa VIU
-    #     x = store.data[Utility]["default"]
-    #     Welfare_supply =
-    #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
-    #     y = store.data[CustomerGroup]["default"]
-    #     Welfare_demand =
-    #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    # elseif hem_opts.market_structure isa WM
-    #     x = store.data[IPPGroup]["default"]
-    #     Welfare_supply =
-    #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
-    #     y = store.data[CustomerGroup]["default"]
-    #     Welfare_demand =
-    #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    # end
-
-    # if hem_opts.supply_choice_use_case isa NullUseCase
-    #     Welfare_green_developer = [
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #     ]
-    # else
-    #     z = store.data[GreenDeveloper]["default"]
-    #     Welfare_green_developer =
-    #         welfare_calculation!(z.agent, z.options, model_data, hem_opts, store)
-    # end
-
-    # save_welfare!(Welfare_supply, Welfare_demand, Welfare_green_developer, export_file_path)
 
     @info "\n$(HEM_TIMER)\n"
 end
@@ -559,157 +519,4 @@ function update_cumulative!(
     for item in agents_and_opts
         update_cumulative!(model_data, item.agent)
     end
-end
-
-# TODO: Write the welfare calculation and saving more generally
-function save_welfare!(
-    Supply::Any,
-    Demand::Any,
-    GreenDeveloper::Any,
-    exportfilepath::AbstractString,
-)
-    save_param(
-        Demand[1].values,
-        [:Year, :CustomerType, :DERTech],
-        :PVNetCS_dollar,
-        joinpath(exportfilepath, "PVNetCS.csv"),
-    )
-    save_param(
-        Demand[2].values,
-        [:Year, :CustomerType],
-        :ConGreenPowerNetSurplus_dollar,
-        joinpath(exportfilepath, "GreenPowerNetCS.csv"),
-    )
-    # save_param(
-    #     Demand[2],
-    #     [:Year, :CustomerType, :DERTech],
-    #     :PVEnergySaving_dollar,
-    #     joinpath(exportfilepath, "PVSaving.csv"),
-    # )
-    # save_param(
-    #     Demand[3],
-    #     [:Year, :CustomerType, :DERTech],
-    #     :EnergyCost_dollar,
-    #     joinpath(exportfilepath, "EnergyCost.csv"),
-    # )
-    # save_param(
-    #     Demand[4],
-    #     [:Year, :CustomerType, :DERTech],
-    #     :NetCS_dollar,
-    #     joinpath(exportfilepath, "NetCS.csv"),
-    # )
-    save_param(
-        Demand[3],
-        [:Year],
-        :TotalNetCS_dollar,
-        joinpath(exportfilepath, "TotalNetCS.csv"),
-    )
-    # save_param(
-    #     Demand[6],
-    #     [:Year, :CustomerType, :DERTech],
-    #     :NetCS_dollar,
-    #     joinpath(exportfilepath, "NetCS_per_customer.csv"),
-    # )
-    # save_param(
-    #     Demand[7],
-    #     [:Year, :CustomerType],
-    #     :dollar,
-    #     joinpath(exportfilepath, "annual_bill_per_customer.csv"),
-    # )
-    # save_param(
-    #     Demand[8],
-    #     [:Year, :CustomerType],
-    #     :dollar,
-    #     joinpath(exportfilepath, "average_bill_per_customer.csv"),
-    # )
-    save_param(
-        Supply[1],
-        [:Year],
-        :SupplierRevenue_dollar,
-        joinpath(exportfilepath, "SupplierRevenue.csv"),
-    )
-    save_param(
-        Supply[2],
-        [:Year],
-        :SupplierCost_dollar,
-        joinpath(exportfilepath, "SupplierCost.csv"),
-    )
-    save_param(
-        Supply[3],
-        [:Year],
-        :DebtInterest_dollar,
-        joinpath(exportfilepath, "DebtInterest.csv"),
-    )
-    save_param(
-        Supply[4],
-        [:Year],
-        :IncomeTax_dollar,
-        joinpath(exportfilepath, "IncomeTax.csv"),
-    )
-    save_param(
-        Supply[5],
-        [:Year],
-        :OperationalCost_dollar,
-        joinpath(exportfilepath, "OperationalCost.csv"),
-    )
-    save_param(
-        Supply[6],
-        [:Year],
-        :Depreciation_dollar,
-        joinpath(exportfilepath, "Depreciation.csv"),
-    )
-    save_param(
-        Supply[7],
-        [:Year],
-        :Depreciation_dollar,
-        joinpath(exportfilepath, "Tax_Depreciation.csv"),
-    )
-    save_param(
-        Supply[8],
-        [:Year],
-        :Metric_ton,
-        joinpath(exportfilepath, "Total_Emission.csv"),
-    )
-    save_param(
-        GreenDeveloper[1],
-        [:Year],
-        :GreenDeveloperRevenue_dollar,
-        joinpath(exportfilepath, "GreenDeveloperRevenue.csv"),
-    )
-    save_param(
-        GreenDeveloper[2],
-        [:Year],
-        :GreenDeveloperCost_dollar,
-        joinpath(exportfilepath, "GreenDeveloperCost.csv"),
-    )
-    save_param(
-        GreenDeveloper[3],
-        [:Year],
-        :DebtInterest_dollar,
-        joinpath(exportfilepath, "GreenDeveloperDebtInterest.csv"),
-    )
-    save_param(
-        GreenDeveloper[4],
-        [:Year],
-        :IncomeTax_dollar,
-        joinpath(exportfilepath, "GreenDeveloperIncomeTax.csv"),
-    )
-    save_param(
-        GreenDeveloper[5],
-        [:Year],
-        :OperationalCost_dollar,
-        joinpath(exportfilepath, "GreenDeveloperOperationalCost.csv"),
-    )
-    save_param(
-        GreenDeveloper[6],
-        [:Year],
-        :Depreciation_dollar,
-        joinpath(exportfilepath, "GreenDeveloperDepreciation.csv"),
-    )
-    save_param(
-        GreenDeveloper[7],
-        [:Year],
-        :Depreciation_dollar,
-        joinpath(exportfilepath, "GreenDeveloper_Tax_Depreciation.csv"),
-    )
 end

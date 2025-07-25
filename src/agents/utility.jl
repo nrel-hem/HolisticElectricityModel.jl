@@ -2156,56 +2156,6 @@ function save_results(
     )
 end
 
-function welfare_calculation!(
-    utility::Utility,
-    utility_opts::AgentOptions,
-    model_data::HEMData,
-    hem_opts::HEMOptions{VIU},
-    agent_store::AgentStore,
-)
-    regulator = get_agent(Regulator, agent_store)
-
-    Utility_Revenue_my = make_keyed_array(model_data.index_y_fix)
-    Utility_Cost_my = make_keyed_array(model_data.index_y_fix)
-    Utility_debt_interest_my = make_keyed_array(model_data.index_y_fix)
-    Utility_income_tax_my = make_keyed_array(model_data.index_y_fix)
-    Utility_operational_cost_my = make_keyed_array(model_data.index_y_fix)
-    Utility_depreciation_my = make_keyed_array(model_data.index_y_fix)
-    Utility_depreciation_tax_my = make_keyed_array(model_data.index_y_fix)
-    Utility_total_emission_my = make_keyed_array(model_data.index_y_fix)
-
-    for y in model_data.index_y_fix
-        Utility_Revenue_my(y,:) .= regulator.revenue_req_my(y) + regulator.othercost(y)
-        Utility_Cost_my(y,:) .= regulator.cost_my(y) + regulator.othercost(y)
-        Utility_debt_interest_my(y,:) .= regulator.debt_interest_my(y)
-        Utility_income_tax_my(y,:) .= regulator.income_tax_my(y)
-        Utility_operational_cost_my(y,:) .= regulator.operational_cost_my(y)
-        Utility_depreciation_my(y,:) .= regulator.depreciation_my(y)
-        Utility_depreciation_tax_my(y,:) .= regulator.depreciation_tax_my(y)
-        Utility_total_emission_my(y,:) .=
-            sum(
-                model_data.omega(t) * (
-                    sum(
-                        utility.y_E_my(y, k, t) * utility.emission_rate_E_my(y, k) for
-                        k in utility.index_k_existing
-                    ) + sum(
-                        utility.y_C_my(y, k, t) * utility.emission_rate_C_my(y, k) for
-                        k in utility.index_k_new
-                    )
-                ) for t in model_data.index_t
-            ) * 0.000453592
-    end
-
-    return Utility_Revenue_my,
-    Utility_Cost_my,
-    Utility_debt_interest_my,
-    Utility_income_tax_my,
-    Utility_operational_cost_my,
-    Utility_depreciation_my,
-    Utility_depreciation_tax_my,
-    Utility_total_emission_my
-end
-
 function solve_agent_problem_decomposition_by_year(
     utility::Utility,
     utility_opts::AgentOptions,

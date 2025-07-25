@@ -62,7 +62,6 @@ export run_hem
 export solve_equilibrium_problem!
 export solve_agent_problem!
 export save_results
-export welfare_calculation!
 export solve_agent_problem_decomposition_by_year
 export solve_agent_problem_decomposition_by_year_feasible
 export solve_agent_problem_decomposition_by_year_feasible_obj
