@@ -319,12 +319,12 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     )
     # Calculate maximum demand for each customer type
     MaxLoad = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         MaxLoad(z, h, :) .=
             gamma(z, h) * findmax(Dict((z, d, t) => demand(h, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
     MaxLoad_my = make_keyed_array(model_data.index_y, model_data.index_z, model_data.index_h)
-    for y in model_data.index_y, z in model_data.index_z, h in model_data.index_h
+    for y in model_data.index_y, (z, h) in model_data.index_z_h_map
         MaxLoad_my(y, z, h, :) .=
             gamma(z, h) * findmax(Dict((d, t) => demand_my(y, h, z, d, t) for d in model_data.index_d, t in model_data.index_t))[1]
     end
@@ -335,7 +335,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         description="Portion of existing DER at year y (x_DG_E_my) assigned to be Solar plus Storage"
     )
     
-    for y in model_data.index_y, h in model_data.index_h, z in model_data.index_z
+    for y in model_data.index_y, (z, h) in model_data.index_z_h_map
         x_DG_E_storage = x_DG_E_my(y, h, z, :BTMStorage)
         Opti_DG_PV = Opti_DG_my(y, z, h, :BTMPV)
         Opti_DG_Storage = Opti_DG_my(y, z, h, :BTMStorage)
@@ -360,7 +360,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         model_data.index_y, model_data.index_h, model_data.index_z, index_m,
         description="Portion of existing DER at year y (x_DG_E_my) assigned to be Standalone PV"
     )
-    for y in model_data.index_y, h in model_data.index_h, z in model_data.index_z
+    for y in model_data.index_y, (z, h) in model_data.index_z_h_map
         existing_pv_only_capacity_my(y, h, z, :BTMPV, :) .= x_DG_E_my(y, h, z, :BTMPV) - existing_pv_stor_capacity_my(y, h, z, :BTMPV)
     end
 
@@ -383,9 +383,10 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         ),
     )
 
-    function generate_coefficients(index_h, h_to_sector, coefficients)
+    function generate_coefficients(index_h, index_h_to_sector_map, coefficients)
+        map_dict = Dict(index_h_to_sector_map)
         return [
-            get(coefficients, h_to_sector[h], 0.0) for h in index_h
+            get(coefficients, map_dict[h], 0.0) for h in index_h
         ]
     end
     
@@ -442,7 +443,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             ParamArray(
                 param_name,
                 (model_data.index_h,),
-                generate_coefficients(model_data.index_h, model_data.h_to_sector, param_coefficients[param_name]);
+                generate_coefficients(model_data.index_h, model_data.index_h_sector_map, param_coefficients[param_name]);
                 description = description
             ) for (param_name, description) in [
                 ("WholesaleMarket_coefficient", "% of load served by an ISO (regression parameter)"),
@@ -450,7 +451,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
                 ("RetailCompetition_coefficient", "% of C&I customers that are eligible for retail choice (regression parameter)"),
                 ("RPS_coefficient", "RPS percentage requirement in 2019 (regression parameter)")
             ]
-        ]...  
+        ]...
     )
     
         
@@ -464,18 +465,18 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     tax_rate = read_param("tax_rate", input_filename, "CustomerTax", model_data.index_h, [model_data.index_z])
 
     atwacc = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         atwacc(z, h, :) .= debt_ratio(z, h) * cost_of_debt(z, h) * (1 - tax_rate(z, h)) +
         (1 - debt_ratio(z, h)) * cost_of_equity(z, h)
     end
 
     CRF = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         CRF(z, h, :) .= atwacc(z, h) * (1 + atwacc(z, h))^20 / ((1 + atwacc(z, h))^20 - 1)
     end
 
     pvf = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         pvf(z, h, :) .= 1 / CRF(z, h)
     end
 
@@ -652,7 +653,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
 
     # populate total_*_capacity_my variables for DER with all existing/prescribed capacity for all years
     for y in model_data.index_y
-        for z in model_data.index_z, h in model_data.index_h
+        for (z, h) in model_data.index_z_h_map
             for m in index_m
                 result.total_der_capacity_my(y, z, h, m, :) .= x_DG_E_my(y, h, z, m)
                 result.total_pv_stor_capacity_my(y, z, h, m, :) .= existing_pv_stor_capacity_my(y, h, z, m)
@@ -868,7 +869,7 @@ function solve_agent_problem!(
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
-    for h in model_data.index_h, z in model_data.index_z, m in customers.index_m
+    for (z,h) in model_data.index_z_h_map, m in customers.index_m
         x_DG_before(h, z, m, :) .= customers.x_DG_new_my(reg_year_index, h, z, m)
     end
 
@@ -880,14 +881,14 @@ function solve_agent_problem!(
     adopt_model = customers.pv_adoption_model
 
     # update all the annual parameters to the solve year (so we don't have to change the majority of the functions)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         customers.PeakLoad(z, h, :) .= customers.PeakLoad_my(reg_year_index, z, h)
     end
-    for h in model_data.index_h, z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
+    for (z, h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
         customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
         # customers.DERGen(h, t, :) .= customers.DERGen_my(reg_year_index, h, t)
     end
-    for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
+    for (z, h) in model_data.index_z_h_map, m in customers.index_m
         customers.Opti_DG(z, h, m, :) .= customers.Opti_DG_my(reg_year_index, z, h, m)
         customers.FOM_DG(z, h, m, :) .= customers.FOM_DG_my(reg_year_index, z, h, m)
         customers.CapEx_DG(z, h, m, :) .= customers.CapEx_DG_my(reg_year_index, z, h, m)
@@ -907,7 +908,7 @@ function solve_agent_problem!(
     # The NetProfit represents the energy saving/credit per representative agent for optimally operated PV+storage, assuming the optimal DER technology size
 
     Payment_before_PVStor = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         Payment_before_PVStor(z, h, :) .=
             sum(
                 model_data.omega(d) * delta_t *
@@ -917,7 +918,7 @@ function solve_agent_problem!(
     end
 
     Payment_after_PVStor = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
 
         Customer_PV_Storage_Opti = get_new_jump_model(customer_opts.solvers)
 
@@ -1004,6 +1005,8 @@ function solve_agent_problem!(
             net_load_minus[d, t] >= -customers.BIGM * (1 - net_load_sign[d, t])
         )
 
+        discharged_energy = (d, t) -> customers.rte_dist_stor(z, h) > 0.0 ? stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t : 0.0
+
         @constraint(
             Customer_PV_Storage_Opti,
             Eq_stor_energy_balance[
@@ -1011,7 +1014,7 @@ function solve_agent_problem!(
                 t in model_data.index_t.elements[2:end],
             ],
             stor_energy[d, t] == stor_energy[d, model_data.index_t.elements[findall(x -> x == (model_data.time(t)-delta_t), model_data.time.values)][1]]
-                - stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t
+                - discharged_energy(d, t) +
                 + stor_charge[d, t] * delta_t
         )
 
@@ -1021,7 +1024,7 @@ function solve_agent_problem!(
                 d in model_data.index_d,
                 t in [model_data.index_t.elements[1]],
             ],
-            stor_energy[d, t] == customers.initial_energy_dist_stor(z, h, d) - stor_discharge[d, t] / customers.rte_dist_stor(z, h) * delta_t + stor_charge[d, t] * delta_t
+            stor_energy[d, t] == customers.initial_energy_dist_stor(z, h, d) - discharged_energy(d, t) + stor_charge[d, t] * delta_t
         )
 
         @constraint(
@@ -1124,7 +1127,7 @@ function solve_agent_problem!(
     end
 
     NetProfit_pv_stor = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         NetProfit_pv_stor(z, h, :) .= 
             # revenue of pv+storage, accounting for revenues from der aggregator (probablity weighted)
             # assume der_aggregator.aggregation_level = 10%, then 10% of revenues will come from DER aggregation incentive and 90% of revenues will come from electricity bill cost savings
@@ -1139,7 +1142,7 @@ function solve_agent_problem!(
     # assuming the optimal DER technology size
     Payment_after_PVOnly = make_keyed_array(model_data.index_z, model_data.index_h)
     NetProfit_PV_only = make_keyed_array(model_data.index_z, model_data.index_h)
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         pvonly_savings = 
             # value of distributed generation (offset load)
             sum(
@@ -1167,7 +1170,7 @@ function solve_agent_problem!(
     end
 
     # Save financial results
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         customers.Payment_before_PVStor_my(reg_year_index, z, h, :) .= Payment_before_PVStor(z, h)
         customers.Payment_after_PVStor_my(reg_year_index, z, h, :) .= Payment_after_PVStor(z, h)
         customers.PVStor_DERA_incentive_my(reg_year_index, z, h, :) .= der_aggregator.incentive_level(reg_year_index_dera, z) * customers.Opti_DG(z, h, :BTMStorage)
@@ -1188,7 +1191,7 @@ function solve_agent_problem!(
         )
     end
 
-    for z in model_data.index_z, h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         if customer_opts isa CustomerOptions{SolarPlusStorageOnly}
             if NetProfit_pv_stor(z, h) > 0.0
                 customers.Payback_pv_stor(z, h, :) .= sum(
@@ -1381,13 +1384,13 @@ function solve_agent_problem!(
         end
     end
 
-    for z in model_data.index_z, h in model_data.index_h, m in customers.index_m
+    for (z, h) in model_data.index_z_h_map, m in customers.index_m
         customers.x_DG_new_my(reg_year_index, h, z, m, :) .= customers.x_DG_new(h, z, m)
         update_total_capacity!(customers.total_der_capacity_my, customers.x_DG_new, model_data, reg_year, z, h, m)
     end
 
     
-    for z in model_data.index_z, h in model_data.index_h, d in model_data.index_d, t in model_data.index_t
+    for (z, h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
     
         discharge = customers.stor_discharge(reg_year_index, z, h, d, t)
         charge = customers.stor_charge(reg_year_index, z, h, d, t)

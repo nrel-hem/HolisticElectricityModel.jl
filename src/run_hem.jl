@@ -71,13 +71,17 @@ function run_hem(
     max_iterations=1,
     window_length=1,
     force=false,
-    jump_model::Any
+    jump_model::Any,
+    output_dir::Union{<:AbstractString, Nothing} = nothing,
 )
     model_data = HEMData(input_dir)
 
     agents_and_opts = create_agents_and_opts(input_dir, model_data, agent_options, options)
 
-    output_dir = joinpath(input_dir, get_file_prefix(options, agents_and_opts))
+    if isnothing(output_dir)
+        output_dir = joinpath(input_dir, get_file_prefix(options, agents_and_opts))
+    end
+    
     if isdir(output_dir)
         if force
             rm(output_dir, recursive=true)
@@ -91,6 +95,7 @@ function run_hem(
         file_level=Logging.Info,
         filename=joinpath(output_dir, "run_hem.log"),
     )
+
     try
         @info "Output directory: $(output_dir)"
         solve_equilibrium_problem!(

@@ -1,7 +1,5 @@
 """
-    read_set(filename, filename)
-
-Reads the column names of csv dirpath/filename in as symbols.
+Reads Dimension data from dirpath/filename. 
 """
 function read_set(
     dirpath::AbstractString,
@@ -22,10 +20,33 @@ function read_set(
 end
 
 """
+Reads DimensionSet data from dirpath/filename.
+
+Returns a DimensionSet
+"""
+function read_set(
+    name::AbstractString,
+    dirpath::AbstractString,
+    filename::AbstractString,
+    dims::Vector{Dimension};
+    prose_name::AbstractString = "",
+    description::AbstractString = "",
+)
+    N = length(dims)
+    data = read_record_file(DataFrame, dirpath, filename)
+    @assert length(names(data)) == N "Set data has $(length(names(data))) dimensions instead of the $N expected based on $dims."
+    set = Vector{NTuple{N, Symbol}}()
+    for row in eachrow(data)
+        push!(set, Tuple(Symbol(x) for x in row))
+    end
+    return DimensionSet{N}(name, prose_name, description, Tuple(dims), set)
+end
+
+"""
 Reads parameter data from the csv file at dirpath/filename. Assumes the data has a 
 single header row, and that the index elements comprise the column names.
 
-Returns the data loaded into a ParamAxisArray.
+Returns the data loaded into a ParamArray.
 """
 function read_param(
     name::AbstractString,
@@ -73,7 +94,7 @@ function read_param(
 
     for (i, ax) in enumerate(ar_axes)
         elements = dims[i].elements
-        if ax != elements
+        if !issetequal(ax, elements)
             throw(
                 ArgumentError(
                     "dimension elements of KeyedArray axis $i ($ax) does not match passed dimension $i's ($elements)",
@@ -217,6 +238,9 @@ function compute_difference_percentage_maximum_one_norm(before_after_pairs)
     result_vec = []
     for (before, after) in before_after_pairs
         for i in Iterators.product(AxisKeys.axiskeys(before)...)
+            if isnan(before(i...))
+                continue
+            end
             result_one = 
                 before(i...) == 0.0 ? abs(after(i...) - before(i...)) : abs(after(i...) - before(i...)) / before(i...)
             push!(result_vec, result_one)
