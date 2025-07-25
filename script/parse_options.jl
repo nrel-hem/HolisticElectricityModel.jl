@@ -71,7 +71,6 @@ function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{VIU})
             CustomerGroup => get_customer_options(config),
             GreenDeveloper => get_green_developer_options(),
             DERAggregator => get_der_aggregator_options(config),
-            # DistributionUtility => NullAgentOptions()
         )
     )
 end
@@ -84,7 +83,6 @@ function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{WM})
             CustomerGroup => get_customer_options(config),
             GreenDeveloper => get_green_developer_options(),
             DERAggregator => get_der_aggregator_options(config),
-            # DistributionUtility => NullAgentOptions()
         )
     )
 end

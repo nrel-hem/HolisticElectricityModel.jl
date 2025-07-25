@@ -34,7 +34,6 @@ export Utility
 export CustomerGroup
 export IPPGroup
 export GreenDeveloper
-export DistributionUtility
 export DERAggregator
 
 # Agent Options
@@ -126,7 +125,6 @@ include("agents/utility.jl")
 include("agents/customer_group.jl")
 include("agents/ipp_group.jl")
 include("agents/green_developer.jl")
-include("agents/distribution_utility.jl")
 include("agents/der_aggregator.jl")
 include("run_hem.jl")
 
