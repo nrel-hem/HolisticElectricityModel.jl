@@ -162,8 +162,8 @@ end
 
 function save_results(
     green_developer::GreenDeveloper,
-    green_developer_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, <:UseCase, <:UseCase},
+    green_developer_opts::GreenDeveloperOptions,
+    hem_opts::HEMOptions,
     export_file_path::AbstractString,
 )
 
