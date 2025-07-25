@@ -58,7 +58,7 @@ function solve_agent_problem!(
     green_developer::GreenDeveloper,
     green_developer_opts::GreenDeveloperOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, SupplyChoice, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, <:UseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
     window_length,
@@ -163,7 +163,7 @@ end
 function save_results(
     green_developer::GreenDeveloper,
     green_developer_opts::AgentOptions,
-    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, SupplyChoice, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure, <:UseCase, <:UseCase, <:UseCase},
     export_file_path::AbstractString,
 )
 

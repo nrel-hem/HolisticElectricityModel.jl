@@ -1415,7 +1415,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customer_opts::CustomerOptions,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoice, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, <:UseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -1440,7 +1440,7 @@ function solve_agent_problem!(
         customers.d(h, t, :) .= customers.d_my(reg_year_index, h, t)
     end
 
-    if hem_opts isa HEMOptions{VIU, NullUseCase, SupplyChoice, <:UseCase}
+    if hem_opts isa HEMOptions{VIU, NullUseCase, NullUseCase, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1511,7 +1511,7 @@ function solve_agent_problem!(
     customers::CustomerGroup,
     customer_opts::CustomerOptions{StandalonePVOnly},
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, DERAdoption, SupplyChoice, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERAdoption, <:UseCase, <:UseCase},
     agent_store::AgentStore,
     w_iter,
 )
@@ -1644,7 +1644,7 @@ function solve_agent_problem!(
 
     green_sub_model = customers.green_sub_model
 
-    if hem_opts isa HEMOptions{VIU, DERAdoption, SupplyChoice, <:UseCase}
+    if hem_opts isa HEMOptions{VIU, DERAdoption, <:UseCase, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
@@ -1834,7 +1834,7 @@ end
 function save_results(
     customers::CustomerGroup,
     customers_opts::CustomerOptions,
-    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoice, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, <:UseCase, <:UseCase},
     export_file_path::AbstractString,
 )
 
@@ -1851,7 +1851,7 @@ end
 function save_results(
     customers::CustomerGroup,
     customers_opts::CustomerOptions,
-    hem_opts::HEMOptions{<:MarketStructure, DERAdoption, SupplyChoice, <:UseCase},
+    hem_opts::HEMOptions{<:MarketStructure, DERAdoption, <:UseCase, <:UseCase},
     export_file_path::AbstractString,
 )
 

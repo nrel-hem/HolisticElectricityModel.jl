@@ -12,17 +12,17 @@ get_file_prefix(::Options) = String("")
 abstract type MarketStructure end
 struct VIU <: MarketStructure end
 struct WM <: MarketStructure end
+struct RetailMarket <: MarketStructure end
 
 abstract type UseCase end
 struct NullUseCase <: UseCase end
 struct DERAdoption <: UseCase end
 # TODO: Delete SupplyChoice and DistributionUtility altogether? Maybe make a tag to go back to first?
-struct SupplyChoice <: UseCase end
 struct DERAggregation <: UseCase end
 
 struct HEMOptions{T <: MarketStructure, 
     U <: Union{NullUseCase,DERAdoption},
-    V <: Union{NullUseCase,SupplyChoice},
+    V <: NullUseCase,
     W <: Union{NullUseCase,DERAggregation}} <: Options
 market_structure::T
 
