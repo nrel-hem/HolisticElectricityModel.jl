@@ -50,13 +50,9 @@ mutable struct HEMData
     # Sets
     index_y::Dimension # year index
     index_y_fix::Dimension # year index
-    # TODO: Move to agents that use this.
-    index_s::Dimension # year index (for new resources depreciation schedule)
     index_d::Dimension # representative day index
     index_t::Dimension # time index (within each representative day)
     index_h::Dimension # customer types
-    # TODO: Move to green developer
-    index_j::Dimension # green tariff technologies
     index_z::Dimension # zone index
     index_sector::Dimension # sector index (for rate-making)
 
@@ -95,15 +91,6 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         description = "simulation years",
     )
 
-    # new resource depreciation year index
-    index_s = read_set(
-        input_filename,
-        "index_s",
-        "index_s",
-        prose_name = "new resource depreciation year index s",
-        description = "new resource depreciation years",
-    )
-
     # TODO: Generalize descriptions
     # representative day and hour (from ReEDS)
     index_d = read_set(
@@ -129,15 +116,6 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         "index_h",
         prose_name = "customer group index h",
         description = "customer groups",
-    )
-  
-    # green technology types
-    index_j = read_set(
-        input_filename,
-        "index_j",
-        "index_j",
-        prose_name = "green technologies index j",
-        description = "green tariff technologies",
     )
 
     # zones
@@ -207,11 +185,9 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
         index_y,
         index_y_fix,
-        index_s,
         index_d,
         index_t,
         index_h,
-        index_j,
         index_z,
         index_sector,
         index_h_sector_map,

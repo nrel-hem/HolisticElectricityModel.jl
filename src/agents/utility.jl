@@ -42,6 +42,7 @@ mutable struct Utility <: AbstractUtility
     index_stor_existing::Dimension # existing bulk storage technologies
     index_stor_new::Dimension # potential bulk storage technologies
     index_l::Dimension # transmission lines
+    index_s::Dimension # year index (for new resources depreciation schedule)
 
     # Parameters
     "existing capacity (MW)"
@@ -251,6 +252,13 @@ function Utility(
     index_stor_existing = read_set(input_filename, "index_stor_existing", "index_stor_existing")
     index_stor_new = read_set(input_filename, "index_stor_new", "index_stor_new")
     index_l = read_set(input_filename, "index_l", "index_l")
+    index_s = read_set(
+        input_filename,
+        "index_s",
+        "index_s",
+        prose_name = "new resource depreciation year index s",
+        description = "new resource depreciation years",
+    )
 
     eximport = read_param("eximport", input_filename, "Export", model_data.index_t, [model_data.index_z, model_data.index_d])
 
@@ -496,14 +504,14 @@ function Utility(
         input_filename,
         "CumuTaxDepreNewmy",
         index_k_new,
-        [model_data.index_s],
+        [index_s],
     )
     CumuTaxDepreStorNew_my = read_param(
         "CumuTaxDepreStor_new_my",
         input_filename,
         "CumuTaxDepreStorNewmy",
         index_stor_new,
-        [model_data.index_s],
+        [index_s],
     )
     # cumulative accounting depreciation of new units (for each schedule year) (%)
     CumuAccoutDepreNew_my = read_param(
@@ -511,14 +519,14 @@ function Utility(
         input_filename,
         "CumuAccoutDepreNewmy",
         index_k_new,
-        [model_data.index_s],
+        [index_s],
     )
     CumuAccoutDepreStorNew_my = read_param(
         "CumuAccoutDepreStor_new_my",
         input_filename,
         "CumuAccoutDepreStorNewmy",
         index_stor_new,
-        [model_data.index_s],
+        [index_s],
     )
     # ITC of new units (%)
     ITCNew_my = read_param(
@@ -541,28 +549,28 @@ function Utility(
         input_filename,
         "CumuITCAmortNewmy",
         index_k_new,
-        [model_data.index_s],
+        [index_s],
     )
     CumuITCAmortStorNew_my = read_param(
         "CumuITCAmortStor_new_my",
         input_filename,
         "CumuITCAmortStorNewmy",
         index_stor_new,
-        [model_data.index_s],
+        [index_s],
     )
     AnnualITCAmortNew_my = read_param(
         "AnnualITCAmort_new_my",
         input_filename,
         "AnnualITCAmortNewmy",
         index_k_new,
-        [model_data.index_s],
+        [index_s],
     )
     AnnualITCAmortStorNew_my = read_param(
         "AnnualITCAmortStor_new_my",
         input_filename,
         "AnnualITCAmortStorNewmy",
         index_stor_new,
-        [model_data.index_s],
+        [index_s],
     )
     # PTC of new units ($/MWh)
     PTCNew_my = read_param(
@@ -578,14 +586,14 @@ function Utility(
         input_filename,
         "AnnualAccoutDepreNewmy",
         index_k_new,
-        [model_data.index_s],
+        [index_s],
     )
     AnnualAccoutDepreStorNew_my = read_param(
         "AnnualAccoutDepreStor_new_my",
         input_filename,
         "AnnualAccoutDepreStorNewmy",
         index_stor_new,
-        [model_data.index_s],
+        [index_s],
     )
     # annual tax depreciation of new units (%)
     AnnualTaxDepreNew_my = read_param(
@@ -593,14 +601,14 @@ function Utility(
         input_filename,
         "AnnualTaxDepreNewmy",
         index_k_new,
-        [model_data.index_s],
+        [index_s],
     )
     AnnualTaxDepreStorNew_my = read_param(
         "AnnualTaxDepreStor_new_my",
         input_filename,
         "AnnualTaxDepreStorNewmy",
         index_stor_new,
-        [model_data.index_s],
+        [index_s],
     )
 
     index_y_second = Dimension(model_data.index_y, "index_y_second")
@@ -614,6 +622,7 @@ function Utility(
         index_stor_existing,
         index_stor_new,
         index_l,
+        index_s,
         read_param(
             "x_E",
             input_filename,
@@ -1285,7 +1294,7 @@ function solve_agent_problem!(
             sum(
                 utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in z_to_h_dict[z]
+                for j in green_developer.index_j, h in z_to_h_dict[z]
             )
         end
 
@@ -1716,7 +1725,7 @@ function solve_agent_problem!(
             sum(
                 utility.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in z_to_h_dict[z]
+                for j in green_developer.index_j, h in z_to_h_dict[z]
             ) -
             # flow out of zone z
             sum(utility.trans_topology(l, z) * flow_cap[y, l] for l in utility.index_l) -

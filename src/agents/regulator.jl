@@ -73,8 +73,6 @@ mutable struct Regulator <: AbstractRegulator
     p_ex::ParamArray
     "retail price of import/export"
     p_eximport::ParamArray
-    "green tariff rate"
-    p_green::ParamArray
     "revenue (requirement) of utility company"
     revenue_req::ParamScalar
     "cost of utility company (without return on equity)"
@@ -224,14 +222,6 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
             model_data.index_t;
             value = 10.0,
             description = "retail price of import/export",
-        ),
-        initialize_param(
-            "p_green",
-            model_data.index_z,
-            model_data.index_h,
-            model_data.index_j;
-            value = 20.0,
-            description = "green tariff rate",
         ),
         ParamScalar(
             "revenue_req",
@@ -811,7 +801,7 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
+                for j in green_developer.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -852,7 +842,7 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
+                for j in green_developer.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -949,7 +939,7 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
+                for j in green_developer.index_j, d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -1022,7 +1012,7 @@ function solve_agent_problem!(
                     green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
                     for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
                 )
-                for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
+                for j in green_developer.index_j, d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -1181,7 +1171,7 @@ function solve_agent_problem!(
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j, h in z_to_h_dict[z]
+                    for j in green_developer.index_j, h in z_to_h_dict[z]
                 )
         end
         net_demand_t_w_loss(z, tou, :) .= net_demand_t_w_loss_temp
@@ -1228,7 +1218,7 @@ function solve_agent_problem!(
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j, h in z_to_h_dict[z]
+                    for j in green_developer.index_j, h in z_to_h_dict[z]
                 )
         end
         net_demand_t_w_loss_no_eximport(z, tou, :) .= net_demand_t_w_loss_no_eximport_temp
@@ -1349,7 +1339,7 @@ function solve_agent_problem!(
                 sum(
                     model_data.omega(d) * delta_t * utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j
+                    for j in green_developer.index_j
                 )
         end
         net_demand_h_t_w_loss(z, h, tou, :) .= net_demand_h_t_w_loss_temp
@@ -1418,7 +1408,7 @@ function solve_agent_problem!(
                         green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h)
                         for y_symbol in model_data.year(first(model_data.index_y_fix)):reg_year
                     )
-                    for j in model_data.index_j
+                    for j in green_developer.index_j
                 )
         end
         net_demand_h_t_wo_loss(z, h, tou, :) .= net_demand_h_t_wo_loss_temp
@@ -1449,7 +1439,7 @@ function solve_agent_problem!(
             sum(
                 utility.rho_C_my(j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j
+                for j in green_developer.index_j
             )
     end
 
@@ -1776,7 +1766,7 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
+                for j in green_developer.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -1817,7 +1807,7 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
+                for j in green_developer.index_j, h in z_to_h_dict[z], d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -1913,7 +1903,7 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
+                for j in green_developer.index_j, d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -1981,7 +1971,7 @@ function solve_agent_problem!(
             sum(
                 model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j, d in model_data.index_d, t in model_data.index_t
+                for j in green_developer.index_j, d in model_data.index_d, t in model_data.index_t
             )
     end
 
@@ -2096,7 +2086,7 @@ function solve_agent_problem!(
                 sum(
                     model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j, h in z_to_h_dict[z]
+                    for j in green_developer.index_j, h in z_to_h_dict[z]
                 )
         end
         net_demand_t_w_loss(z, tou, :) .= net_demand_t_w_loss_temp
@@ -2143,7 +2133,7 @@ function solve_agent_problem!(
                 sum(
                     model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j, h in z_to_h_dict[z]
+                    for j in green_developer.index_j, h in z_to_h_dict[z]
                 )
         end
         net_demand_t_w_loss_no_eximport(z, tou, :) .= net_demand_t_w_loss_no_eximport_temp
@@ -2284,7 +2274,7 @@ function solve_agent_problem!(
                 sum(
                     model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j
+                    for j in green_developer.index_j
                 )
         end
         net_demand_h_t_w_loss(z, h, tou, :) .= net_demand_h_t_w_loss_temp
@@ -2351,7 +2341,7 @@ function solve_agent_problem!(
                 sum(
                     model_data.omega(d) * delta_t * mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):reg_year)
-                    for j in model_data.index_j
+                    for j in green_developer.index_j
                 )
         end
         net_demand_h_t_wo_loss(z, h, tou, :) .= net_demand_h_t_wo_loss_temp
@@ -2443,7 +2433,7 @@ function solve_agent_problem!(
             sum(
                 mean(ipp.rho_C_my(p, j, z, d, t) for p in ipp.index_p) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):reg_year)
-                for j in model_data.index_j
+                for j in green_developer.index_j
             )
     end
 

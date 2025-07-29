@@ -18,6 +18,7 @@ mutable struct GreenDeveloper <: AbstractGreenDeveloper
     id::String
     current_year::Symbol
     previous_year::Symbol
+    index_j::Dimension # green tariff technologies
 
     "internal rate of return"
     irr::ParamScalar
@@ -28,10 +29,19 @@ mutable struct GreenDeveloper <: AbstractGreenDeveloper
 end
 
 function GreenDeveloper(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+
+    index_j = read_set(
+        input_filename,
+        "index_j",
+        "index_j",
+        prose_name = "green technologies index j",
+        description = "green tariff technologies",
+    )
     return GreenDeveloper(
         id,
         first(model_data.index_y),
         first(model_data.index_y),
+        index_j,
         ParamScalar("irr", 0.12, description = "internal rate of return"),
         initialize_param(
             "ppa_my",
@@ -43,7 +53,7 @@ function GreenDeveloper(input_filename::AbstractString, model_data::HEMData; id 
         initialize_param(
             "green_tech_buildout_my",
             model_data.index_y,
-            model_data.index_j,
+            index_j,
             model_data.index_z,
             model_data.index_h,
             value = 0.0,
@@ -78,10 +88,10 @@ function solve_agent_problem!(
     Green_Developer_model = get_new_jump_model(green_developer_opts.solvers)
 
     # x_green is the annual PPA buildout (x_green is indexed by h for rate-making purpose)
-    @variable(Green_Developer_model, x_green[model_data.index_j, model_data.index_h] >= 0)
+    @variable(Green_Developer_model, x_green[green_developer.index_j, model_data.index_h] >= 0)
 
-    x_green_cumu = make_keyed_array(model_data.index_j, model_data.index_h)
-    for j in model_data.index_j, h in model_data.index_h
+    x_green_cumu = make_keyed_array(green_developer.index_j, model_data.index_h)
+    for j in green_developer.index_j, h in model_data.index_h
         if reg_year == model_data.year(first(model_data.index_y_fix))
             x_green_cumu[j, h] = 0.0
         else
@@ -95,7 +105,7 @@ function solve_agent_problem!(
             # fixed o&m
             utility.fom_C_my(reg_year_index, j) * x_green[j, h] / (green_developer.irr * (1 + green_developer.irr)^20 / ((1 + green_developer.irr)^20 - 1)) +
             # capital costs
-            utility.CapEx_my(reg_year_index, j) * x_green[j, h] for j in model_data.index_j, h in model_data.index_h
+            utility.CapEx_my(reg_year_index, j) * x_green[j, h] for j in green_developer.index_j, h in model_data.index_h
         )
     end
 
@@ -106,7 +116,7 @@ function solve_agent_problem!(
         Eq_ppa[h in model_data.index_h],
         sum(
             model_data.omega(t) * utility.rho_C_my(j, t) * (x_green[j, h] + x_green_cumu[j, h]) for
-            j in model_data.index_j, t in model_data.index_t
+            j in green_developer.index_j, t in model_data.index_t
         ) -
         customers.x_green_sub_my(reg_year_index, h) / (1 - utility.loss_dist) >=
         0
@@ -116,14 +126,14 @@ function solve_agent_problem!(
 
     green_tech_buildout_before = ParamArray(green_developer.green_tech_buildout_my, "green_tech_buildout_before")
 
-    for j in model_data.index_j, h in model_data.index_h
+    for j in green_developer.index_j, h in model_data.index_h
         green_developer.green_tech_buildout_my(reg_year_index, j, h, :) .= value.(x_green[j, h])
     end
 
     for h in model_data.index_h
-        if sum(green_developer.green_tech_buildout_my(reg_year_index, j, h) for j in model_data.index_j) > 0.0
-            green_developer.ppa_my(reg_year_index, h, :) .= (sum(sum(utility.fom_C_my(reg_year_index, j) * green_developer.green_tech_buildout_my(reg_year_index, j, h) for j in model_data.index_j) / (1+green_developer.irr)^n for n in 1:20) +
-            sum(utility.CapEx_my(reg_year_index, j) * green_developer.green_tech_buildout_my(reg_year_index, j, h) * (1 - utility.ITC_new_my(reg_year_index, j)) for j in model_data.index_j)) /
+        if sum(green_developer.green_tech_buildout_my(reg_year_index, j, h) for j in green_developer.index_j) > 0.0
+            green_developer.ppa_my(reg_year_index, h, :) .= (sum(sum(utility.fom_C_my(reg_year_index, j) * green_developer.green_tech_buildout_my(reg_year_index, j, h) for j in green_developer.index_j) / (1+green_developer.irr)^n for n in 1:20) +
+            sum(utility.CapEx_my(reg_year_index, j) * green_developer.green_tech_buildout_my(reg_year_index, j, h) * (1 - utility.ITC_new_my(reg_year_index, j)) for j in green_developer.index_j)) /
             (sum(customers.x_green_sub_incremental_my(reg_year_index, h) / ((1+green_developer.irr)^n) for n in 1:20))
         else
             green_developer.ppa_my(reg_year_index, h, :) .= 0.0

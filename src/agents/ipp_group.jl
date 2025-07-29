@@ -968,7 +968,7 @@ function ipp_cap_lower(
             sum(
                 ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in z_to_h_dict[z]
+                for j in green_developer.index_j, h in z_to_h_dict[z]
             )
         end
 
@@ -1492,7 +1492,7 @@ function ipp_cap_lower_dual(
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                         model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                        for j in model_data.index_j, h in z_to_h_dict[z]
+                        for j in green_developer.index_j, h in z_to_h_dict[z]
                     )
                 ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             ) - 
@@ -2550,7 +2550,7 @@ function ipp_cap_upper(
                 sum(
                     ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, (z, h) in model_data.index_z_h_map
+                    for j in green_developer.index_j, (z, h) in model_data.index_z_h_map
                 ) - 
                 # put exogenous export on the supply-side
                 # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -2563,7 +2563,7 @@ function ipp_cap_upper(
             sum(
                 ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, (z, h) in model_data.index_z_h_map
+                for j in green_developer.index_j, (z, h) in model_data.index_z_h_map
             ) - 
             # put exogenous export on the supply-side
             # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -2653,7 +2653,7 @@ function ipp_cap_upper(
                         sum(
                             ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                             model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                            for j in model_data.index_j, h in z_to_h_dict[z]
+                            for j in green_developer.index_j, h in z_to_h_dict[z]
                         )
                     ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 ) - ( # the reason I choose to do it this way (remove p_star from all p) is because there may be issue when p_star is the only IPP
@@ -3118,7 +3118,7 @@ function ipp_cap_upper(
             sum(
                 ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in z_to_h_dict[z]
+                for j in green_developer.index_j, h in z_to_h_dict[z]
             )
         end
 
@@ -3878,7 +3878,7 @@ function ipp_cap_upper(
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                         model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                        for j in model_data.index_j, h in z_to_h_dict[z]
+                        for j in green_developer.index_j, h in z_to_h_dict[z]
                     )
                 ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             ) - 
@@ -4764,7 +4764,7 @@ function ipp_cap_upper(
             sum(
                 ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in z_to_h_dict[z]
+                for j in green_developer.index_j, h in z_to_h_dict[z]
             ) -
             # flow out of zone z
             sum(ipp.trans_topology(l, z) * flow_cap[y, l] for l in ipp.index_l) -
@@ -4942,7 +4942,7 @@ function ipp_calc_duality_gap(
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                         model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                        for j in model_data.index_j, h in z_to_h_dict[z]
+                        for j in green_developer.index_j, h in z_to_h_dict[z]
                     )
                 ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             ) - 
@@ -5330,7 +5330,7 @@ function ipp_cap_save_results(
                 sum(
                     ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, (z, h) in model_data.index_z_h_map
+                    for j in green_developer.index_j, (z, h) in model_data.index_z_h_map
                 ) - 
                 # put exogenous export on the supply-side
                 # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -5344,7 +5344,7 @@ function ipp_cap_save_results(
                 sum(
                     ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, (z, h) in model_data.index_z_h_map
+                    for j in green_developer.index_j, (z, h) in model_data.index_z_h_map
                 ) - 
                 # put exogenous export on the supply-side
                 # don't have endogenous export/import because the capacity market clearing here assumes the entire region

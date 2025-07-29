@@ -170,8 +170,6 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
     ConPVNetSurplus::ParamArray
     ConPVNetSurplus_my::ParamArray
 
-    GreenTechIntercept::ParamArray
-    GreenTechSlope::ParamArray
     pv_adoption_model::PVAdoptionModel
     green_sub_model::GreenSubModel
 
@@ -580,18 +578,6 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
             model_data.index_z, 
             model_data.index_h,
             index_m,
-        ),
-        initialize_param(
-            "GreenTechIntercept",
-            model_data.index_h,
-            model_data.index_j,
-            value = 3.5,
-        ), # Intercept of green tech demand curve
-        initialize_param(
-            "GreenTechSlope",
-            model_data.index_h,
-            model_data.index_j,
-            value = -0.07,
         ),
         pv_adoption_model,
         green_sub_model,
