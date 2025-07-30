@@ -96,6 +96,7 @@ using DelimitedFiles
 using Statistics
 using Lazy: @forward
 using TableTransforms
+using DocStringExtensions
 import YAML
 import AxisKeys
 import AxisKeys: KeyedArray

@@ -28,10 +28,10 @@ mutable struct GreenDeveloper <: AbstractGreenDeveloper
     green_tech_buildout_my::ParamArray
 end
 
-function GreenDeveloper(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function GreenDeveloper(input_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
 
     index_j = read_set(
-        input_filename,
+        input_dir,
         "index_j",
         "index_j",
         prose_name = "green technologies index j",

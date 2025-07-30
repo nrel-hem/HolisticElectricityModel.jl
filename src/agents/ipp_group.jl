@@ -266,14 +266,14 @@ mutable struct McCormickBounds
     kappa_C_U::ParamArray
 end
 
-function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
-    index_k_existing = read_set(input_filename, "index_k_existing", "index_k_existing")
-    index_k_new = read_set(input_filename, "index_k_new", "index_k_new")
-    index_stor_existing = read_set(input_filename, "index_stor_existing", "index_stor_existing")
-    index_stor_new = read_set(input_filename, "index_stor_new", "index_stor_new")
-    index_p = read_set(input_filename, "index_p", "index_p")
-    index_rps = read_set(input_filename, "index_rps", "index_rps")
-    index_l = read_set(input_filename, "index_l", "index_l")
+function IPPGroup(input_dir::String, model_data::HEMData, id = DEFAULT_ID)
+    index_k_existing = read_set(input_dir, "index_k_existing", "index_k_existing")
+    index_k_new = read_set(input_dir, "index_k_new", "index_k_new")
+    index_stor_existing = read_set(input_dir, "index_stor_existing", "index_stor_existing")
+    index_stor_new = read_set(input_dir, "index_stor_new", "index_stor_new")
+    index_p = read_set(input_dir, "index_p", "index_p")
+    index_rps = read_set(input_dir, "index_rps", "index_rps")
+    index_l = read_set(input_dir, "index_l", "index_l")
 
     min_max = Dimension(
         "min_max",
@@ -282,17 +282,17 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         description = "minimum and maximum capacity of transmission lines",
     )
 
-    FOMNew = read_param("FOM_new", input_filename, "FOMNewIPP", index_k_new, [index_p, model_data.index_z])
+    FOMNew = read_param("FOM_new", input_dir, "FOMNewIPP", index_k_new, [index_p, model_data.index_z])
     CapExNew =
-        read_param("CapEx_new", input_filename, "CapExNewIPP", index_k_new, [index_p, model_data.index_z])
+        read_param("CapEx_new", input_dir, "CapExNewIPP", index_k_new, [index_p, model_data.index_z])
     LifetimeNew =
-        read_param("Lifetime_new", input_filename, "LifetimeNewIPP", index_k_new, [index_p])
+        read_param("Lifetime_new", input_dir, "LifetimeNewIPP", index_k_new, [index_p])
     LifetimeStorNew =
-        read_param("LifetimeStor_new", input_filename, "LifetimeStorNewIPP", index_stor_new, [index_p])
-    debt_ratio = read_param("DebtRatio", input_filename, "DebtRatio", index_p)
-    cost_of_debt = read_param("COD", input_filename, "COD", index_p)
-    cost_of_equity = read_param("COE", input_filename, "COE", index_p)
-    tax_rate = read_param("Tax", input_filename, "Tax", index_p)
+        read_param("LifetimeStor_new", input_dir, "LifetimeStorNewIPP", index_stor_new, [index_p])
+    debt_ratio = read_param("DebtRatio", input_dir, "DebtRatio", index_p)
+    cost_of_debt = read_param("COD", input_dir, "COD", index_p)
+    cost_of_equity = read_param("COE", input_dir, "COE", index_p)
+    tax_rate = read_param("Tax", input_dir, "Tax", index_p)
     atwacc = Dict(
         p =>
             debt_ratio(p) * cost_of_debt(p) * (1 - tax_rate(p)) +
@@ -309,7 +309,7 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         FixedCostNew(p, z, k, :) .= FOMNew(p, z, k) + CapExNew(p, z, k) * CRF[p, k]
     end
 
-    eximport = read_param("eximport", input_filename, "Export", model_data.index_t, [model_data.index_z, model_data.index_d])
+    eximport = read_param("eximport", input_dir, "Export", model_data.index_t, [model_data.index_z, model_data.index_d])
     peak_eximport =
         ParamScalar("Peak_eximport", findmax(eximport)[1], description = "peak export")
 
@@ -326,8 +326,8 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         pvf_onm(y, p, :) .= 1 / (1 + atwacc[p])^(model_data.year(y) - model_data.year_start)
     end
 
-    NetCONE = read_param("NetCONE", input_filename, "NetCONE", model_data.index_y)     # $/MW-yr
-    DC_length = read_param("DC_length", input_filename, "DC_length", model_data.index_y)
+    NetCONE = read_param("NetCONE", input_dir, "NetCONE", model_data.index_y)     # $/MW-yr
+    DC_length = read_param("DC_length", input_dir, "DC_length", model_data.index_y)
 
     return IPPGroup(
         id,
@@ -341,37 +341,37 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         index_l,
         read_param(
             "x_E",
-            input_filename,
+            input_dir,
             "ExistingCapacityIPP",
             index_k_existing,
             [index_p, model_data.index_z],
         ),
-        read_param("f_E", input_filename, "FixedCostOldIPP", index_k_existing, [index_p, model_data.index_z]),
+        read_param("f_E", input_dir, "FixedCostOldIPP", index_k_existing, [index_p, model_data.index_z]),
         ParamArray("f_C", Tuple(push!(copy([index_p, model_data.index_z]), index_k_new)), FixedCostNew),
         read_param(
             "v_E",
-            input_filename,
+            input_dir,
             "VariableCostOldIPP",
             model_data.index_t,
             [index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "v_C",
-            input_filename,
+            input_dir,
             "VariableCostNewIPP",
             model_data.index_t,
             [index_p, index_k_new, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_E",
-            input_filename,
+            input_dir,
             "AvailabilityOldIPP",
             model_data.index_t,
             [index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_C",
-            input_filename,
+            input_dir,
             "AvailabilityNewIPP",
             model_data.index_t,
             [index_p, index_k_new, model_data.index_z, model_data.index_d],
@@ -387,14 +387,14 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         initialize_param("miu", model_data.index_z, model_data.index_d, model_data.index_t),
         read_param(
             "o_E",
-            input_filename,
+            input_dir,
             "VariableCostOldIPP",
             model_data.index_t,
             [index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "o_C",
-            input_filename,
+            input_dir,
             "VariableCostNewIPP",
             model_data.index_t,
             [index_p, index_k_new, model_data.index_z, model_data.index_d],
@@ -402,127 +402,127 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         initialize_param("LMP", model_data.index_z, model_data.index_d, model_data.index_t),
         read_param(
             "x_E_my",
-            input_filename,
+            input_dir,
             "ExistingCapacityIPP",
             index_k_existing,
             [index_p, model_data.index_z],
         ),
         read_param(
             "x_stor_E_my",
-            input_filename,
+            input_dir,
             "ExistingStorCapacityIPP",
             index_stor_existing,
             [index_p, model_data.index_z],
         ),
         read_param(
             "fom_E_my",
-            input_filename,
+            input_dir,
             "FixedCostOldIPPmy",
             index_k_existing,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "fom_C_my",
-            input_filename,
+            input_dir,
             "FOMNewIPPmy",
             index_k_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "fom_stor_E_my",
-            input_filename,
+            input_dir,
             "FixedCostStorOldIPPmy",
             index_stor_existing,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "fom_stor_C_my",
-            input_filename,
+            input_dir,
             "StorFOMNewIPPmy",
             index_stor_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "CapEx_my",
-            input_filename,
+            input_dir,
             "CapExNewIPPmy",
             index_k_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "CapEx_stor_my",
-            input_filename,
+            input_dir,
             "StorCapExNewIPPmy",
             index_stor_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "ITC_new_my",
-            input_filename,
+            input_dir,
             "ITCNewmy",
             index_k_new,
             [model_data.index_y],
         ),
         read_param(
             "ITCStor_new_my",
-            input_filename,
+            input_dir,
             "ITCStorNewmy",
             index_stor_new,
             [model_data.index_y],
         ),
         read_param(
             "rte_stor_E_my",
-            input_filename,
+            input_dir,
             "StorRTEOldIPPmy",
             index_stor_existing,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "rte_stor_C_my",
-            input_filename,
+            input_dir,
             "StorRTENewIPPmy",
             index_stor_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "v_E_my",
-            input_filename,
+            input_dir,
             "VariableCostOldIPPmy",
             model_data.index_t,
             [model_data.index_y, index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "v_C_my",
-            input_filename,
+            input_dir,
             "VariableCostNewIPPmy",
             model_data.index_t,
             [model_data.index_y, index_p, index_k_new, model_data.index_z, model_data.index_d],
         ),
-        read_param("PTC_existing_my", input_filename, "PTCOld", index_k_existing),
+        read_param("PTC_existing_my", input_dir, "PTCOld", index_k_existing),
         read_param(
             "PTC_new_my",
-            input_filename,
+            input_dir,
             "PTCNewmy",
             index_k_new,
             [model_data.index_y],
         ),
         read_param(
             "rho_E_my",
-            input_filename,
+            input_dir,
             "AvailabilityOldIPP",
             model_data.index_t,
             [index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_C_my",
-            input_filename,
+            input_dir,
             "AvailabilityNewIPP",
             model_data.index_t,
             [index_p, index_k_new, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "eximport_my",
-            input_filename,
+            input_dir,
             "Exportmy",
             model_data.index_t,
             [model_data.index_y, model_data.index_z, model_data.index_d],
@@ -544,40 +544,40 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         cost_of_equity,
         read_param(
             "initial_energy_existing_my",
-            input_filename,
+            input_dir,
             "ExistingStorInitialEnergyIPP",
             model_data.index_d,
             [model_data.index_y, index_p, index_stor_existing, model_data.index_z],
         ),
         read_param(
             "initial_energy_new_my",
-            input_filename,
+            input_dir,
             "NewStorInitialEnergyIPP",
             model_data.index_d,
             [model_data.index_y, index_p, index_stor_new, model_data.index_z],
         ),
         read_param(
             "stor_duration_existing",
-            input_filename,
+            input_dir,
             "ExistingStorDuration",
             index_stor_existing,
         ),
         read_param(
             "stor_duration_new",
-            input_filename,
+            input_dir,
             "NewStorDuration",
             index_stor_new,
         ),
         read_param(
             "trans_topology",
-            input_filename,
+            input_dir,
             "TransmissionTopology",
             model_data.index_z,
             [index_l],
         ),
         read_param(
             "trans_capacity",
-            input_filename,
+            input_dir,
             "TransmissionCapacity",
             min_max,
             [index_l],
@@ -606,14 +606,14 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         initialize_param("x_stor_C_my", model_data.index_y, index_p, index_stor_new, model_data.index_z),
         read_param(
             "o_E_my",
-            input_filename,
+            input_dir,
             "VariableCostOldIPPmy",
             model_data.index_t,
             [model_data.index_y, index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "o_C_my",
-            input_filename,
+            input_dir,
             "VariableCostNewIPPmy",
             model_data.index_t,
             [model_data.index_y, index_p, index_k_new, model_data.index_z, model_data.index_d],
@@ -708,28 +708,28 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         DC_length,
         read_param(
             "capacity_credit_E_my",
-            input_filename,
+            input_dir,
             "CapacityCredit_old",
             index_k_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_C_my",
-            input_filename,
+            input_dir,
             "CapacityCredit_new",
             index_k_new,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_E_my",
-            input_filename,
+            input_dir,
             "CapacityCreditStor_old",
             index_stor_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_C_my",
-            input_filename,
+            input_dir,
             "CapacityCreditStor_new",
             index_stor_new,
             [model_data.index_y, model_data.index_z],
@@ -744,18 +744,18 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         initialize_param("ucap_temp", model_data.index_y, index_p),
         initialize_param("ucap", model_data.index_y, index_p),
         initialize_param("ucap_total", model_data.index_y),
-        read_param("RPS", input_filename, "RPS", model_data.index_y),
+        read_param("RPS", input_dir, "RPS", model_data.index_y),
         ParamScalar("loss_dist", 0.053, description = "distribution system loss factor"),
         read_param(
             "emission_rate_E_my",
-            input_filename,
+            input_dir,
             "EmissionRateOldIPPmy",
             index_k_existing,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "emission_rate_C_my",
-            input_filename,
+            input_dir,
             "EmissionRateNewIPPmy",
             index_k_new,
             [model_data.index_y, index_p, model_data.index_z],
@@ -5411,7 +5411,7 @@ function solve_agent_problem_ipp_cap(
 
     x_R_before = ParamArray(ipp.x_R_my)
     x_C_before = ParamArray(ipp.x_C_my)
-    delta_t = get_delta_t(model_data)
+    delta_t = model_data.delta_t
 
     iteration_year = model_data.index_y_fix.elements[w_iter]
 

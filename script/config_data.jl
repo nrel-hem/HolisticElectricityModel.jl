@@ -53,6 +53,11 @@ validators = Dict(
             "input_path",
             value -> check_path(value)
         ),
+        FieldValidatorHasDefault(
+            "year_start",
+            value -> check_integer(value),
+            2020
+        ),
     ],
     "RunOptions" => [
         FieldValidatorHasDefault(
@@ -68,6 +73,11 @@ validators = Dict(
                 val -> check_in_collection(val, ("Gurobi", "Xpress")),
                 check_symbol
             ])
+        ),
+        FieldValidatorHasDefault(
+            "delta_t",
+            value -> check_integer(value; min=1, max=24),
+            4
         ),
     ],
     "HEMOptions" => [

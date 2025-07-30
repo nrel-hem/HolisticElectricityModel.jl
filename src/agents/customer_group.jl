@@ -252,9 +252,9 @@ mutable struct CustomerGroup <: AbstractCustomerGroup
 end
 
 
-function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function CustomerGroup(input_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
     index_m = read_set(
-        input_filename,
+        input_dir,
         "index_m",
         "index_m",
         prose_name = "behind-the-meter technologies m",
@@ -262,24 +262,24 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
 
     gamma = read_param(
         "gamma",
-        input_filename,
+        input_dir,
         "Gamma",
         model_data.index_h,
         [model_data.index_z],
         description = "number of customers of type h at zone z",
     )
     demand =
-        read_param("d", input_filename, "Demand", model_data.index_t, [model_data.index_h, model_data.index_z, model_data.index_d])
+        read_param("d", input_dir, "Demand", model_data.index_t, [model_data.index_h, model_data.index_z, model_data.index_d])
     demand_my = read_param(
         "d_my",
-        input_filename,
+        input_dir,
         "Demandmy",
         model_data.index_t,
         [model_data.index_y, model_data.index_h, model_data.index_z, model_data.index_d],
     )
     x_DG_E = read_param(
         "x_DG_E",
-        input_filename,
+        input_dir,
         "ExistingDER",
         index_m,
         [model_data.index_h, model_data.index_z],
@@ -290,27 +290,27 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
     end
     x_DG_E_my = read_param(
         "x_DG_E_my",
-        input_filename,
+        input_dir,
         "ExistingDERmy",
         index_m,
         [model_data.index_y, model_data.index_h, model_data.index_z],
     )
     Opti_DG = read_param(
         "Opti_DG",
-        input_filename,
+        input_dir,
         "OptimalDER",
         index_m,
         [model_data.index_z, model_data.index_h])
     Opti_DG_my = read_param(
         "Opti_DG_my",
-        input_filename,
+        input_dir,
         "OptimalDERmy",
         index_m,
         [model_data.index_y, model_data.index_z, model_data.index_h],
     )
     rho_DG = read_param(
         "rho_DG",
-        input_filename,
+        input_dir,
         "AvailabilityDER",
         model_data.index_t,
         [model_data.index_h, index_m, model_data.index_z, model_data.index_d],
@@ -367,14 +367,14 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         initialize_param("MeanPayback", model_data.index_z, model_data.index_h, index_m, value = 8.8), # MeanPayback
         read_param(
             "Bass_p",
-            input_filename,
+            input_dir,
             "Bass_P",
             index_m,
             [model_data.index_z, model_data.index_h],
         ),
         read_param(
             "Bass_q",
-            input_filename,
+            input_dir,
             "Bass_Q",
             index_m,
             [model_data.index_z, model_data.index_h],
@@ -455,12 +455,12 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         
     # Customer financing
     debt_ratio =
-        read_param("debt_ratio", input_filename, "CustomerDebtRatio", model_data.index_h, [model_data.index_z])
+        read_param("debt_ratio", input_dir, "CustomerDebtRatio", model_data.index_h, [model_data.index_z])
     cost_of_debt =
-        read_param("cost_of_debt", input_filename, "CustomerCOD", model_data.index_h, [model_data.index_z])
+        read_param("cost_of_debt", input_dir, "CustomerCOD", model_data.index_h, [model_data.index_z])
     cost_of_equity =
-        read_param("cost_of_equity", input_filename, "CustomerCOE", model_data.index_h, [model_data.index_z])
-    tax_rate = read_param("tax_rate", input_filename, "CustomerTax", model_data.index_h, [model_data.index_z])
+        read_param("cost_of_equity", input_dir, "CustomerCOE", model_data.index_h, [model_data.index_z])
+    tax_rate = read_param("tax_rate", input_dir, "CustomerTax", model_data.index_h, [model_data.index_z])
 
     atwacc = make_keyed_array(model_data.index_z, model_data.index_h)
     for (z, h) in model_data.index_z_h_map
@@ -480,7 +480,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
 
     rte_dist_stor = read_param(
         "rte_dist_stor",
-        input_filename,
+        input_dir,
         "rte_dist_stor",
         model_data.index_h,
         [model_data.index_z],
@@ -489,7 +489,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
 
     duration_dist_stor = read_param(
         "duration_dist_stor",
-        input_filename,
+        input_dir,
         "duration_dist_stor",
         model_data.index_h,
         [model_data.index_z],
@@ -498,7 +498,7 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
 
     initial_energy_dist_stor = read_param(
         "initial_energy_dist_stor",
-        input_filename,
+        input_dir,
         "initial_energy_dist_stor",
         model_data.index_d,
         [model_data.index_z, model_data.index_h],
@@ -520,26 +520,26 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         Opti_DG,
         Opti_DG_my,
         # DERGen,
-        read_param("CapEx_DG", input_filename, "CapExDER", index_m, [model_data.index_z, model_data.index_h]),
+        read_param("CapEx_DG", input_dir, "CapExDER", index_m, [model_data.index_z, model_data.index_h]),
         read_param(
             "CapEx_DG_my",
-            input_filename,
+            input_dir,
             "CapExDERmy",
             index_m,
             [model_data.index_y, model_data.index_z, model_data.index_h],
         ),
-        read_param("ITC_DER", input_filename, "DER_ITCNew", index_m),
+        read_param("ITC_DER", input_dir, "DER_ITCNew", index_m),
         read_param(
             "ITC_DER_my",
-            input_filename,
+            input_dir,
             "DER_ITCNewmy",
             index_m,
             [model_data.index_y],
         ),
-        read_param("FOM_DG", input_filename, "FOMDER", index_m, [model_data.index_z, model_data.index_h]),
+        read_param("FOM_DG", input_dir, "FOMDER", index_m, [model_data.index_z, model_data.index_h]),
         read_param(
             "FOM_DG_my",
-            input_filename,
+            input_dir,
             "FOMDERmy",
             index_m,
             [model_data.index_y, model_data.index_z, model_data.index_h],
@@ -584,8 +584,8 @@ function CustomerGroup(input_filename::AbstractString, model_data::HEMData; id =
         pvf,
         # read_param("rooftop", input_filename, "RooftopDER", index_m, [model_data.index_z, model_data.index_h]),
         initialize_param("MaxDG_my", model_data.index_y, model_data.index_z, model_data.index_h, index_m),
-        read_param("RetailCompetition", input_filename, "RetailCompetition", model_data.index_y),
-        read_param("WTP_green_power", input_filename, "WTP", model_data.index_y),
+        read_param("RetailCompetition", input_dir, "RetailCompetition", model_data.index_y),
+        read_param("WTP_green_power", input_dir, "WTP", model_data.index_y),
         initialize_param(
             "ConGreenPowerNetSurplus_pre_proportion_my",
             model_data.index_y,
@@ -707,7 +707,7 @@ function solve_agent_problem!(
     # the year consumer is making DER investment decision
     reg_year, reg_year_index = get_reg_year(model_data)
     reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
-    delta_t = get_delta_t(model_data)
+    delta_t = model_data.delta_t
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
@@ -848,7 +848,7 @@ function solve_agent_problem!(
     # the year consumer is making DER investment decision
     reg_year, reg_year_index = get_reg_year(model_data)
     reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
-    delta_t = get_delta_t(model_data)
+    delta_t = model_data.delta_t
 
     # the year the aggregator decided on incentive levels
     reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)

@@ -222,45 +222,45 @@ mutable struct Utility <: AbstractUtility
 end
 
 function Utility(
-    input_filename::String,
+    input_dir::String,
     model_data::HEMData,
     # see TODO below
     # regulator::Regulator;
     id = DEFAULT_ID,
 )
     index_k_existing = read_set(
-        input_filename,
+        input_dir,
         "index_k_existing",
         "index_k_existing",
         prose_name = "existing bulk generation technologies",
     )
 
     index_k_new = read_set(
-        input_filename,
+        input_dir,
         "index_k_new",
         "index_k_new",
         prose_name = "potential bulk generation technologies",
     )
 
     index_rps = read_set(
-        input_filename,
+        input_dir,
         "index_rps",
         "index_rps",
         prose_name = "RPS-qualified technologies",
     )
 
-    index_stor_existing = read_set(input_filename, "index_stor_existing", "index_stor_existing")
-    index_stor_new = read_set(input_filename, "index_stor_new", "index_stor_new")
-    index_l = read_set(input_filename, "index_l", "index_l")
+    index_stor_existing = read_set(input_dir, "index_stor_existing", "index_stor_existing")
+    index_stor_new = read_set(input_dir, "index_stor_new", "index_stor_new")
+    index_l = read_set(input_dir, "index_l", "index_l")
     index_s = read_set(
-        input_filename,
+        input_dir,
         "index_s",
         "index_s",
         prose_name = "new resource depreciation year index s",
         description = "new resource depreciation years",
     )
 
-    eximport = read_param("eximport", input_filename, "Export", model_data.index_t, [model_data.index_z, model_data.index_d])
+    eximport = read_param("eximport", input_dir, "Export", model_data.index_t, [model_data.index_z, model_data.index_d])
 
     min_max = Dimension(
         "min_max",
@@ -272,10 +272,10 @@ function Utility(
     peak_eximport =
         ParamScalar("Peak_eximport", findmax(eximport)[1], description = "peak export")
 
-    FOMNew = read_param("FOM_new", input_filename, "FOMNew", index_k_new, [model_data.index_z])
+    FOMNew = read_param("FOM_new", input_dir, "FOMNew", index_k_new, [model_data.index_z])
     CapExNew =
-        read_param("CapEx_new", input_filename, "CapExNew", index_k_new, [model_data.index_z])
-    LifetimeNew = read_param("Lifetime_new", input_filename, "LifetimeNew", index_k_new)
+        read_param("CapEx_new", input_dir, "CapExNew", index_k_new, [model_data.index_z])
+    LifetimeNew = read_param("Lifetime_new", input_dir, "LifetimeNew", index_k_new)
     debt_ratio = ParamScalar("DebtRatio", 0.6, description = "debt ratio")
     cost_of_debt = ParamScalar("COD", 0.06, description = "cost of debt")
     # TODO: need to tie cost of equity to regulator.z (but regulator.z is an array now)
@@ -291,33 +291,33 @@ function Utility(
         FixedCostNew(z, k, :) .= FOMNew(z, k) + CapExNew(z, k) * CRF[k]
     end
 
-    CapExOld = read_param("CapEx_existing", input_filename, "CapExOld", index_k_existing, [model_data.index_z])
+    CapExOld = read_param("CapEx_existing", input_dir, "CapExOld", index_k_existing, [model_data.index_z])
     CumuTaxDepreOld = read_param(
         "CumuTaxDepre_existing",
-        input_filename,
+        input_dir,
         "CumuTaxDepreOld",
         index_k_existing,
     )
     CumuAccoutDepreOld = read_param(
         "CumuAccoutDepre_existing",
-        input_filename,
+        input_dir,
         "CumuAccoutDepreOld",
         index_k_existing,
     )
     AnnualAccoutDepreOld = read_param(
         "AnnualAccoutDepre_existing",
-        input_filename,
+        input_dir,
         "AnnualAccoutDepreOld",
         index_k_existing,
     )
-    ITCOld = read_param("ITC_existing", input_filename, "ITCOld", index_k_existing)
+    ITCOld = read_param("ITC_existing", input_dir, "ITCOld", index_k_existing)
     CumuITCAmortOld = read_param(
         "CumuITCAmort_existing",
-        input_filename,
+        input_dir,
         "CumuITCAmortOld",
         index_k_existing,
     )
-    PTCOld = read_param("PTC_existing", input_filename, "PTCOld", index_k_existing)
+    PTCOld = read_param("PTC_existing", input_dir, "PTCOld", index_k_existing)
 
     ADITOld = make_keyed_array(model_data.index_z, index_k_existing)
     for z in model_data.index_z, k in index_k_existing
@@ -331,13 +331,13 @@ function Utility(
     end
 
     CumuTaxDepreNew =
-        read_param("CumuTaxDepre_new", input_filename, "CumuTaxDepreNew", index_k_new)
+        read_param("CumuTaxDepre_new", input_dir, "CumuTaxDepreNew", index_k_new)
     CumuAccoutDepreNew =
-        read_param("CumuAccoutDepre_new", input_filename, "CumuAccoutDepreNew", index_k_new)
-    ITCNew = read_param("ITC_new", input_filename, "ITCNew", index_k_new)
+        read_param("CumuAccoutDepre_new", input_dir, "CumuAccoutDepreNew", index_k_new)
+    ITCNew = read_param("ITC_new", input_dir, "ITCNew", index_k_new)
     CumuITCAmortNew =
-        read_param("CumuITCAmort_new", input_filename, "CumuITCAmortNew", index_k_new)
-    PTCNew = read_param("PTC_new", input_filename, "PTCNew", index_k_new)
+        read_param("CumuITCAmort_new", input_dir, "CumuITCAmortNew", index_k_new)
+    PTCNew = read_param("PTC_new", input_dir, "PTCNew", index_k_new)
 
     ADITNew = make_keyed_array(model_data.index_z, index_k_new)
     for z in model_data.index_z, k in index_k_new
@@ -352,7 +352,7 @@ function Utility(
 
     eximport_my = read_param(
         "eximport_my",
-        input_filename,
+        input_dir,
         "Exportmy",
         model_data.index_t,
         [model_data.index_y, model_data.index_z, model_data.index_d],
@@ -374,20 +374,20 @@ function Utility(
 
     # capital expense of existing units ($/MW)
     CapExOld_my =
-        read_param("CapEx_existing_my", input_filename, "CapExOld", index_k_existing, [model_data.index_z])
+        read_param("CapEx_existing_my", input_dir, "CapExOld", index_k_existing, [model_data.index_z])
     CapExStorOld_my =
-        read_param("CapExStor_existing_my", input_filename, "CapExStorOld", index_stor_existing, [model_data.index_z])
+        read_param("CapExStor_existing_my", input_dir, "CapExStorOld", index_stor_existing, [model_data.index_z])
     # cumulative tax depreciation of existing units (%)
     CumuTaxDepreOld_my = read_param(
         "CumuTaxDepre_existing_my",
-        input_filename,
+        input_dir,
         "CumuTaxDepreOldmy",
         index_k_existing,
         [model_data.index_y],
     )
     CumuTaxDepreStorOld_my = read_param(
         "CumuTaxDepreStor_existing_my",
-        input_filename,
+        input_dir,
         "CumuTaxDepreStorOldmy",
         index_stor_existing,
         [model_data.index_y],
@@ -395,14 +395,14 @@ function Utility(
     # cumulative accounting depreciation of existing units (%)
     CumuAccoutDepreOld_my = read_param(
         "CumuAccoutDepre_existing_my",
-        input_filename,
+        input_dir,
         "CumuAccoutDepreOldmy",
         index_k_existing,
         [model_data.index_y],
     )
     CumuAccoutDepreStorOld_my = read_param(
         "CumuAccoutDepreStor_existing_my",
-        input_filename,
+        input_dir,
         "CumuAccoutDepreStorOldmy",
         index_stor_existing,
         [model_data.index_y],
@@ -410,14 +410,14 @@ function Utility(
     # annual accounting depreciation of existing units (%)
     AnnualAccoutDepreOld_my = read_param(
         "AnnualAccoutDepre_existing_my",
-        input_filename,
+        input_dir,
         "AnnualAccoutDepreOldmy",
         index_k_existing,
         [model_data.index_y],
     )
     AnnualAccoutDepreStorOld_my = read_param(
         "AnnualAccoutDepreStor_existing_my",
-        input_filename,
+        input_dir,
         "AnnualAccoutDepreStorOldmy",
         index_stor_existing,
         [model_data.index_y],
@@ -425,52 +425,52 @@ function Utility(
     # annual tax depreciation of existing units (%)
     AnnualTaxDepreOld_my = read_param(
         "AnnualTaxDepre_existing_my",
-        input_filename,
+        input_dir,
         "AnnualTaxDepreOldmy",
         index_k_existing,
         [model_data.index_y],
     )
     AnnualTaxDepreStorOld_my = read_param(
         "AnnualTaxDepreStor_existing_my",
-        input_filename,
+        input_dir,
         "AnnualTaxDepreStorOldmy",
         index_stor_existing,
         [model_data.index_y],
     )
     # ITC of existing units (%)
-    ITCOld_my = read_param("ITC_existing_my", input_filename, "ITCOld", index_k_existing)
-    ITCStorOld_my = read_param("ITCStor_existing_my", input_filename, "ITCStorOld", index_stor_existing)
+    ITCOld_my = read_param("ITC_existing_my", input_dir, "ITCOld", index_k_existing)
+    ITCStorOld_my = read_param("ITCStor_existing_my", input_dir, "ITCStorOld", index_stor_existing)
     # cumulative ITC ammortization of existing units (%)
     CumuITCAmortOld_my = read_param(
         "CumuITCAmort_existing_my",
-        input_filename,
+        input_dir,
         "CumuITCAmortOldmy",
         index_k_existing,
         [model_data.index_y],
     )
     CumuITCAmortStorOld_my = read_param(
         "CumuITCAmortStor_existing_my",
-        input_filename,
+        input_dir,
         "CumuITCAmortStorOldmy",
         index_stor_existing,
         [model_data.index_y],
     )
     AnnualITCAmortOld_my = read_param(
         "AnnualITCAmort_existing_my",
-        input_filename,
+        input_dir,
         "AnnualITCAmortOldmy",
         index_k_existing,
         [model_data.index_y],
     )
     AnnualITCAmortStorOld_my = read_param(
         "AnnualITCAmortStor_existing_my",
-        input_filename,
+        input_dir,
         "AnnualITCAmortStorOldmy",
         index_stor_existing,
         [model_data.index_y],
     )
     # PTC of existing units ($/MWh)
-    PTCOld_my = read_param("PTC_existing_my", input_filename, "PTCOld", index_k_existing)
+    PTCOld_my = read_param("PTC_existing_my", input_dir, "PTCOld", index_k_existing)
     # accumulative deferred income tax of existing units ($/MW)
     ADITOld_my = make_keyed_array(model_data.index_y, model_data.index_z, index_k_existing)
     for y in model_data.index_y, z in model_data.index_z, k in index_k_existing
@@ -501,14 +501,14 @@ function Utility(
     # cumulative tax depreciation of new units (for each schedule year) (%)
     CumuTaxDepreNew_my = read_param(
         "CumuTaxDepre_new_my",
-        input_filename,
+        input_dir,
         "CumuTaxDepreNewmy",
         index_k_new,
         [index_s],
     )
     CumuTaxDepreStorNew_my = read_param(
         "CumuTaxDepreStor_new_my",
-        input_filename,
+        input_dir,
         "CumuTaxDepreStorNewmy",
         index_stor_new,
         [index_s],
@@ -516,14 +516,14 @@ function Utility(
     # cumulative accounting depreciation of new units (for each schedule year) (%)
     CumuAccoutDepreNew_my = read_param(
         "CumuAccoutDepre_new_my",
-        input_filename,
+        input_dir,
         "CumuAccoutDepreNewmy",
         index_k_new,
         [index_s],
     )
     CumuAccoutDepreStorNew_my = read_param(
         "CumuAccoutDepreStor_new_my",
-        input_filename,
+        input_dir,
         "CumuAccoutDepreStorNewmy",
         index_stor_new,
         [index_s],
@@ -531,14 +531,14 @@ function Utility(
     # ITC of new units (%)
     ITCNew_my = read_param(
         "ITC_new_my",
-        input_filename,
+        input_dir,
         "ITCNewmy",
         index_k_new,
         [model_data.index_y],
     )
     ITCStorNew_my = read_param(
         "ITCStor_new_my",
-        input_filename,
+        input_dir,
         "ITCStorNewmy",
         index_stor_new,
         [model_data.index_y],
@@ -546,28 +546,28 @@ function Utility(
     # cumulative ITC ammortization of new units (for each schedule year) (%)
     CumuITCAmortNew_my = read_param(
         "CumuITCAmort_new_my",
-        input_filename,
+        input_dir,
         "CumuITCAmortNewmy",
         index_k_new,
         [index_s],
     )
     CumuITCAmortStorNew_my = read_param(
         "CumuITCAmortStor_new_my",
-        input_filename,
+        input_dir,
         "CumuITCAmortStorNewmy",
         index_stor_new,
         [index_s],
     )
     AnnualITCAmortNew_my = read_param(
         "AnnualITCAmort_new_my",
-        input_filename,
+        input_dir,
         "AnnualITCAmortNewmy",
         index_k_new,
         [index_s],
     )
     AnnualITCAmortStorNew_my = read_param(
         "AnnualITCAmortStor_new_my",
-        input_filename,
+        input_dir,
         "AnnualITCAmortStorNewmy",
         index_stor_new,
         [index_s],
@@ -575,7 +575,7 @@ function Utility(
     # PTC of new units ($/MWh)
     PTCNew_my = read_param(
         "PTC_new_my",
-        input_filename,
+        input_dir,
         "PTCNewmy",
         index_k_new,
         [model_data.index_y],
@@ -583,14 +583,14 @@ function Utility(
     # annual accounting depreciation of new units (%)
     AnnualAccoutDepreNew_my = read_param(
         "AnnualAccoutDepre_new_my",
-        input_filename,
+        input_dir,
         "AnnualAccoutDepreNewmy",
         index_k_new,
         [index_s],
     )
     AnnualAccoutDepreStorNew_my = read_param(
         "AnnualAccoutDepreStor_new_my",
-        input_filename,
+        input_dir,
         "AnnualAccoutDepreStorNewmy",
         index_stor_new,
         [index_s],
@@ -598,14 +598,14 @@ function Utility(
     # annual tax depreciation of new units (%)
     AnnualTaxDepreNew_my = read_param(
         "AnnualTaxDepre_new_my",
-        input_filename,
+        input_dir,
         "AnnualTaxDepreNewmy",
         index_k_new,
         [index_s],
     )
     AnnualTaxDepreStorNew_my = read_param(
         "AnnualTaxDepreStor_new_my",
-        input_filename,
+        input_dir,
         "AnnualTaxDepreStorNewmy",
         index_stor_new,
         [index_s],
@@ -625,14 +625,14 @@ function Utility(
         index_s,
         read_param(
             "x_E",
-            input_filename,
+            input_dir,
             "ExistingCapacity",
             index_k_existing,
             [model_data.index_z],
         ),
         read_param(
             "f_E",
-            input_filename,
+            input_dir,
             "FixedCostOld",
             index_k_existing,
             [model_data.index_z],
@@ -640,28 +640,28 @@ function Utility(
         ParamArray("f_C", Tuple(push!(copy([model_data.index_z]), index_k_new)), FixedCostNew),
         read_param(
             "v_E",
-            input_filename,
+            input_dir,
             "VariableCostOld",
             model_data.index_t,
             [index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "v_C",
-            input_filename,
+            input_dir,
             "VariableCostNew",
             model_data.index_t,
             [index_k_new, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_E",
-            input_filename,
+            input_dir,
             "AvailabilityOld",
             model_data.index_t,
             [index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_C",
-            input_filename,
+            input_dir,
             "AvailabilityNew",
             model_data.index_t,
             [index_k_new, model_data.index_z, model_data.index_d],
@@ -711,94 +711,94 @@ function Utility(
         cost_of_equity,
         tax_rate,
         ParamScalar("DaysofWC", 45.0, description = "number of days of working capital"),
-        read_param("x_E_my", input_filename, "ExistingCapacity", index_k_existing, [model_data.index_z]),
+        read_param("x_E_my", input_dir, "ExistingCapacity", index_k_existing, [model_data.index_z]),
         read_param(
             "x_stor_E_my",
-            input_filename,
+            input_dir,
             "ExistingStorCapacity",
             index_stor_existing,
             [model_data.index_z],
         ),
         read_param(
             "fom_E_my",
-            input_filename,
+            input_dir,
             "FixedCostOldmy",
             index_k_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "fom_C_my",
-            input_filename,
+            input_dir,
             "FOMNewmy",
             index_k_new,
             [model_data.index_y,model_data.index_z],
         ),
         read_param(
             "fom_stor_E_my",
-            input_filename,
+            input_dir,
             "FixedCostStorOldmy",
             index_stor_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "fom_stor_C_my",
-            input_filename,
+            input_dir,
             "StorFOMNewmy",
             index_stor_new,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "CapEx_my",
-            input_filename,
+            input_dir,
             "CapExNewmy",
             index_k_new,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "CapEx_stor_my",
-            input_filename,
+            input_dir,
             "StorCapExNewmy",
             index_stor_new,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "rte_stor_E_my",
-            input_filename,
+            input_dir,
             "StorRTEOldmy",
             index_stor_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "rte_stor_C_my",
-            input_filename,
+            input_dir,
             "StorRTENewmy",
             index_stor_new,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "v_E_my",
-            input_filename,
+            input_dir,
             "VariableCostOldmy",
             model_data.index_t,
             [model_data.index_y, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "v_C_my",
-            input_filename,
+            input_dir,
             "VariableCostNewmy",
             model_data.index_t,
             [model_data.index_y, index_k_new, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_E_my",
-            input_filename,
+            input_dir,
             "AvailabilityOld",
             model_data.index_t,
             [index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_C_my",
-            input_filename,
+            input_dir,
             "AvailabilityNew",
             model_data.index_t,
             [index_k_new, model_data.index_z, model_data.index_d],
@@ -814,40 +814,40 @@ function Utility(
         ),
         read_param(
             "initial_energy_existing_my",
-            input_filename,
+            input_dir,
             "ExistingStorInitialEnergy",
             model_data.index_d,
             [model_data.index_y, index_stor_existing, model_data.index_z],
         ),
         read_param(
             "initial_energy_new_my",
-            input_filename,
+            input_dir,
             "NewStorInitialEnergy",
             model_data.index_d,
             [model_data.index_y, index_stor_new, model_data.index_z],
         ),
         read_param(
             "stor_duration_existing",
-            input_filename,
+            input_dir,
             "ExistingStorDuration",
             index_stor_existing,
         ),
         read_param(
             "stor_duration_new",
-            input_filename,
+            input_dir,
             "NewStorDuration",
             index_stor_new,
         ),
         read_param(
             "trans_topology",
-            input_filename,
+            input_dir,
             "TransmissionTopology",
             model_data.index_z,
             [index_l],
         ),
         read_param(
             "trans_capacity",
-            input_filename,
+            input_dir,
             "TransmissionCapacity",
             min_max,
             [index_l],
@@ -926,28 +926,28 @@ function Utility(
         initialize_param("x_C_cumu", index_k_new, model_data.index_z),
         read_param(
             "capacity_credit_E_my",
-            input_filename,
+            input_dir,
             "CapacityCredit_old",
             index_k_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_C_my",
-            input_filename,
+            input_dir,
             "CapacityCredit_new",
             index_k_new,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_E_my",
-            input_filename,
+            input_dir,
             "CapacityCreditStor_old",
             index_stor_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_C_my",
-            input_filename,
+            input_dir,
             "CapacityCreditStor_new",
             index_stor_new,
             [model_data.index_y, model_data.index_z],
@@ -956,19 +956,19 @@ function Utility(
         initialize_param("Max_Net_Load_my", model_data.index_y, model_data.index_z),
         initialize_param("Reserve_req_my", model_data.index_y, model_data.index_z),
         initialize_param("flow_cap_my", model_data.index_y, index_l),
-        read_param("RPS", input_filename, "RPS", model_data.index_y),
+        read_param("RPS", input_dir, "RPS", model_data.index_y),
         initialize_param("rec_my", model_data.index_y),
         ParamScalar("loss_dist", 0.053, description = "distribution system loss factor"),
         read_param(
             "emission_rate_E_my",
-            input_filename,
+            input_dir,
             "EmissionRateOldmy",
             index_k_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "emission_rate_C_my",
-            input_filename,
+            input_dir,
             "EmissionRateNewmy",
             index_k_new,
             [model_data.index_y, model_data.index_z],
@@ -1077,7 +1077,7 @@ function solve_agent_problem!(
     der_aggregator = get_agent(DERAggregator, agent_store)
 
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
-    delta_t = get_delta_t(model_data)
+    delta_t = model_data.delta_t
 
     z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
 

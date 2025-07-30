@@ -104,20 +104,20 @@ mutable struct Regulator <: AbstractRegulator
     p_my_td::ParamArray
 end
 
-function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorOptions; id = DEFAULT_ID)
+function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOptions; id = DEFAULT_ID)
 
     index_rate_tou = read_set(
-        input_filename,
+        input_dir,
         "index_rate_tou",
         "index_rate_tou",
         prose_name = "index for time-of-use rates",
     )
 
-    tou_rate_structure = CSV.read(joinpath(input_filename, "tou_rate_structure_$(opts.tou_suffix).csv"), DataFrame)
+    tou_rate_structure = CSV.read(joinpath(input_dir, "tou_rate_structure_$(opts.tou_suffix).csv"), DataFrame)
 
     distribution_cost = read_param(
         "distribution_cost",
-        input_filename,
+        input_dir,
         "distribution_cost",
         model_data.index_y,
         [model_data.index_z],
@@ -126,7 +126,7 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
 
     administration_cost = read_param(
         "administration_cost",
-        input_filename,
+        input_dir,
         "administration_cost",
         model_data.index_y,
         [model_data.index_z],
@@ -135,7 +135,7 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
 
     transmission_cost = read_param(
         "transmission_cost",
-        input_filename,
+        input_dir,
         "transmission_cost",
         model_data.index_y,
         [model_data.index_z],
@@ -144,7 +144,7 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
 
     interconnection_cost = read_param(
         "interconnection_cost",
-        input_filename,
+        input_dir,
         "interconnection_cost",
         model_data.index_y,
         [model_data.index_z],
@@ -153,7 +153,7 @@ function Regulator(input_filename::String, model_data::HEMData, opts::RegulatorO
 
     system_cost = read_param(
         "system_cost",
-        input_filename,
+        input_dir,
         "system_cost",
         model_data.index_y,
         [model_data.index_z],
@@ -362,7 +362,7 @@ function solve_agent_problem!(
     output_intermediate_results::Bool
 )
 
-    delta_t = get_delta_t(model_data)
+    delta_t = model_data.delta_t
 
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
@@ -1671,7 +1671,7 @@ function solve_agent_problem!(
         end
     end
 
-    delta_t = get_delta_t(model_data)
+    delta_t = model_data.delta_t
 
     customers = get_agent(CustomerGroup, agent_store)
     ipp = get_agent(IPPGroup, agent_store)

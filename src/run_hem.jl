@@ -63,6 +63,11 @@ Solve the problem with the given inputs.
 - `max_iterations::Int`: Max number of iterations to attempt a solution. Defaults to 100.
 - `window_length::Int`:
 - `force::Bool`: If true, overwrite results if a directory already exists.
+- `jump_model::Any`: Jump model to use for the simulation.
+- `output_dir::Union{<:AbstractString, Nothing}`: Directory to save results. If `nothing`, it will be set to
+  `input_dir` with a prefix based on the options and agents.
+- `delta_t::Int`: Number of hours per representative hour. Defaults to 4.
+- `year_start::Int`: The base year for the simulation. Defaults to 2020.
 """
 function run_hem(
     input_dir::AbstractString,
@@ -73,8 +78,13 @@ function run_hem(
     force=false,
     jump_model::Any,
     output_dir::Union{<:AbstractString, Nothing} = nothing,
+    delta_t::Int = 4,
+    year_start::Int = 2020,
 )
-    model_data = HEMData(input_dir)
+    model_data = HEMData(input_dir;
+        year_start=year_start,
+        delta_t=delta_t,
+        )
 
     agents_and_opts = create_agents_and_opts(input_dir, model_data, agent_options, options)
 
