@@ -25,6 +25,7 @@ get_description(data::AbstractData) = data.description
 
 abstract type AbstractDimension <: AbstractData end
 
+# TODO: Seems unused. Remove?
 const DimensionKey{N} = NTuple{N, Symbol}
 
 """
@@ -67,6 +68,119 @@ function Dimension(
     description::AbstractString = "",
 )
     return Dimension(name, prose_name, description, copy(dim.elements))
+end
+
+mutable struct DimensionSet{N} <: AbstractDimension
+    name::String
+    prose_name::String
+    description::String
+    dims::NTuple{N, Dimension}
+    set::Vector{NTuple{N, Symbol}}
+
+    function DimensionSet{N}(
+        name::String,
+        prose_name::String,
+        description::String,
+        dims::NTuple{N, Dimension},
+        set::Vector{NTuple{N, Symbol}},
+    ) where N
+        # verify that the ith element of each tuple in set is a member of the ith dim
+        for i in 1:N
+            vals = unique([elem[i] for elem in set])
+            diff = setdiff(vals, dims[i].elements)
+            @assert (length(diff) == 0) "Column $i in set contains values $diff not in $(dims[i])"
+        end
+        return new(name, prose_name, description, dims, set)
+    end
+end
+
+function DimensionSet{N}(
+    name::String,
+    prose_name::String,
+    description::String,
+    dims::NTuple{N, Dimension},
+    set::Vector{NTuple{N, String}},
+) where N
+    return DimensionSet{N}(
+        name, 
+        prose_name,
+        description,
+        dims,
+        [Tuple(Symbol(x) for x in elem) for elem in set]
+    )
+end
+
+function DimensionSet{N}(
+    name::String,
+    dims::NTuple{N, Dimension},
+    set::Vector{NTuple{N, Any}};
+    prose_name = "",
+    description = "",
+) where N
+    return DimensionSet{N}(name, prose_name, description, dims, set)
+end
+
+DimensionSet{N}(set::DimensionSet{N}) where N = DimensionSet{N}(
+    set.name,
+    set.prose_name,
+    set.description,
+    set.dims,
+    copy(set.set),
+)
+
+function DimensionSet{N}(
+    set::DimensionSet{N},
+    name::AbstractString;
+    prose_name::AbstractString = "",
+    description::AbstractString = "",
+) where N
+    return DimensionSet{N}(name, prose_name, description, set.dims, copy(set.set))
+end
+
+@forward DimensionSet.set Base.iterate
+
+"""
+Returns DimensionSet.set data as a Dict{Symbol,Vector} where the keys correspond to the 
+ith dimension of the DimensionSet and the vector contains either Symbols (if N == 2) or
+Tuple{N-1,Symbol} (if N > 2).
+"""
+function get_one_to_many_dict(set::DimensionSet{N}, i::Integer) where N
+    @assert ((i <= N) & (i > 0)) "Invalid index for key."
+    @assert N > 1 "DimensionSets with only one dimension (which shouldn't really exist) cannot be turned into Dicts"
+
+    result = Dict()
+    for tup in set
+        key = tup[i]
+        if !haskey(result, key)
+            result[key] = []
+        end
+        val = Tuple(x for (j, x) in enumerate(tup) if j != i)
+        @assert length(val) == N-1
+        if N == 2
+            push!(result[key], val[1])
+        else
+            push!(result[key], val)
+        end
+    end
+    return result
+end
+
+function get_one_to_many_dict(set::DimensionSet{N}, dim_name::String) where N
+    for (i, dim) in enumerate(set.dims)
+        if dim.name == dim_name
+            return get_one_to_many_dict(set, i)
+        end
+    end
+    @error "Did not find $dim_name in $set."
+end
+
+function get_one_to_many_dict(set::DimensionSet{N}, dim_sym::Symbol) where N
+    for (i, dim) in enumerate(set.dims)
+        if get_symbol(dim) == dim_sym
+            return get_one_to_many_dict(set, i)
+        end
+    end
+    @error "Did not find $dim_sym in $set."
 end
 
 abstract type HEMParameter <: AbstractData end
@@ -139,6 +253,7 @@ function ParamArray(
     return ParamArray(name, prose_name, description, param.dims, copy(param.values))
 end
 
+# TODO: Validate vals against dims
 function ParamArray(
     name::AbstractString,
     dims::NTuple{N, Dimension},

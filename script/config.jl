@@ -134,3 +134,46 @@ function check_path(value)
     end
     return true, value
 end
+
+function _get_dict_from_options(options::T) where T <: Options
+    struct_dict = Dict{String, Any}()
+    for field in fieldnames(T)
+        if field == :solvers
+            continue
+        end
+        value = getfield(options, field)
+        if value isa Options
+            struct_dict["$(field)"] = _get_dict_from_options(value)
+        elseif value isa Number || value isa AbstractString || value isa Bool
+            struct_dict["$(field)"] = value
+        else
+            struct_dict["$(field)"] = "$(typeof(value))"
+        end
+    end
+    return struct_dict
+end
+
+function save_config(
+    solver::Symbol,
+    input_path::AbstractString,
+    options::HEMOptions,
+    agent_options::AgentOptionsStore,
+    output_dir::AbstractString,
+)
+    config_file = joinpath(output_dir, "config.yaml")
+    run_config = Dict{Any, Any}()
+    run_config["DataSelection"] = Dict("input_path" => input_path)
+    run_config["RunOptions"] = Dict("output_dir" => output_dir)
+    run_config["SimulationParameters"] = Dict("solver" => "$(solver)")
+    run_config["$(nameof(typeof(options)))"] = _get_dict_from_options(options)
+    for (agent_type, agent_opts) in agent_options.data
+        run_config["$(agent_type)"] = _get_dict_from_options(agent_opts)
+    end
+    # delete empty keys
+    run_config = filter(kv -> !isempty(kv[2]), run_config)
+    open(config_file, "w") do file
+        # write structs as attribute name => value pairs
+        YAML.write(file, run_config)
+    end
+    @info "Saved configuration to $config_file"
+end
