@@ -707,7 +707,7 @@ function solve_agent_problem!(
     # the year consumer is making DER investment decision
     reg_year, reg_year_index = get_reg_year(model_data)
     reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
-    delta_t = model_data.delta_t
+    delta_t = model_data.delta_t.value
 
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
@@ -848,7 +848,7 @@ function solve_agent_problem!(
     # the year consumer is making DER investment decision
     reg_year, reg_year_index = get_reg_year(model_data)
     reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
-    delta_t = model_data.delta_t
+    delta_t = model_data.delta_t.value
 
     # the year the aggregator decided on incentive levels
     reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)

@@ -362,7 +362,7 @@ function solve_agent_problem!(
     output_intermediate_results::Bool
 )
 
-    delta_t = model_data.delta_t
+    delta_t = model_data.delta_t.value
 
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
@@ -1671,7 +1671,7 @@ function solve_agent_problem!(
         end
     end
 
-    delta_t = model_data.delta_t
+    delta_t = model_data.delta_t.value
 
     customers = get_agent(CustomerGroup, agent_store)
     ipp = get_agent(IPPGroup, agent_store)

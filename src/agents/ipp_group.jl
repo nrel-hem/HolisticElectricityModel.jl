@@ -5411,7 +5411,7 @@ function solve_agent_problem_ipp_cap(
 
     x_R_before = ParamArray(ipp.x_R_my)
     x_C_before = ParamArray(ipp.x_C_my)
-    delta_t = model_data.delta_t
+    delta_t = model_data.delta_t.value
 
     iteration_year = model_data.index_y_fix.elements[w_iter]
 

@@ -1077,7 +1077,7 @@ function solve_agent_problem!(
     der_aggregator = get_agent(DERAggregator, agent_store)
 
     VIUDER_Utility = get_new_jump_model(utility_opts.solvers)
-    delta_t = model_data.delta_t
+    delta_t = model_data.delta_t.value
 
     z_to_h_dict = get_one_to_many_dict(model_data.index_z_h_map, :index_z)
 
