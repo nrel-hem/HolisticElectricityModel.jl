@@ -15,6 +15,7 @@ der_use_case_map = Dict(
 )
 
 supply_choice_use_case_map = Dict(
+    "supply_choice_use_case" => SupplyChoice(),
     null_use_case_identifier => NullUseCase()
 )
 

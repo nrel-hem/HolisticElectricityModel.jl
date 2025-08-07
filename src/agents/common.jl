@@ -11,17 +11,18 @@ get_file_prefix(::Options) = String("")
 abstract type MarketStructure end
 struct VIU <: MarketStructure end
 struct WM <: MarketStructure end
-struct RetailMarket <: MarketStructure end
+struct LocalDistributionAndDER <: MarketStructure end
 
 abstract type UseCase end
 struct NullUseCase <: UseCase end
 struct DERAdoption <: UseCase end
+struct SupplyChoice <: UseCase end
 struct DERAggregation <: UseCase end
 
 struct HEMOptions{
     T<:MarketStructure,
     U<:Union{NullUseCase,DERAdoption},
-    V<:NullUseCase,
+    V<:Union{NullUseCase,SupplyChoice},
     W<:Union{NullUseCase,DERAggregation}
 } <: Options
     # market structure switch
