@@ -21,10 +21,10 @@ include(joinpath(base_dir, "script", "config.jl"))
 include(joinpath(base_dir, "script", "config_data.jl"))
 include(joinpath(base_dir, "script", "parse_options.jl"))
 
-input_dir, year_start = parse(config, "DataSelection", validators)
+input_dir, year_start, delta_t = parse(config, "DataSelection", validators)
 
 # configure solver
-solver, delta_t = parse(config, "SimulationParameters", validators)
+solver, = parse(config, "SimulationParameters", validators)
 @info "Running on environment $(splitpath(Base.active_project())[end-1]) with solver $(solver)"
 import_solver_package(solver)
 

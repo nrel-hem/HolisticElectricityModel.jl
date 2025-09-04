@@ -15,7 +15,7 @@ der_use_case_map = Dict(
 )
 
 supply_choice_use_case_map = Dict(
-    "supply_choice_use_case" => SupplyChoice(),
+    "SupplyChoice" => SupplyChoice(),
     null_use_case_identifier => NullUseCase()
 )
 
@@ -59,6 +59,11 @@ validators = Dict(
             value -> check_integer(value),
             2020
         ),
+        FieldValidatorHasDefault(
+            "delta_t",
+            value -> check_integer(value; min=1, max=24),
+            4
+        ),
     ],
     "RunOptions" => [
         FieldValidatorHasDefault(
@@ -74,11 +79,6 @@ validators = Dict(
                 val -> check_in_collection(val, ("Gurobi", "Xpress")),
                 check_symbol
             ])
-        ),
-        FieldValidatorHasDefault(
-            "delta_t",
-            value -> check_integer(value; min=1, max=24),
-            4
         ),
     ],
     "HEMOptions" => [

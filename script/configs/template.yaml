@@ -9,6 +9,9 @@ DataSelection:
   # The base year for the simulation (as set in the input data). If not specified, it defaults to 2020.
   # If you are using a data set with a different base year, you can specify it here.
   year_start: 2020
+  # Number of hours per representative hour. If not specified, it defaults to 4.
+  # This means that each representative hour represents 4 hours of real time.
+  delta_t: 4
 
 # ------------------------------------------------------------------------------
 # Run Options
@@ -26,9 +29,6 @@ RunOptions:
 SimulationParameters:
   # CHOOSE ONE
   solver: "Xpress" # "Gurobi"
-  # Number of hours per representative hour. If not specified, it defaults to 4.
-  # This means that each representative hour represents 4 hours of real time.
-  delta_t: 4
 
 # ------------------------------------------------------------------------------
 # Holistic Energy Model (HEM) model-wide options

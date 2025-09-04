@@ -384,7 +384,7 @@ function CustomerGroup(input_dir::AbstractString, model_data::HEMData; id = DEFA
     function generate_coefficients(index_h, index_h_to_sector_map, coefficients)
         map_dict = Dict(index_h_to_sector_map)
         return [
-            get(coefficients, map_dict[h], 0.0) for h in index_h
+            get(coefficients, String(map_dict[h]), 0.0) for h in index_h
         ]
     end
     
@@ -396,8 +396,8 @@ function CustomerGroup(input_dir::AbstractString, model_data::HEMData; id = DEFA
         ),
         "GreenPowerPrice_coefficient" => Dict(
             "Residential" => 0.0,
-            "Commercial" => 0.55,
-            "Industrial" => 0.55
+            "Commercial" => -0.55,
+            "Industrial" => -0.55
         ),
         "RetailCompetition_coefficient" => Dict(
             "Residential" => 0.0,
@@ -1407,26 +1407,33 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoice, <:UseCase},
     agent_store::AgentStore,
     w_iter,
+    window_length,
+    jump_model,
+    export_file_path,
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
     regulator = get_agent(Regulator, agent_store)
-    utility = get_agent(Utility, agent_store)
+    utility_or_ipp = get_bulk_system_agent(agent_store, hem_opts)
     green_developer = get_agent(GreenDeveloper, agent_store)
 
     # the year consumer is making green tariff subscription decision
     reg_year, reg_year_index = get_reg_year(model_data)
     reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
 
+    delta_t = model_data.delta_t.value
+
     x_green_sub_before = ParamArray(customers.x_green_sub, "x_green_sub_before")
     fill!(x_green_sub_before, NaN)
-    for h in model_data.index_h
-        x_green_sub_before(h, :) .= customers.x_green_sub_my(reg_year_index, h)
+    for (z, h) in model_data.index_z_h_map
+        x_green_sub_before(h, z, :) .= customers.x_green_sub_my(reg_year_index, h, z)
     end
 
     green_sub_model = customers.green_sub_model
 
     # update all the annual parameters to the solve year (so we don't have to change the majority of the functions)
-    for h in model_data.index_h, t in model_data.index_t
-        customers.d(h, t, :) .= customers.d_my(reg_year_index, h, t)
+    for (z, h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
+        customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
     end
 
     if hem_opts isa HEMOptions{VIU, NullUseCase, SupplyChoice, <:UseCase}
@@ -1444,54 +1451,61 @@ function solve_agent_problem!(
             green_sub_model.EnergyRate_coefficient(h) * log(regulator.p_my_regression(reg_year_index, h)) + 
             green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) + 
             green_sub_model.RetailCompetition_coefficient(h) * log(customers.RetailCompetition(reg_year_index)) + 
-            green_sub_model.RPS_coefficient(h) * log(utility.RPS(reg_year_index)) + 
+            green_sub_model.RPS_coefficient(h) * log(utility_or_ipp.RPS(reg_year_index)) + 
             green_sub_model.WTP_coefficient(h) * log(customers.WTP_green_power(reg_year_index))
             ) for h in model_data.index_h
         ];
         [get_pair(model_data.index_h)]...,
     )
 
-    GreenSubPerc[:Residential] = 0.0
+    sector_to_h_map = get_one_to_many_dict(model_data.index_h_sector_map, :index_sector)
+    
+    for h in sector_to_h_map[:Residential]
+        # Residential customers are not allowed to subscribe to green tariff
+        GreenSubPerc(h,:) .= 0.0
+    end
 
     # is GreenSubPerc a percentage of net load? total load? shall we account for distribution loss or not?
-    GreenSubMWh = KeyedArray(
-        [
-            sum(GreenSubPerc(h) * 
-            (
-                customers.d(h, t) / (1 + utility.loss_dist) * model_data.omega(t) * customers.gamma(h) -
+
+    GreenSubMWh = make_keyed_array(model_data.index_h, model_data.index_z)
+
+    for (z,h) in model_data.index_z_h_map
+        GreenSubMWh(h, z, :) .= 
+            sum(
+                GreenSubPerc(h) * 
                 sum(
-                    customers.rho_DG(h, m, t) * customers.x_DG_E_my(reg_year_index, h, m) * model_data.omega(t) for
-                    m in customers.index_m
-                ) -
-                sum(
-                    customers.rho_DG(h, m, t) * model_data.omega(t) * sum(
-                        customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(reg_year_index)
-                    ) for m in customers.index_m
-                )
-            ) for t in model_data.index_t)
-            for h in model_data.index_h
-        ];
-        [get_pair(model_data.index_h)]...,
-    )
+                    customers.d(h, z, d, t) / (1 + utility_or_ipp.loss_dist) * model_data.omega(d) * delta_t * customers.gamma(z, h) -
+                    sum(
+                        customers.rho_DG(h, m, z, d, t) * customers.x_DG_E_my(reg_year_index, h, z, m) * model_data.omega(d) * delta_t for
+                        m in customers.index_m
+                    ) -
+                    sum(
+                        customers.rho_DG(h, m, z, d, t) * model_data.omega(d) * delta_t * sum(
+                            customers.x_DG_new_my(Symbol(Int(y_symbol)), h, z, m) for y_symbol in
+                            model_data.year(first(model_data.index_y_fix)):model_data.year(reg_year_index)
+                        ) for m in customers.index_m
+                    )
+                ) for t in model_data.index_t, d in model_data.index_d
+            )
+    end
 
     # customers.x_green_sub_my is an annual number (per the regression), however, this number cannot decrease.
     # this is to make sure the subsribed green techs (in previous years) are always paid for.
 
-    for h in model_data.index_h
+    for (z, h) in model_data.index_z_h_map
         if reg_year > model_data.year(first(model_data.index_y_fix))
-            customers.x_green_sub_my(reg_year_index, h, :) .= max(GreenSubMWh(h), customers.x_green_sub_my(Symbol(Int(reg_year-1)), h))
-            customers.x_green_sub_incremental_my(reg_year_index, h, :) .= customers.x_green_sub_my(reg_year_index, h) - customers.x_green_sub_my(Symbol(Int(reg_year-1)), h)
+            customers.x_green_sub_my(reg_year_index, h, z, :) .= max(GreenSubMWh(h, z), customers.x_green_sub_my(Symbol(Int(reg_year-1)), h, z))
+            customers.x_green_sub_incremental_my(reg_year_index, h, z, :) .= customers.x_green_sub_my(reg_year_index, h, z) - customers.x_green_sub_my(Symbol(Int(reg_year-1)), h, z)
         else
-            customers.x_green_sub_my(reg_year_index, h, :) .= GreenSubMWh(h)
-            customers.x_green_sub_incremental_my(reg_year_index, h, :) .= GreenSubMWh(h)
+            customers.x_green_sub_my(reg_year_index, h, z, :) .= GreenSubMWh(h, z)
+            customers.x_green_sub_incremental_my(reg_year_index, h, z, :) .= GreenSubMWh(h, z)
         end
     end
 
     customers.current_year = reg_year_index
     customers.previous_year = reg_year_index_pre
 
-    return compute_difference_percentage_one_norm([(x_green_sub_before, GreenSubMWh)])
+    return compute_difference_percentage_maximum_one_norm([(x_green_sub_before, GreenSubMWh)])
 
 end
 
