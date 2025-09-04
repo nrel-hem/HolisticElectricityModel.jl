@@ -1400,47 +1400,25 @@ function solve_agent_problem!(
 end
 
 
-function solve_agent_problem!(
+function get_green_tech_subscription(
     customers::CustomerGroup,
-    customer_opts::CustomerOptions,
+    green_developer,
+    regulator::Regulator,
+    utility_or_ipp,
     model_data::HEMData,
-    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoice, <:UseCase},
-    agent_store::AgentStore,
-    w_iter,
-    window_length,
-    jump_model,
-    export_file_path,
-    update_results::Bool,
-    output_intermediate_results::Bool
+    hem_opts::HEMOptions,
 )
-    regulator = get_agent(Regulator, agent_store)
-    utility_or_ipp = get_bulk_system_agent(agent_store, hem_opts)
-    green_developer = get_agent(GreenDeveloper, agent_store)
-
-    # the year consumer is making green tariff subscription decision
-    reg_year, reg_year_index = get_reg_year(model_data)
-    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
-
-    delta_t = model_data.delta_t.value
-
-    x_green_sub_before = ParamArray(customers.x_green_sub, "x_green_sub_before")
-    fill!(x_green_sub_before, NaN)
-    for (z, h) in model_data.index_z_h_map
-        x_green_sub_before(h, z, :) .= customers.x_green_sub_my(reg_year_index, h, z)
-    end
-
+    
     green_sub_model = customers.green_sub_model
-
-    # update all the annual parameters to the solve year (so we don't have to change the majority of the functions)
-    for (z, h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
-        customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
-    end
+    delta_t = model_data.delta_t.value
 
     if hem_opts isa HEMOptions{VIU, NullUseCase, SupplyChoice, <:UseCase}
         WholesaleMarketPerc = 0.01
     else
         WholesaleMarketPerc = 1.0
     end
+
+    reg_year, reg_year_index = get_reg_year(model_data)
 
     # calculate green tariff subscription (% MWh)
     GreenSubPerc = KeyedArray(
@@ -1459,7 +1437,7 @@ function solve_agent_problem!(
     )
 
     sector_to_h_map = get_one_to_many_dict(model_data.index_h_sector_map, :index_sector)
-    
+
     for h in sector_to_h_map[:Residential]
         # Residential customers are not allowed to subscribe to green tariff
         GreenSubPerc(h,:) .= 0.0
@@ -1489,9 +1467,16 @@ function solve_agent_problem!(
             )
     end
 
-    # customers.x_green_sub_my is an annual number (per the regression), however, this number cannot decrease.
-    # this is to make sure the subsribed green techs (in previous years) are always paid for.
+    return GreenSubMWh
+end
 
+function set_green_tech_subscriptions!(
+    customers::CustomerGroup,
+    GreenSubMWh::KeyedArray,
+    model_data::HEMData,
+)
+
+    reg_year, reg_year_index = get_reg_year(model_data)
     for (z, h) in model_data.index_z_h_map
         if reg_year > model_data.year(first(model_data.index_y_fix))
             customers.x_green_sub_my(reg_year_index, h, z, :) .= max(GreenSubMWh(h, z), customers.x_green_sub_my(Symbol(Int(reg_year-1)), h, z))
@@ -1501,6 +1486,49 @@ function solve_agent_problem!(
             customers.x_green_sub_incremental_my(reg_year_index, h, z, :) .= GreenSubMWh(h, z)
         end
     end
+
+end
+
+function solve_agent_problem!(
+    customers::CustomerGroup,
+    customer_opts::CustomerOptions,
+    model_data::HEMData,
+    hem_opts::HEMOptions{<:MarketStructure, NullUseCase, SupplyChoice, <:UseCase},
+    agent_store::AgentStore,
+    w_iter,
+    window_length,
+    jump_model,
+    export_file_path,
+    update_results::Bool,
+    output_intermediate_results::Bool
+)
+    regulator = get_agent(Regulator, agent_store)
+    utility_or_ipp = get_bulk_system_agent(agent_store, hem_opts)
+    green_developer = get_agent(GreenDeveloper, agent_store)
+
+    # the year consumer is making green tariff subscription decision
+    reg_year, reg_year_index = get_reg_year(model_data)
+    reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
+
+    delta_t = model_data.delta_t.value
+
+    x_green_sub_before = ParamArray(customers.x_green_sub, "x_green_sub_before")
+    fill!(x_green_sub_before, NaN)
+    for (z, h) in model_data.index_z_h_map
+        x_green_sub_before(h, z, :) .= customers.x_green_sub_my(reg_year_index, h, z)
+    end
+
+    # update all the annual parameters to the solve year (so we don't have to change the majority of the functions)
+    for (z, h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
+        customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
+    end
+
+    GreenSubMWh = get_green_tech_subscription(customers, green_developer, regulator, utility_or_ipp, model_data, hem_opts)
+
+    # customers.x_green_sub_my is an annual number (per the regression), however, this number cannot decrease.
+    # this is to make sure the subsribed green techs (in previous years) are always paid for.
+
+    set_green_tech_subscriptions!(customers, GreenSubMWh, model_data)
 
     customers.current_year = reg_year_index
     customers.previous_year = reg_year_index_pre
@@ -1517,123 +1545,115 @@ function solve_agent_problem!(
     hem_opts::HEMOptions{<:MarketStructure, DERAdoption, SupplyChoice, <:UseCase},
     agent_store::AgentStore,
     w_iter,
+    window_length,
+    jump_model,
+    export_file_path,
+    update_results::Bool,
+    output_intermediate_results::Bool
 )
     regulator = get_agent(Regulator, agent_store)
-    utility = get_agent(Utility, agent_store)
+    utility_or_ipp = get_bulk_system_agent(agent_store, hem_opts)
     green_developer = get_agent(GreenDeveloper, agent_store)
 
     # the year consumer is making green tariff subscription decision
     reg_year, reg_year_index = get_reg_year(model_data)
     reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
 
+    delta_t = model_data.delta_t.value
+
     x_DG_before = ParamArray(customers.x_DG_new, "x_DG_before")
     fill!(x_DG_before, NaN)
-    for h in model_data.index_h, m in customers.index_m
-        x_DG_before(h, m, :) .= customers.x_DG_new_my(reg_year_index, h, m)
+    for (z,h) in model_data.index_z_h_map, m in customers.index_m
+        x_DG_before(h, z, m, :) .= customers.x_DG_new_my(reg_year_index, h, z, m)
     end
 
     adopt_model = customers.pv_adoption_model
 
     # update all the annual parameters to the solve year (so we don't have to change the majority of the functions)
-    for h in model_data.index_h
-        customers.PeakLoad(h, :) .= customers.PeakLoad_my(reg_year_index, h)
+    for (z, h) in model_data.index_z_h_map
+        customers.PeakLoad(z, h, :) .= customers.PeakLoad_my(reg_year_index, z, h)
     end
-    for h in model_data.index_h, t in model_data.index_t
-        customers.d(h, t, :) .= customers.d_my(reg_year_index, h, t)
+    for (z, h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
+        customers.d(h, z, d, t, :) .= customers.d_my(reg_year_index, h, z, d, t)
         # customers.DERGen(h, t, :) .= customers.DERGen_my(reg_year_index, h, t)
     end
-    for h in model_data.index_h, m in customers.index_m
-        customers.Opti_DG(h, m, :) .= customers.Opti_DG_my(reg_year_index, h, m)
-        customers.FOM_DG(h, m, :) .= customers.FOM_DG_my(reg_year_index, h, m)
-        customers.CapEx_DG(h, m, :) .= customers.CapEx_DG_my(reg_year_index, h, m)
+    for (z, h) in model_data.index_z_h_map, m in customers.index_m
+        customers.Opti_DG(z, h, m, :) .= customers.Opti_DG_my(reg_year_index, z, h, m)
+        customers.FOM_DG(z, h, m, :) .= customers.FOM_DG_my(reg_year_index, z, h, m)
+        customers.CapEx_DG(z, h, m, :) .= customers.CapEx_DG_my(reg_year_index, z, h, m)
         customers.ITC_DER(m, :) .= customers.ITC_DER_my(reg_year_index, m)
         if w_iter >= 2
-            customers.x_DG_E(h, m, :) .=
-                customers.x_DG_E_my(reg_year_index, h, m) + sum(
-                    customers.x_DG_new_my(Symbol(Int(y)), h, m) for
+            customers.x_DG_E(h, z, m, :) .=
+                customers.x_DG_E_my(reg_year_index, h, z, m) + sum(
+                    customers.x_DG_new_my(Symbol(Int(y)), h, z, m) for
                     y in model_data.year(first(model_data.index_y_fix)):(reg_year - 1)
                 )
         else
-            customers.x_DG_E(h, m, :) .= customers.x_DG_E_my(reg_year_index, h, m)
+            customers.x_DG_E(h, z, m, :) .= customers.x_DG_E_my(reg_year_index, h, z, m)
         end
     end
 
     # Calculate payback period of DER
     # The NetProfit represents the energy saving/credit per representative agent per DER technology, assuming the optimal DER technology size
-    NetProfit = make_keyed_array(model_data.index_h, customers.index_m)
-    for h in model_data.index_h, m in customers.index_m
-        NetProfit(h, m, :) .= 
+    NetProfit = make_keyed_array(model_data.index_z, model_data.index_h, customers.index_m)
+    for (z, h) in model_data.index_z_h_map, m in customers.index_m
+        NetProfit(z, h, m, :) .=
             # value of distributed generation (offset load)
             sum(
-                model_data.omega(t) *
-                regulator.p(h, t) *
+                model_data.omega(d) * delta_t *
+                regulator.p(z, h, d, t) *
                 min(
-                    customers.d(h, t) / (1 + utility.loss_dist),
-                    customers.rho_DG(h, m, t) * customers.Opti_DG(h, m),
-                ) for t in model_data.index_t
+                    customers.d(h, z, d, t) / (1 + utility_or_ipp.loss_dist),
+                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG(z, h, m),
+                ) for d in model_data.index_d, t in model_data.index_t
             ) +
             # value of distributed generation (excess generation)
             sum(
-                model_data.omega(t) *
-                regulator.p_ex(h, t) *
+                model_data.omega(d) * delta_t *
+                regulator.p_ex(z, h, d, t) *
                 max(
                     0,
-                    customers.rho_DG(h, m, t) * customers.Opti_DG(h, m) -
-                    customers.d(h, t) / (1 + utility.loss_dist),
-                ) for t in model_data.index_t
+                    customers.rho_DG(h, m, z, d, t) * customers.Opti_DG(z, h, m) -
+                    customers.d(h, z, d, t) / (1 + utility_or_ipp.loss_dist),
+                ) for d in model_data.index_d, t in model_data.index_t
             ) -
-            # cost of distributed generation 
-            customers.FOM_DG(h, m) * customers.Opti_DG(h, m) 
+            # cost of distributed generation
+            customers.FOM_DG(z, h, m) * customers.Opti_DG(z, h, m)
     end
 
-    for h in model_data.index_h, m in customers.index_m
-        if NetProfit(h, m) >= 0.0
-            customers.Payback(h, m, :) .= (
-                (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG(h, m) * 
-                customers.Opti_DG(h, m)) / NetProfit(h, m)
+    for (z, h) in model_data.index_z_h_map, m in customers.index_m
+        if NetProfit(z, h, m) >= 0.0
+            customers.Payback(z, h, m, :) .= (
+                (1.0 - customers.ITC_DER(m)) * customers.CapEx_DG(z, h, m) *
+                customers.Opti_DG(z, h, m)) / NetProfit(z, h, m)
             # Calculate maximum market share and maximum DG potential (based on WTP curve)
-            customers.MarketShare(h, m, :) .=
-                1.0 - Distributions.cdf(
-                    Distributions.Gamma(
-                        adopt_model.Shape(h, m),
-                        1 / adopt_model.Rate(h, m),
-                    ),
-                    customers.Payback(h, m),
-                )
-            customers.MaxDG(h, m, :) .=
-                customers.MarketShare(h, m) * customers.gamma(h) * customers.Opti_DG(h, m)
+            customers.MarketShare(z, h, m, :) .= get_max_market_share(
+                adopt_model,
+                customers.Payback,
+                z, h, m;
+                payback_by_m = true,
+            )
+            customers.MaxDG(z, h, m, :) .=
+                customers.MarketShare(z, h, m) * customers.gamma(z, h) * customers.Opti_DG(z, h, m)
             # Calculate the percentage of existing DER (per agent type per DER technology) as a fraction of maximum DG potential
-            customers.F(h, m, :) .= min(customers.x_DG_E(h, m) / customers.MaxDG(h, m), 1.0)
-            # Back out the reference year of DER based on the percentage of existing DER
-            customers.year(h, m, :) .=
-                -log(
-                    (1 - customers.F(h, m)) /
-                    (customers.F(h, m) * adopt_model.Bass_q(h) / adopt_model.Bass_p(h) + 1),
-                ) / (adopt_model.Bass_p(h) + adopt_model.Bass_q(h))
+            customers.F(z, h, m, :) .= min(customers.x_DG_E(h, z, m) / customers.MaxDG(z,h, m), 1.0)
             # Calculate incremental DG build
-            customers.A(h, m, :) .=
-                (
-                    1.0 - exp(
-                        -(adopt_model.Bass_p(h) + adopt_model.Bass_q(h)) *
-                        (customers.year(h, m) + 1),
-                    )
-                ) / (
-                    1.0 +
-                    (adopt_model.Bass_q(h) / adopt_model.Bass_p(h)) * exp(
-                        -(adopt_model.Bass_p(h) + adopt_model.Bass_q(h)) *
-                        (customers.year(h, m) + 1),
-                    )
-                )
-            customers.x_DG_new(h, m, :) .=
-                max(0.0, customers.A(h, m) * customers.MaxDG(h, m) - customers.x_DG_E(h, m))
+            customers.A(z, h, m, :) .= get_incremental_build_frac(
+                adopt_model,
+                customers.F,
+                z, h, m;
+                exist_pv_frac_by_m = true,
+            )
+            customers.x_DG_new(h, z, m, :) .=
+                max(0.0, customers.A(z, h, m) * customers.MaxDG(z, h, m) - customers.x_DG_E(h, z, m))
         else
-            customers.x_DG_new(h, m, :) .= 0.0
+            customers.x_DG_new(h, z, m, :) .= 0.0
         end
     end
 
-    for h in model_data.index_h, m in customers.index_m
-        customers.x_DG_new_my(reg_year_index, h, m, :) .= customers.x_DG_new(h, m)
-        customers.MaxDG_my(reg_year_index, h, m, :) .= customers.MaxDG(h, m)
+    for (z, h) in model_data.index_z_h_map, m in customers.index_m
+        customers.x_DG_new_my(reg_year_index, h, z, m, :) .= customers.x_DG_new(h, z, m)
+        customers.MaxDG_my(reg_year_index, z, h, m, :) .= customers.MaxDG(z, h, m)
     end
 
     # @info "Original new DG" x_DG_before
@@ -1641,75 +1661,21 @@ function solve_agent_problem!(
 
     x_green_sub_before = ParamArray(customers.x_green_sub, "x_green_sub_before")
     fill!(x_green_sub_before, NaN)
-    for h in model_data.index_h
-        x_green_sub_before(h, :) .= customers.x_green_sub_my(reg_year_index, h)
+    for (z, h) in model_data.index_z_h_map
+        x_green_sub_before(h, z, :) .= customers.x_green_sub_my(reg_year_index, h, z)
     end
 
-    green_sub_model = customers.green_sub_model
-
-    if hem_opts isa HEMOptions{VIU, DERAdoption, SupplyChoice, <:UseCase}
-        WholesaleMarketPerc = 0.01
-    else
-        WholesaleMarketPerc = 1.0
-    end
-
-    # calculate green tariff subscription (% MWh)
-    GreenSubPerc = KeyedArray(
-        [ 
-            exp(
-            green_sub_model.Constant(h) + 
-            green_sub_model.GreenPowerPrice_coefficient(h) * log(green_developer.ppa_my(reg_year_index, h)) + 
-            green_sub_model.EnergyRate_coefficient(h) * log(regulator.p_my_regression(reg_year_index, h)) + 
-            green_sub_model.WholesaleMarket_coefficient(h) * log(WholesaleMarketPerc) + 
-            green_sub_model.RetailCompetition_coefficient(h) * log(customers.RetailCompetition(reg_year_index)) + 
-            green_sub_model.RPS_coefficient(h) * log(utility.RPS(reg_year_index)) + 
-            green_sub_model.WTP_coefficient(h) * log(customers.WTP_green_power(reg_year_index))
-            ) for h in model_data.index_h
-        ];
-        [get_pair(model_data.index_h)]...,
-    )
-
-    GreenSubPerc[:Residential] = 0.0
-
-    # shall we use net load here?
-    GreenSubMWh = KeyedArray(
-        [
-            sum(GreenSubPerc(h) * 
-            (
-                customers.d(h, t) / (1 + utility.loss_dist) * model_data.omega(t) * customers.gamma(h) -
-                sum(
-                    customers.rho_DG(h, m, t) * customers.x_DG_E_my(reg_year_index, h, m) * model_data.omega(t) for
-                    m in customers.index_m
-                ) -
-                sum(
-                    customers.rho_DG(h, m, t) * model_data.omega(t) * sum(
-                        customers.x_DG_new_my(Symbol(Int(y_symbol)), h, m) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(reg_year_index)
-                    ) for m in customers.index_m
-                )
-            ) for t in model_data.index_t)
-            for h in model_data.index_h
-        ];
-        [get_pair(model_data.index_h)]...,
-    )
+    GreenSubMWh = get_green_tech_subscription(customers, green_developer, regulator, utility_or_ipp, model_data, hem_opts)
 
     # customers.x_green_sub_my is an annual number (per the regression), however, this number cannot decrease.
     # this is to make sure the subsribed green techs (in previous years) are always paid for.
 
-    for h in model_data.index_h
-        if reg_year > model_data.year(first(model_data.index_y_fix))
-            customers.x_green_sub_my(reg_year_index, h, :) .= max(GreenSubMWh(h), customers.x_green_sub_my(Symbol(Int(reg_year-1)), h))
-            customers.x_green_sub_incremental_my(reg_year_index, h, :) .= customers.x_green_sub_my(reg_year_index, h) - customers.x_green_sub_my(Symbol(Int(reg_year-1)), h)
-        else
-            customers.x_green_sub_my(reg_year_index, h, :) .= GreenSubMWh(h)
-            customers.x_green_sub_incremental_my(reg_year_index, h, :) .= GreenSubMWh(h)
-        end
-    end
+    set_green_tech_subscriptions!(customers, GreenSubMWh, model_data)
 
     customers.current_year = reg_year_index
     customers.previous_year = reg_year_index_pre
 
-    return compute_difference_percentage_one_norm([
+    return compute_difference_percentage_maximum_one_norm([
         (x_green_sub_before, GreenSubMWh), 
         (x_DG_before, customers.x_DG_new)
     ])

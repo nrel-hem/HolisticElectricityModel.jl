@@ -180,7 +180,7 @@ function get_objective_function(
     return objective_function
 end
 
-function get_green_tech_subscription(
+function get_green_tech_buildout(
     x_green::JuMP.Containers.DenseAxisArray,
     x_green_cumu::KeyedArray,
     z::Symbol,
@@ -203,7 +203,7 @@ function get_green_tech_subscription(
 
 end
 
-function get_green_tech_subscription(
+function get_green_tech_buildout(
     x_green::JuMP.Containers.DenseAxisArray,
     x_green_cumu::KeyedArray,
     z::Symbol,
@@ -309,7 +309,7 @@ function solve_green_developer_problem(
     @constraint(
         Green_Developer_model,
         Eq_ppa[h in model_data.index_h, z in model_data.index_z; (z, h) in model_data.index_z_h_map],
-        get_green_tech_subscription(x_green, x_green_cumu, z, h, green_developer, utility_or_ipp, model_data, p) -
+        get_green_tech_buildout(x_green, x_green_cumu, z, h, green_developer, utility_or_ipp, model_data, p) -
         customers.x_green_sub_my(reg_year_index, h, z) / (1 - utility_or_ipp.loss_dist) >=
         0
     )
