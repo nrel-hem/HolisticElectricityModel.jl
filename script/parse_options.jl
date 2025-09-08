@@ -75,6 +75,39 @@ function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{VIU}, solver::Sym
     )
 end
 
+function get_local_distribution_regulator_options(config::Dict{Any,Any})
+
+    rate_design, net_metering_policy, tou_suffix, planning_reserve_margin,
+    allowed_return_on_investment = parse(config, "Regulator", validators)
+
+    return LocalDistributionRegulatorOptions(
+        rate_design,
+        net_metering_policy,
+        tou_suffix,
+        planning_reserve_margin,
+        allowed_return_on_investment,
+    )
+end
+
+function get_local_distribution_customer_options(config::Dict{Any,Any}, solver::Symbol)
+    
+    adoption_rate_file_index, = 1 # parsed from config in future
+    return LocalDistributionCustomerOptions(
+        JuMP.optimizer_with_attributes(
+            () -> get_optimizer_for_solver(solver),
+        ),
+        adoption_rate_file_index,
+    )
+end
+
+function get_distribution_utility_options(solver::Symbol)
+    return DistributionUtilityOptions(
+        JuMP.optimizer_with_attributes(
+            () -> get_optimizer_for_solver(solver),
+        )
+    )
+end
+
 function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{WM}, solver::Symbol)
     return AgentOptionsStore(
         Dict(
@@ -83,6 +116,16 @@ function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{WM}, solver::Symb
             CustomerGroup => get_customer_options(config, solver),
             GreenDeveloper => get_green_developer_options(solver),
             DERAggregator => get_der_aggregator_options(config, solver),
+        )
+    )
+end
+
+function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{LocalDistributionAndDER}, solver::Symbol)
+    return AgentOptionsStore(
+        Dict(
+            LocalDistributionRegulator => get_local_distribution_regulator_options(config),
+            DistributionUtility => get_distribution_utility_options(solver),
+            LocalDistributionCustomer => get_local_distribution_customer_options(config, solver),
         )
     )
 end

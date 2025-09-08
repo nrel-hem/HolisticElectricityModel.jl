@@ -6,7 +6,8 @@ null_use_case_identifier = "NullUseCase"
 
 market_structure_map = Dict(
     "WM" => WM(),
-    "VIU" => VIU()
+    "VIU" => VIU(),
+    "LocalDistributionAndDER" => LocalDistributionAndDER(),
 )
 
 der_use_case_map = Dict(

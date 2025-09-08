@@ -50,6 +50,25 @@ function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, 
     return agents_and_opts
 end
 
+function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{LocalDistributionAndDER})
+
+    # Need to ensure the order of agents is correct
+    regulator_options = get_agent_option(LocalDistributionRegulator, agent_options)
+    distribution_utility_options = get_agent_option(DistributionUtility, agent_options)
+    customer_options = get_agent_option(LocalDistributionCustomer, agent_options)
+
+    regulator = LocalDistributionRegulator(input_dir, model_data)
+    distribution_utility = DistributionUtility(input_dir, model_data)
+    customers = LocalDistributionCustomer(input_dir, model_data)
+
+    agents_and_opts = [
+        AgentAndOptions(distribution_utility, distribution_utility_options),
+        AgentAndOptions(regulator, regulator_options),
+        AgentAndOptions(customers, customer_options),
+    ]
+    return agents_and_opts
+end
+
 """
 Solve the problem with the given inputs.
 
