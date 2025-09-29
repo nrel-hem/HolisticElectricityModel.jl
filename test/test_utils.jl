@@ -54,4 +54,18 @@
     end
 
 end
+
+@testset "test save_dimension" begin
+    index_z = Dimension("index_z", [:p129, :p130, :p131])
+    temp_dir = mktempdir()
+    HEM.save_dimension(index_z, joinpath(temp_dir, "index_z.csv"))
+    saved_data = read_set(
+        temp_dir,
+        "index_z",
+        "index_z",
+    )
+
+    @test index_z.elements == saved_data.elements
+
+end
  

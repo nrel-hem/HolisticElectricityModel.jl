@@ -331,3 +331,15 @@ function to_csv(df, filename::AbstractString)
         CSV.write(io, df)
     end
 end
+
+function save_dimension(
+    dim::Dimension,
+    filename::AbstractString)
+    data = String.(dim.elements)
+    println(data)
+    writedlm(
+        filename, 
+        reshape(data, (1, length(data))), 
+        ','
+    )
+end

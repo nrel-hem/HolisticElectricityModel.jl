@@ -51,6 +51,12 @@ mutable struct Regulator <: AbstractRegulator
 
     index_rate_tou::Dimension
     tou_rate_structure::DataFrame
+    "index for different types of cost"
+    index_cost_type::Dimension
+    "index for different types of demand"
+    index_demand_type::Dimension
+    "index for green technology option in demand"
+    index_green_tech_option::Dimension
     # Parameters
     "planning reserve (fraction)"
     r::ParamArray
@@ -99,21 +105,14 @@ mutable struct Regulator <: AbstractRegulator
     depreciation_tax_my::ParamArray
     
     # revenue requirements and net demand used for stage 2
-    "energy cost allocation by year, zone and customer type"
-    energy_cost_allocation_my::ParamArray
+    "costs for each cost type allocated by year, zone and customer type"
+    cost_allocation_my::ParamArray
     "energy cost allocation for time-of-use rates by year, zone, customer type and tou rate"
     energy_cost_allocation_tou_my::ParamArray
-    "capacity cost allocation by year, zone and customer type"
-    capacity_cost_allocation_my::ParamArray
-    "other cost (generation, transmission, distribution, administration, interconnection, system and DER aggregation) allocation by year, zone and customer type"
-    othercost_allocation_my::ParamArray
-    "peak net demand without green-tech by year, zone and customer type"
-    net_peak_demand_wo_green_tech_my::ParamArray
-    "net demand without green-tech by year, zone and customer type"
-    net_demand_wo_green_tech_wo_loss_my::ParamArray
-    "net demand without green-tech by year, zone, customer type and time-of-use rate"
-    net_demand_wo_green_tech_wo_loss_tou_my::ParamArray
-    
+    "net demand (peak and actual) without green technology by year, zone and customer type"
+    net_demand_peak_my::ParamArray
+    "net demand by year, zone, customer type and time-of-use rate"
+    net_demand_tou_my::ParamArray
 
     p_regression::ParamArray
     p_my_regression::ParamArray
@@ -131,6 +130,27 @@ function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOption
     )
 
     tou_rate_structure = CSV.read(joinpath(input_dir, "tou_rate_structure_$(opts.tou_suffix).csv"), DataFrame)
+
+    index_cost_type = Dimension(
+        "index_cost_type",
+        [:Energy, :Capacity, :Distribution, :Administration, :Transmission, :Interconnection, :System, :DERA];
+        prose_name = "index for different types of cost",
+        description = "index for different types of cost",
+    )
+
+    index_demand_type = Dimension(
+        "index_demand_type",
+        [:Peak, :Actual];
+        prose_name = "index for different types of demand",
+        description = "index for different types of demand",
+    )
+
+    index_green_tech_option = Dimension(
+        "index_green_tech_option",
+        [:WithGreenTech, :WithoutGreenTech];
+        prose_name = "index for green technology status in demand",
+        description = "index for green technology status in demand",
+    )
 
     distribution_cost = read_param(
         "distribution_cost",
@@ -182,6 +202,9 @@ function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOption
         first(model_data.index_y),
         index_rate_tou,
         tou_rate_structure,
+        index_cost_type,
+        index_demand_type,
+        index_green_tech_option,
         initialize_param(
             "r",
             model_data.index_z,
@@ -204,7 +227,8 @@ function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOption
         initialize_param(
             "othercost",
             model_data.index_z,
-            model_data.index_y;
+            model_data.index_y,
+            index_cost_type;
             description = "other cost not related to the optimization problem",
         ),
         initialize_param(
@@ -322,11 +346,12 @@ function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOption
             description = "tax depreciation by year",
         ),
         initialize_param(
-            "energy_cost_allocation_my",
+            "cost_allocation_my",
             model_data.index_y,
             model_data.index_z,
-            model_data.index_h;
-            description = "energy cost allocation by year, zone and customer type",
+            model_data.index_h,
+            index_cost_type;
+            description = "costs for each cost type allocated by year, zone and customer type",
         ),
         initialize_param(
             "energy_cost_allocation_tou_my",
@@ -337,40 +362,22 @@ function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOption
             description = "energy cost allocation for time-of-use rates by year, zone, customer type and tou rate",
         ),
         initialize_param(
-            "capacity_cost_allocation_my",
-            model_data.index_y,
-            model_data.index_z,
-            model_data.index_h;
-            description = "capacity cost allocation by year, zone and customer type",
-        ),
-        initialize_param(
-            "othercost_allocation_my",
-            model_data.index_y,
-            model_data.index_z,
-            model_data.index_h;
-            description = "other cost (T&D) allocation by year, zone and customer type",
-        ),
-        initialize_param(
-            "net_peak_demand_wo_green_tech_my",
-            model_data.index_y,
-            model_data.index_z,
-            model_data.index_h;
-            description = "peak net demand without green-tech by year, zone and customer type",
-        ),
-        initialize_param(
-            "net_demand_wo_green_tech_wo_loss_my",
-            model_data.index_y,
-            model_data.index_z,
-            model_data.index_h;
-            description = "net demand without green-tech by year, zone and customer type",
-        ),
-        initialize_param(
-            "net_demand_wo_green_tech_wo_loss_tou_my",
+            "net_demand_peak_my",
             model_data.index_y,
             model_data.index_z,
             model_data.index_h,
-            index_rate_tou;
-            description = "net demand without green-tech by year, zone, customer type and time-of-use rate",
+            index_demand_type,
+            index_green_tech_option;
+            description = "net demand by year, zone and customer type",
+        ),
+        initialize_param(
+            "net_demand_tou_my",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            index_rate_tou,
+            index_green_tech_option;
+            description = "net demand by year, zone, customer type and time-of-use rate",
         ),
         initialize_param(
             "p_regression",
@@ -413,8 +420,11 @@ end
 # Vector{Customer} is not subtype of Vector{Agent}
 # But if a vector of customers c1, c2, c3 is defined 
 # using the syntax Agent[c1, c2, c3], calling 
-# this function will work. Can also:
-# Vector{Agent}([c1, c2, c3])
+# this function will work. Can also
+
+function calculate_demand_cost_allocation(cost, net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+    return cost * net_peak_load_wo_green_tech_h(z, h) / sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
+end
 
 function solve_agent_problem!(
     regulator::Regulator,
@@ -458,7 +468,12 @@ function solve_agent_problem!(
     reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
 
     for z in model_data.index_z
-        regulator.othercost(z, reg_year_index, :) .= regulator.distribution_cost(z, reg_year_index) + regulator.administration_cost(z, reg_year_index) + regulator.transmission_cost(z, reg_year_index) + regulator.interconnection_cost(z, reg_year_index) + regulator.system_cost(z, reg_year_index) + der_aggregator.revenue(reg_year_index_dera, z)
+        regulator.othercost(z, reg_year_index, :Distribution, :) .= regulator.distribution_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :Administration, :) .= regulator.administration_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :Transmission, :) .= regulator.transmission_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :Interconnection, :) .= regulator.interconnection_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :System, :) .= regulator.system_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :DERA, :) .= der_aggregator.revenue(reg_year_index_dera, z)
     end
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
@@ -1568,7 +1583,7 @@ function solve_agent_problem!(
             (revenue_requirement(z) - energy_cost(z) + net_eximport_cost(z)) * net_peak_load_h(z, h) / (
                 sum(net_peak_load_h(z, h) for h in z_to_h_dict[z])
             ) + 
-            regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
+            sum(regulator.othercost(z, reg_year_index, :)) * net_peak_load_wo_green_tech_h(z, h) / (
                 sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
             )
     end
@@ -1583,12 +1598,13 @@ function solve_agent_problem!(
     end
     replace!(demand_cost_allocation_capacity_h, NaN => 0.0)
 
-    demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h)
+    demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_cost_type)
     for (z,h) in model_data.index_z_h_map
-        demand_cost_allocation_othercost_h(z, h, :) .=
-            regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
-                sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
-            )
+        demand_cost_allocation_othercost_h(z, h, :Distribution, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Distribution), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        demand_cost_allocation_othercost_h(z, h, :Transmission, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Transmission), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        demand_cost_allocation_othercost_h(z, h, :Interconnection, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Interconnection), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        demand_cost_allocation_othercost_h(z, h, :System, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :System), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        demand_cost_allocation_othercost_h(z, h, :DERA, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :DERA), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
     end
     replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
 
@@ -1607,6 +1623,20 @@ function solve_agent_problem!(
         p_before(z, h, d, t, :) .= regulator.p_my(reg_year_index, z, h, d, t)
     end
 
+    regulator.cost_allocation_my(reg_year_index, :, :, :Energy) .= energy_cost_allocation_h
+    regulator.cost_allocation_my(reg_year_index, :, :, :Capacity) .= demand_cost_allocation_h
+    regulator.cost_allocation_my(reg_year_index, :, :, :Distribution) .= demand_cost_allocation_othercost_h(:, :, :Distribution)
+    regulator.cost_allocation_my(reg_year_index, :, :, :Transmission) .= demand_cost_allocation_othercost_h(:, :, :Transmission)
+    regulator.cost_allocation_my(reg_year_index, :, :, :Interconnection) .= demand_cost_allocation_othercost_h(:, :, :Interconnection)
+    regulator.cost_allocation_my(reg_year_index, :, :, :System) .= demand_cost_allocation_othercost_h(:, :, :System)
+    regulator.cost_allocation_my(reg_year_index, :, :, :DERA) .= demand_cost_allocation_othercost_h(:, :, :DERA)
+    regulator.energy_cost_allocation_tou_my(reg_year_index, :, :, :) .= energy_cost_allocation_h_t
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithoutGreenTech) .= net_peak_load_wo_green_tech_h
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithGreenTech) .= net_peak_load_h
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Actual, :WithoutGreenTech) .= net_demand_wo_green_tech_h_wo_loss
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Actual, :WithGreenTech) .= net_demand_h_wo_loss
+    regulator.net_demand_tou_my(reg_year_index, :, :, :, :WithGreenTech) .= net_demand_h_t_wo_loss
+
     # TODO: Call a function instead of using if-then
     if regulator_opts.rate_design isa FlatRate
         fill!(regulator.p, NaN)
@@ -1624,7 +1654,7 @@ function solve_agent_problem!(
                 for h in customer_types
             )
             denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
-            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+            numerator_other_cost = sum(sum(demand_cost_allocation_othercost_h(z, h, :)) for h in customer_types)
             denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
 
             sector_rates[(z, sector, d, t)] = (numerator_energy_demand / denominator_net_demand) + 
@@ -1661,7 +1691,7 @@ function solve_agent_problem!(
             denominator_net_demand_t = sum(net_demand_h_t_wo_loss(z, h, tou) for h in customer_types)
             numerator_demand_capacity = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
             denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
-            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+            numerator_other_cost = sum(sum(demand_cost_allocation_othercost_h(z, h, :)) for h in customer_types)
             denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
     
 
@@ -1735,7 +1765,11 @@ function solve_agent_problem!(
 
     for y in model_data.index_y_fix
         for z in model_data.index_z
-            regulator.othercost(z, y, :) .= regulator.distribution_cost(z, y) + regulator.administration_cost(z, y) + regulator.transmission_cost(z, y) + regulator.interconnection_cost(z, y) + regulator.system_cost(z, y)
+            regulator.othercost(z, y, :Distribution, :) .= regulator.distribution_cost(z, y)
+            regulator.othercost(z, y, :Administration, :) .= regulator.administration_cost(z, y)
+            regulator.othercost(z, y, :Transmission, :) .= regulator.transmission_cost(z, y)
+            regulator.othercost(z, y, :Interconnection, :) .= regulator.interconnection_cost(z, y)
+            regulator.othercost(z, y, :System, :) .= regulator.system_cost(z, y)
         end
     end
 
@@ -2760,7 +2794,7 @@ function solve_agent_problem!(
     for (z,h) in model_data.index_z_h_map
         demand_cost_allocation_h(z, h, :) .= 
         capacity_purchase_cost * net_peak_load_wo_green_tech_h(z, h) / sum(net_peak_load_wo_green_tech_h(z, h) for z in model_data.index_z, h in z_to_h_dict[z]) + 
-        regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
+        sum(regulator.othercost(z, reg_year_index, :)) * net_peak_load_wo_green_tech_h(z, h) / (
             sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
         )
     end
@@ -2773,12 +2807,12 @@ function solve_agent_problem!(
     end
     replace!(demand_cost_allocation_capacity_h, NaN => 0.0)
 
-    demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h)
+    demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_cost_type)
     for (z,h) in model_data.index_z_h_map
-        demand_cost_allocation_othercost_h(z, h, :) .=
-            regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
-                sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
-            )
+        demand_cost_allocation_othercost_h(z, h, :Distribution, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Distribution), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        demand_cost_allocation_othercost_h(z, h, :Transmission, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Transmission), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        demand_cost_allocation_othercost_h(z, h, :Interconnection, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Interconnection), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        demand_cost_allocation_othercost_h(z, h, :System, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :System), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
     end
     replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
 
@@ -2805,13 +2839,19 @@ function solve_agent_problem!(
             sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) for d in model_data.index_d, t in model_data.index_t)
     end
 
-    regulator.energy_cost_allocation_my(reg_year_index, :, :) .= energy_cost_allocation_h
+    regulator.cost_allocation_my(reg_year_index, :, :, :Energy) .= energy_cost_allocation_h
+    regulator.cost_allocation_my(reg_year_index, :, :, :Capacity) .= demand_cost_allocation_h
+    regulator.cost_allocation_my(reg_year_index, :, :, :Distribution) .= demand_cost_allocation_othercost_h(:, :, :Distribution)
+    regulator.cost_allocation_my(reg_year_index, :, :, :Transmission) .= demand_cost_allocation_othercost_h(:, :, :Transmission)
+    regulator.cost_allocation_my(reg_year_index, :, :, :Interconnection) .= demand_cost_allocation_othercost_h(:, :, :Interconnection)
+    regulator.cost_allocation_my(reg_year_index, :, :, :System) .= demand_cost_allocation_othercost_h(:, :, :System)
     regulator.energy_cost_allocation_tou_my(reg_year_index, :, :, :) .= energy_cost_allocation_h_t
-    regulator.capacity_cost_allocation_my(reg_year_index, :, :) .= demand_cost_allocation_h
-    regulator.othercost_allocation_my(reg_year_index, :, :) .= demand_cost_allocation_othercost_h
-    regulator.net_peak_demand_wo_green_tech_my(reg_year_index, :, :) .= net_peak_load_wo_green_tech_h
-    regulator.net_demand_wo_green_tech_wo_loss_my(reg_year_index, :, :) .= net_demand_wo_green_tech_h_wo_loss
-    regulator.net_demand_wo_green_tech_wo_loss_tou_my(reg_year_index, :, :, :) .= net_demand_wo_green_tech_h_t_wo_loss
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithoutGreenTech) .= net_peak_load_wo_green_tech_h
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithGreenTech) .= net_peak_load_h
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Actual, :WithoutGreenTech) .= net_demand_wo_green_tech_h_wo_loss
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Actual, :WithGreenTech) .= net_demand_h_wo_loss
+    regulator.net_demand_tou_my(reg_year_index, :, :, :, :WithoutGreenTech) .= net_demand_wo_green_tech_h_t_wo_loss
+    regulator.net_demand_tou_my(reg_year_index, :, :, :, :WithGreenTech) .= net_demand_h_t_wo_loss
 
     # TODO: Call a function instead of using if-then
     # TODO: the demonimator need to be further thought through (in the case without green-tech, it's the same)
@@ -2827,7 +2867,7 @@ function solve_agent_problem!(
             energy_cost = sum(energy_cost_allocation_h(z, h) for h in customer_types)
             demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
             net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
-            other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+            other_cost = sum(sum(demand_cost_allocation_othercost_h(z, h, :)) for h in customer_types)
 
             sector_rates[(z, sector, d, t)] = (energy_cost + demand_capacity_cost + other_cost) / net_demand
 
@@ -2861,7 +2901,7 @@ function solve_agent_problem!(
             net_demand_tou = sum(net_demand_wo_green_tech_h_t_wo_loss(z, h, tou) for h in customer_types)
             demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
             net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
-            other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+            other_cost = sum(sum(demand_cost_allocation_othercost_h(z, h, :)) for h in customer_types)
         
             sector_rates[(z, sector, d, t)] = energy_cost / net_demand_tou + demand_capacity_cost / net_demand + other_cost / net_demand
 
@@ -2953,10 +2993,10 @@ function save_results(
         joinpath(export_file_path, "revenue_req.csv"),
     )
     save_param(
-        regulator.energy_cost_allocation_my.values,
-        [:Year, :Zone, :CustomerType],
+        regulator.cost_allocation_my.values,
+        [:Year, :Zone, :CustomerType, :CostType],
         :Cost,
-        joinpath(export_file_path, "energy_cost_allocation.csv"),
+        joinpath(export_file_path, "cost_allocation.csv"),
     )
     save_param(
         regulator.energy_cost_allocation_tou_my.values,
@@ -2965,34 +3005,31 @@ function save_results(
         joinpath(export_file_path, "energy_cost_allocation_tou.csv"),
     )
     save_param(
-        regulator.capacity_cost_allocation_my.values,
-        [:Year, :Zone, :CustomerType],
-        :Cost,
-        joinpath(export_file_path, "capacity_cost_allocation.csv"),
+        regulator.net_demand_peak_my.values,
+        [:Year, :Zone, :CustomerType, :DemandType, :GreenTechOption],
+        :NetDemand,
+        joinpath(export_file_path, "net_demand_peak.csv"),
     )
     save_param(
-        regulator.othercost_allocation_my.values,
-        [:Year, :Zone, :CustomerType],
-        :Cost,
-        joinpath(export_file_path, "othercost_allocation.csv"),
+        regulator.net_demand_tou_my.values,
+        [:Year, :Zone, :CustomerType, :index_rate_tou, :GreenTechOption],
+        :NetDemand,
+        joinpath(export_file_path, "net_demand_tou.csv"),
     )
-    save_param(
-        regulator.net_peak_demand_wo_green_tech_my.values,
-        [:Year, :Zone, :CustomerType],
-        :Demand,
-        joinpath(export_file_path, "net_peak_demand_wo_green_tech.csv"),
+
+    save_dimension(
+        regulator.index_cost_type,
+        joinpath(export_file_path, "index_cost_type.csv"),
     )
-    save_param(
-        regulator.net_demand_wo_green_tech_wo_loss_my.values,
-        [:Year, :Zone, :CustomerType],
-        :Demand,
-        joinpath(export_file_path, "net_demand_wo_green_tech_wo_loss.csv"),
+
+    save_dimension(
+        regulator.index_demand_type,
+        joinpath(export_file_path, "index_demand_type.csv"),
     )
-    save_param(
-        regulator.net_demand_wo_green_tech_wo_loss_tou_my.values,
-        [:Year, :Zone, :CustomerType, :index_rate_tou],
-        :Demand,
-        joinpath(export_file_path, "net_demand_wo_green_tech_wo_loss_tou.csv"),
+
+    save_dimension(
+        regulator.index_green_tech_option,
+        joinpath(export_file_path, "index_green_tech_option.csv"),
     )
 
 end
