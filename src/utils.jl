@@ -179,6 +179,59 @@ function read_record_file(::Type{KeyedArray}, dirpath, filename, num_dims)
     return read_keyed_array(record_file, num_dims)
 end
 
+
+"""
+Reads saved result data from the csv file at dirpath/filename. Assumes the data is stored
+in long format with a single header row, and that the columns corresond to dimensions and a
+value column. The column labels for the dimensions can be specified with the column_labels argument,
+otherwise the dimension names are assumed to match the column names in the file.
+
+Returns the data loaded into a ParamArray with dimensions (dimensions...) and values from
+the value_column.
+"""
+function read_saved_result(
+    name::AbstractString,
+    dirpath::AbstractString,
+    filename::AbstractString,
+    dimensions::Vector{Dimension},
+    value_column::Symbol;
+    column_labels::Union{Nothing, Vector{Symbol}} = nothing,
+    prose_name::AbstractString = "",
+    description::AbstractString = "",
+)
+
+    result_df = read_record_file(DataFrame, dirpath, filename)
+    value_columns = Vector{Symbol}()
+
+    index_columns = _rename_columns_to_match_dimension!(result_df, dimensions; column_labels = column_labels)
+    value_columns = setdiff(Symbol.(names(result_df)), index_columns)
+    if length(value_columns) != 1 || value_columns[1] != value_column
+        throw(
+            ArgumentError(
+                "Expected exactly one value column named $value_column but found $(value_columns)",
+            ),
+        )
+    end
+    result_keyed_array = AxisKeys.wrapdims(result_df, value_column, index_columns...)
+    dims = Tuple(dimensions)
+    result = ParamArray(name, dims, result_keyed_array; prose_name = prose_name, description = description)
+    @debug "Loaded $filename" result
+    return result
+end
+
+function _rename_columns_to_match_dimension!(df::DataFrame, dimensions::Vector{Dimension}; column_labels::Union{Nothing, Vector{Symbol}} = nothing)
+    index_columns = Vector{Symbol}()
+    for (i, index) in enumerate(dimensions)
+        index_name = Symbol(index.name)
+        push!(index_columns, index_name)
+        if !isnothing(column_labels)
+            rename!(df, column_labels[i] => index_name)
+        end
+        df[!, index_name] = Symbol.(df[!, index_name])
+    end
+    return index_columns
+end
+
 function save_param(
     vals::KeyedArray,
     set_names::Array,
