@@ -75,12 +75,12 @@ function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{VIU}, solver::Sym
     )
 end
 
-function get_local_distribution_regulator_options(config::Dict{Any,Any})
+function get_local_distribution_rate_maker_options(config::Dict{Any,Any})
 
     rate_design, net_metering_policy, tou_suffix, planning_reserve_margin,
     allowed_return_on_investment = parse(config, "Regulator", validators)
 
-    return LocalDistributionRegulatorOptions(
+    return LocalDistributionRateMakerOptions(
         rate_design,
         net_metering_policy,
         tou_suffix,
@@ -123,7 +123,7 @@ end
 function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{LocalDistributionAndDER}, solver::Symbol)
     return AgentOptionsStore(
         Dict(
-            LocalDistributionRegulator => get_local_distribution_regulator_options(config),
+            LocalDistributionRateMaker => get_local_distribution_rate_maker_options(config),
             DistributionUtility => get_distribution_utility_options(solver),
             LocalDistributionCustomer => get_local_distribution_customer_options(config, solver),
         )

@@ -18,20 +18,20 @@ mutable struct LocalDistributionCustomer <: AbstractCustomerGroup
 
     # Sets
     "PV, EV, Heat pump technologies"
-    index_m_local::Dimension
+    index_m::Dimension
 
     # Parameters
     "number of customers for each customer type"
-    gamma_local::ParamArray
+    gamma::ParamArray
 
     # other fields as needed
 end
 
 function LocalDistributionCustomer(input_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
     # change this to read from input files
-    index_m_local = Dimension("m_local", [:BTMPV, :EV, :HeatPump])
-    gamma_local = ParamArray("gamma_local", (model_data.index_z_local, model_data.index_h_local), zeros((length(model_data.index_z_local), length(model_data.index_h_local))) )
-    return LocalDistributionCustomer(id, first(model_data.index_y), first(model_data.index_y), index_m_local, gamma_local)
+    index_m = Dimension("m_local", [:BTMPV, :EV, :HeatPump])
+    gamma = ParamArray("gamma_local", (model_data.index_z, model_data.index_h), zeros((length(model_data.index_z), length(model_data.index_h))) )
+    return LocalDistributionCustomer(id, first(model_data.index_y), first(model_data.index_y), index_m, gamma)
 end
 
 get_id(x::LocalDistributionCustomer) = x.id
@@ -51,6 +51,13 @@ function solve_agent_problem!(
 )
     # Implement the logic here
     @info("Solving problem for Local Distribution Customer: $(customers.id)")
+
+    # use exogenous DER adoption levels and year to calculate load profiles and get DER information
+
+    # finalize DER profiles--could use utility rate information
+
+    # calculate retail bill based on rates reported by the rate maker, load and DER profiles
+
     return 0.0
 end
 

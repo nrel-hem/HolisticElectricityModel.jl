@@ -40,6 +40,13 @@ function solve_agent_problem!(
 )
     # Implement the logic here
     @info("Solving problem for Distribution Utility: $(distribution_utility.id)")
+
+    # get load profiles from the customer agent
+
+    # compute distribution system (upgrade) costs
+
+    # make sure costs are in the form expected by the LocalDistributionRateMaker
+    
     return 0.0
 end
 

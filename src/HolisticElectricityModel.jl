@@ -39,7 +39,7 @@ export CustomerGroup
 export IPPGroup
 export GreenDeveloper
 export DERAggregator
-export LocalDistributionRegulator
+export LocalDistributionRateMaker
 export LocalDistributionCustomer
 export DistributionUtility
 
@@ -51,7 +51,7 @@ export GreenDeveloperOptions
 export IPPOptions
 export UtilityOptions
 export DERAggregatorOptions
-export LocalDistributionRegulatorOptions
+export LocalDistributionRateMakerOptions
 export LocalDistributionCustomerOptions
 export DistributionUtilityOptions
 
@@ -143,7 +143,7 @@ include("agents/customer_group.jl")
 include("agents/ipp_group.jl")
 include("agents/green_developer.jl")
 include("agents/der_aggregator.jl")
-include("agents/local_distribution_regulator.jl")
+include("agents/local_distribution_rate_maker.jl")
 include("agents/local_distribution_customer.jl")
 include("agents/distribution_utility.jl")
 include("run_hem.jl")
