@@ -426,6 +426,14 @@ function calculate_demand_cost_allocation(cost, net_peak_load_wo_green_tech_h, z
     return cost * net_peak_load_wo_green_tech_h(z, h) / sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
 end
 
+function get_grid_side_cost_types(::VIU)
+    return [:Distribution, :Administration, :Transmission, :Interconnection, :System, :DERA]
+end
+
+function get_grid_side_cost_types(::WM)
+    return [:Distribution, :Administration, :Transmission, :Interconnection, :System]
+end
+
 function solve_agent_problem!(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
@@ -1600,11 +1608,9 @@ function solve_agent_problem!(
 
     demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_cost_type)
     for (z,h) in model_data.index_z_h_map
-        demand_cost_allocation_othercost_h(z, h, :Distribution, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Distribution), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
-        demand_cost_allocation_othercost_h(z, h, :Transmission, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Transmission), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
-        demand_cost_allocation_othercost_h(z, h, :Interconnection, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Interconnection), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
-        demand_cost_allocation_othercost_h(z, h, :System, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :System), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
-        demand_cost_allocation_othercost_h(z, h, :DERA, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :DERA), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        for cost_type in get_grid_side_cost_types(hem_opts.market_structure)
+            demand_cost_allocation_othercost_h(z, h, cost_type, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, cost_type), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        end
     end
     replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
 
@@ -1625,11 +1631,9 @@ function solve_agent_problem!(
 
     regulator.cost_allocation_my(reg_year_index, :, :, :Energy) .= energy_cost_allocation_h
     regulator.cost_allocation_my(reg_year_index, :, :, :Capacity) .= demand_cost_allocation_h
-    regulator.cost_allocation_my(reg_year_index, :, :, :Distribution) .= demand_cost_allocation_othercost_h(:, :, :Distribution)
-    regulator.cost_allocation_my(reg_year_index, :, :, :Transmission) .= demand_cost_allocation_othercost_h(:, :, :Transmission)
-    regulator.cost_allocation_my(reg_year_index, :, :, :Interconnection) .= demand_cost_allocation_othercost_h(:, :, :Interconnection)
-    regulator.cost_allocation_my(reg_year_index, :, :, :System) .= demand_cost_allocation_othercost_h(:, :, :System)
-    regulator.cost_allocation_my(reg_year_index, :, :, :DERA) .= demand_cost_allocation_othercost_h(:, :, :DERA)
+    for cost_type in get_grid_side_cost_types(hem_opts.market_structure)
+        regulator.cost_allocation_my(reg_year_index, :, :, cost_type) .= demand_cost_allocation_othercost_h(:, :, cost_type)
+    end
     regulator.energy_cost_allocation_tou_my(reg_year_index, :, :, :) .= energy_cost_allocation_h_t
     regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithoutGreenTech) .= net_peak_load_wo_green_tech_h
     regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithGreenTech) .= net_peak_load_h
@@ -2809,10 +2813,9 @@ function solve_agent_problem!(
 
     demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_cost_type)
     for (z,h) in model_data.index_z_h_map
-        demand_cost_allocation_othercost_h(z, h, :Distribution, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Distribution), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
-        demand_cost_allocation_othercost_h(z, h, :Transmission, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Transmission), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
-        demand_cost_allocation_othercost_h(z, h, :Interconnection, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Interconnection), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
-        demand_cost_allocation_othercost_h(z, h, :System, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :System), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        for cost_type in get_grid_side_cost_types(hem_opts.market_structure)
+            demand_cost_allocation_othercost_h(z, h, cost_type, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, cost_type), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        end
     end
     replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
 
@@ -2841,10 +2844,9 @@ function solve_agent_problem!(
 
     regulator.cost_allocation_my(reg_year_index, :, :, :Energy) .= energy_cost_allocation_h
     regulator.cost_allocation_my(reg_year_index, :, :, :Capacity) .= demand_cost_allocation_h
-    regulator.cost_allocation_my(reg_year_index, :, :, :Distribution) .= demand_cost_allocation_othercost_h(:, :, :Distribution)
-    regulator.cost_allocation_my(reg_year_index, :, :, :Transmission) .= demand_cost_allocation_othercost_h(:, :, :Transmission)
-    regulator.cost_allocation_my(reg_year_index, :, :, :Interconnection) .= demand_cost_allocation_othercost_h(:, :, :Interconnection)
-    regulator.cost_allocation_my(reg_year_index, :, :, :System) .= demand_cost_allocation_othercost_h(:, :, :System)
+    for cost_type in get_grid_side_cost_types(hem_opts.market_structure)
+        regulator.cost_allocation_my(reg_year_index, :, :, cost_type) .= demand_cost_allocation_othercost_h(:, :, cost_type)
+    end
     regulator.energy_cost_allocation_tou_my(reg_year_index, :, :, :) .= energy_cost_allocation_h_t
     regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithoutGreenTech) .= net_peak_load_wo_green_tech_h
     regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithGreenTech) .= net_peak_load_h
