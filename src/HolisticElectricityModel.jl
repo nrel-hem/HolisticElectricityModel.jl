@@ -52,7 +52,7 @@ export VIU, WM     # regulatory structures
 
 # Modeling Options
 export NullUseCase
-export DERAdoption, SupplyChoice                                                   # types of customer decisions
+export DERAdoption, SupplyChoice                                   # types of customer decisions
 export DERAggregation                                              # presence of aggregators
 export StandalonePVOnly, SolarPlusStorageOnly, CompeteDERConfigs   # DER types
 export LagrangeDecomposition, MIQP, MPPDCMER, MPPDCMERTransStorage # ipp algorithms

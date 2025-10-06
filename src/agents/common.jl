@@ -34,8 +34,6 @@ struct HEMOptions{
     der_aggregation_use_case::W
 end
 
-# TODO: Rethink file prefixes to create shorter directory names
-#       If do this, might need to be able to provide mapping function when doing integration testing
 function get_file_prefix(options::HEMOptions)
     return join([# "$(typeof(options.der_use_case))", 
             # "$(typeof(options.supply_choice_use_case))",
