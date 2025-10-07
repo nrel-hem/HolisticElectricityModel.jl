@@ -1,4 +1,4 @@
-function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{VIU})
+function create_agents_and_opts(input_dir::AbstractString, stage_1_results_dir::Union{AbstractString, Nothing}, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{VIU})
 
     regulator_options = get_agent_option(Regulator, agent_options)
     utility_options = get_agent_option(Utility, agent_options)
@@ -24,7 +24,7 @@ function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, 
     return agents_and_opts
 end
 
-function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{WM})
+function create_agents_and_opts(input_dir::AbstractString, stage_1_results_dir::Union{AbstractString, Nothing}, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{WM})
 
     regulator_options = get_agent_option(Regulator, agent_options)
     ipp_options = get_agent_option(IPPGroup, agent_options)
@@ -50,19 +50,23 @@ function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, 
     return agents_and_opts
 end
 
-function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{LocalDistributionAndDER})
+function create_agents_and_opts(input_dir::AbstractString, stage_1_results_dir::Union{AbstractString, Nothing}, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{LocalDistributionAndDER})
 
     # Need to ensure the order of agents is correct
-    regulator_options = get_agent_option(LocalDistributionRateMaker, agent_options)
+    rate_maker_options = get_agent_option(LocalDistributionRateMaker, agent_options)
     distribution_utility_options = get_agent_option(DistributionUtility, agent_options)
     customer_options = get_agent_option(LocalDistributionCustomer, agent_options)
 
-    regulator = LocalDistributionRateMaker(input_dir, model_data)
-    distribution_utility = DistributionUtility(input_dir, model_data)
-    customers = LocalDistributionCustomer(input_dir, model_data)
+    if isnothing(stage_1_results_dir)
+        error("stage_1_results_path must be provided in the config for LocalDistributionAndDER market structure.")
+    end
+
+    rate_maker = LocalDistributionRateMaker(input_dir, stage_1_results_dir, model_data)
+    distribution_utility = DistributionUtility(input_dir, stage_1_results_dir, model_data)
+    customers = LocalDistributionCustomer(input_dir, stage_1_results_dir, model_data)
 
     agents_and_opts = [
-        AgentAndOptions(regulator, regulator_options),
+        AgentAndOptions(rate_maker, rate_maker_options),
         AgentAndOptions(customers, customer_options),
         AgentAndOptions(distribution_utility, distribution_utility_options),
     ]
@@ -90,6 +94,7 @@ Solve the problem with the given inputs.
 """
 function run_hem(
     input_dir::AbstractString,
+    stage_1_results_dir::Union{AbstractString, Nothing},
     options::HEMOptions;
     agent_options::AgentOptionsStore,
     max_iterations=1,
@@ -105,7 +110,7 @@ function run_hem(
         delta_t=delta_t,
         )
 
-    agents_and_opts = create_agents_and_opts(input_dir, model_data, agent_options, options)
+    agents_and_opts = create_agents_and_opts(input_dir, stage_1_results_dir, model_data, agent_options, options)
 
     if isnothing(output_dir)
         output_dir = joinpath(input_dir, get_file_prefix(options, agents_and_opts))

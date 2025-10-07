@@ -42,7 +42,7 @@ mutable struct LocalDistributionRateMaker <: AbstractRegulator
     # other fields as needed
 end
 
-function LocalDistributionRateMaker(input_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function LocalDistributionRateMaker(input_dir::AbstractString, stage_1_results_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
     # change this to read from input files
     index_rate_tou = Dimension("index_rate_tou", [:peak, :non_peak]; prose_name="index_rate_tou", description="index for time-of-use rates")
 

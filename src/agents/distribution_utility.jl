@@ -19,7 +19,7 @@ mutable struct DistributionUtility <: AbstractDistributionUtility
     # other fields as needed
 end
 
-function DistributionUtility(input_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function DistributionUtility(input_dir::AbstractString, stage_1_results_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
     return DistributionUtility(id, first(model_data.index_y))
 end
 

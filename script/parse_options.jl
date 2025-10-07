@@ -78,7 +78,7 @@ end
 function get_local_distribution_rate_maker_options(config::Dict{Any,Any})
 
     rate_design, net_metering_policy, tou_suffix, planning_reserve_margin,
-    allowed_return_on_investment = parse(config, "Regulator", validators)
+    allowed_return_on_investment = parse(config, "LocalDistributionRateMaker", validators)
 
     return LocalDistributionRateMakerOptions(
         rate_design,
