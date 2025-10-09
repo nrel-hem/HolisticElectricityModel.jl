@@ -91,9 +91,6 @@ mutable struct HEMData
     "Number of hours per representative hour"
     delta_t::ParamScalar
 
-    # inputs for stage 2
-    index_z_local::Dimension
-    index_h_local::Dimension
 end
 
 """
@@ -201,12 +198,6 @@ function HEMData(input_dir::String; year_start::Int=2020, delta_t::Int=4, epsilo
 
     delta_t = ParamScalar("delta_t", delta_t, description="number of hours per representative hour")
 
-    # inputs for stage 2, these should be read from input files
-    "local zones or communities"
-    index_z_local = Dimension("z_local", [:Community1, :Community2, :Community3])
-    "customer types"
-    index_h_local = Dimension("h_local", [:Res_Community1, :Res_Community2, :Res_Community3])
-
     # add other parameters as needed
 
     return HEMData(
@@ -225,8 +216,6 @@ function HEMData(input_dir::String; year_start::Int=2020, delta_t::Int=4, epsilo
         time,
         year_start,
         delta_t,
-        index_z_local,
-        index_h_local,
     )
 end
 

@@ -12,6 +12,8 @@ DataSelection:
   # Number of hours per representative hour. If not specified, it defaults to 4.
   # This means that each representative hour represents 4 hours of real time.
   delta_t: 4
+  # Path to the stage 1 results directory if running in stage 2
+  stage_1_results_path: "../HolisticElectricityModelData.jl/runs/ba_6_base_2020_future_15_ipps_1/Results/"
 
 # ------------------------------------------------------------------------------
 # Run Options
@@ -36,8 +38,7 @@ SimulationParameters:
 
 HEMOptions:
   # CHOOSE ONE WM: Wholesale Market, VIU: Vertically Integrated Utility
-  market_structure: "WM" # "VIU"
-  # CHOOSE ONE
+  market_structure: "WM" # "VIU", "LocalDistributionAndDER"
   der_use_case: "DERAdoption" # "NullUseCase"
   # CHOOSE ONE
   supply_choice_use_case: "SupplyChoice" # "NullUseCase"
