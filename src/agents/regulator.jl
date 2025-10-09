@@ -1613,8 +1613,20 @@ function solve_agent_problem!(
         for cost_type in get_grid_side_cost_types(hem_opts.market_structure)
             demand_cost_allocation_othercost_h(z, h, cost_type, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, cost_type), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
         end
+        # @assert sum(demand_cost_allocation_othercost_h(z, h, :)) == sum(regulator.othercost(z, reg_year_index, :)) * net_peak_load_wo_green_tech_h(z, h) / (
+        #     sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
+        # )
+        replace!(demand_cost_allocation_othercost_h(z, h, :), NaN => 0.0)
+        # @info "sum demand_cost_allocation_othercost_h"
+        # x = sum(demand_cost_allocation_othercost_h(z, h, :))
+        # y = sum(regulator.othercost(z, reg_year_index, :)) * net_peak_load_wo_green_tech_h(z, h) / (
+        #     sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
+        # )
+        # if !isapprox(x, y; atol=1e-5, rtol=1e-5)
+        #     error("demand_cost_allocation_othercost_h does not sum up to total othercost! $x vs $y")
+        # end
     end
-    replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
+    # replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
 
     energy_cost_allocation_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
