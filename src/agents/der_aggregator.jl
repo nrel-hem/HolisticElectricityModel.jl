@@ -50,10 +50,10 @@ mutable struct DERAggregator <: AbstractDERAggregator
     dera_pv_my::ParamArray
 end
 
-function DERAggregator(input_filename::AbstractString, model_data::HEMData, opts::DERAggregatorOptions; id = DEFAULT_ID)
+function DERAggregator(input_dir::AbstractString, model_data::HEMData, opts::DERAggregatorOptions; id = DEFAULT_ID)
 
     # need to have the incentive function for each customer type
-    dera_stor_incentive_function = CSV.read(joinpath(input_filename, "dera_stor_incentive_function_$(opts.incentive_curve).csv"), DataFrame)
+    dera_stor_incentive_function = CSV.read(joinpath(input_dir, "dera_stor_incentive_function_$(opts.incentive_curve).csv"), DataFrame)
 
     return DERAggregator(
         id,
@@ -174,7 +174,7 @@ function solve_agent_problem!(
 
     reg_year, reg_year_index = get_reg_year(model_data)
     reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
-    delta_t = get_delta_t(model_data)
+    delta_t = model_data.delta_t.value
 
     ipp = get_agent(IPPGroup, agent_store)
     customers = get_agent(CustomerGroup, agent_store)
@@ -437,7 +437,7 @@ function solve_agent_problem!(
 
     reg_year, reg_year_index = get_reg_year(model_data)
     reg_year_pre, reg_year_index_pre = get_prev_reg_year(model_data, w_iter)
-    delta_t = get_delta_t(model_data)
+    delta_t = model_data.delta_t.value
 
     utility = get_agent(Utility, agent_store)
     customers = get_agent(CustomerGroup, agent_store)

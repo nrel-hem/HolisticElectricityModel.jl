@@ -11,7 +11,6 @@ function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, 
     customers = CustomerGroup(input_dir, model_data)
     green_developer = GreenDeveloper(input_dir, model_data)
     dera = DERAggregator(input_dir, model_data, dera_options)
-    # distribution_utility = DistributionUtility(input_dir, model_data)
 
     # the sequence of simulation matters a lot! (e.g., the year DER aggregation is picked is dependent on this)
     agents_and_opts = [
@@ -20,7 +19,6 @@ function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, 
         AgentAndOptions(customers, customer_options),
         AgentAndOptions(green_developer, green_developer_options),
         AgentAndOptions(dera, dera_options),
-        # AgentAndOptions(distribution_utility, NullAgentOptions()),
     ]
 
     return agents_and_opts
@@ -39,7 +37,6 @@ function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, 
     customers = CustomerGroup(input_dir, model_data)
     green_developer = GreenDeveloper(input_dir, model_data)
     dera = DERAggregator(input_dir, model_data, dera_options)
-    # distribution_utility = DistributionUtility(input_dir, model_data)
 
     # the sequence of simulation matters a lot! (e.g., the year DER aggregation is picked is dependent on this)
     agents_and_opts = [
@@ -48,9 +45,27 @@ function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, 
         AgentAndOptions(customers, customer_options),
         AgentAndOptions(green_developer, green_developer_options),
         AgentAndOptions(dera, dera_options),
-        # AgentAndOptions(distribution_utility, NullAgentOptions()),
     ]
 
+    return agents_and_opts
+end
+
+function create_agents_and_opts(input_dir::AbstractString, model_data::HEMData, agent_options::AgentOptionsStore, ::HEMOptions{LocalDistributionAndDER})
+
+    # Need to ensure the order of agents is correct
+    rate_maker_options = get_agent_option(LocalDistributionRateMaker, agent_options)
+    distribution_utility_options = get_agent_option(DistributionUtility, agent_options)
+    customer_options = get_agent_option(LocalDistributionCustomer, agent_options)
+
+    rate_maker = LocalDistributionRateMaker(input_dir, model_data, rate_maker_options)
+    distribution_utility = DistributionUtility(input_dir, model_data, distribution_utility_options)
+    customers = LocalDistributionCustomer(input_dir, model_data, customer_options)
+
+    agents_and_opts = [
+        AgentAndOptions(rate_maker, rate_maker_options),
+        AgentAndOptions(customers, customer_options),
+        AgentAndOptions(distribution_utility, distribution_utility_options),
+    ]
     return agents_and_opts
 end
 
@@ -67,6 +82,11 @@ Solve the problem with the given inputs.
 - `max_iterations::Int`: Max number of iterations to attempt a solution. Defaults to 100.
 - `window_length::Int`:
 - `force::Bool`: If true, overwrite results if a directory already exists.
+- `jump_model::Any`: Jump model to use for the simulation.
+- `output_dir::Union{<:AbstractString, Nothing}`: Directory to save results. If `nothing`, it will be set to
+  `input_dir` with a prefix based on the options and agents.
+- `delta_t::Int`: Number of hours per representative hour. Defaults to 4.
+- `year_start::Int`: The base year for the simulation. Defaults to 2020.
 """
 function run_hem(
     input_dir::AbstractString,
@@ -77,8 +97,13 @@ function run_hem(
     force=false,
     jump_model::Any,
     output_dir::Union{<:AbstractString, Nothing} = nothing,
+    delta_t::Int = 4,
+    year_start::Int = 2020,
 )
-    model_data = HEMData(input_dir)
+    model_data = HEMData(input_dir;
+        year_start=year_start,
+        delta_t=delta_t,
+        )
 
     agents_and_opts = create_agents_and_opts(input_dir, model_data, agent_options, options)
 

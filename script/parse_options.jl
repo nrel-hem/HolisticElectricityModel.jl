@@ -71,8 +71,47 @@ function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{VIU}, solver::Sym
             CustomerGroup => get_customer_options(config, solver),
             GreenDeveloper => get_green_developer_options(solver),
             DERAggregator => get_der_aggregator_options(config, solver),
-            # DistributionUtility => NullAgentOptions()
         )
+    )
+end
+
+function get_local_distribution_rate_maker_options(config::Dict{Any,Any})
+
+    stage_1_results_dir = parse(config, "DataSelection", validators, "stage_1_results_path")[1]
+    rate_design, net_metering_policy, tou_suffix, planning_reserve_margin,
+    allowed_return_on_investment = parse(config, "LocalDistributionRateMaker", validators)
+
+    return LocalDistributionRateMakerOptions(
+        stage_1_results_dir,
+        rate_design,
+        net_metering_policy,
+        tou_suffix,
+        planning_reserve_margin,
+        allowed_return_on_investment,
+    )
+end
+
+function get_local_distribution_customer_options(config::Dict{Any,Any}, solver::Symbol)
+    
+    adoption_rate_file_index, = 1 # parsed from config in future
+    stage_1_results_dir = parse(config, "DataSelection", validators, "stage_1_results_path")[1]
+    return LocalDistributionCustomerOptions(
+        JuMP.optimizer_with_attributes(
+            () -> get_optimizer_for_solver(solver),
+        ),
+        stage_1_results_dir,
+        adoption_rate_file_index,
+    )
+end
+
+function get_distribution_utility_options(config::Dict{Any,Any}, solver::Symbol)
+
+    stage_1_results_dir = parse(config, "DataSelection", validators, "stage_1_results_path")[1]
+    return DistributionUtilityOptions(
+        JuMP.optimizer_with_attributes(
+            () -> get_optimizer_for_solver(solver),
+        ),
+        stage_1_results_dir
     )
 end
 
@@ -84,7 +123,16 @@ function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{WM}, solver::Symb
             CustomerGroup => get_customer_options(config, solver),
             GreenDeveloper => get_green_developer_options(solver),
             DERAggregator => get_der_aggregator_options(config, solver),
-            # DistributionUtility => NullAgentOptions()
+        )
+    )
+end
+
+function get_agent_options(config::Dict{Any,Any}, ::HEMOptions{LocalDistributionAndDER}, solver::Symbol)
+    return AgentOptionsStore(
+        Dict(
+            LocalDistributionRateMaker => get_local_distribution_rate_maker_options(config),
+            DistributionUtility => get_distribution_utility_options(config, solver),
+            LocalDistributionCustomer => get_local_distribution_customer_options(config, solver),
         )
     )
 end

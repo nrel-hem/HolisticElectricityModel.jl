@@ -7,24 +7,23 @@ abstract type Options end
 
 get_file_prefix(::Options) = String("")
 
-# TODO: Add a MarketStructure to indicate Stage2
 # Struct with no fields used to dispatch -- this is the traits pattern
 abstract type MarketStructure end
 struct VIU <: MarketStructure end
 struct WM <: MarketStructure end
+struct LocalDistributionAndDER <: MarketStructure end
 
 abstract type UseCase end
 struct NullUseCase <: UseCase end
 struct DERAdoption <: UseCase end
-# TODO: Delete SupplyChoice and DistributionUtility altogether? Maybe make a tag to go back to first?
 struct SupplyChoice <: UseCase end
 struct DERAggregation <: UseCase end
 
 struct HEMOptions{
-    T <: MarketStructure, 
-    U <: Union{NullUseCase,DERAdoption},
-    V <: Union{NullUseCase,SupplyChoice},
-    W <: Union{NullUseCase,DERAggregation}
+    T<:MarketStructure,
+    U<:Union{NullUseCase,DERAdoption},
+    V<:Union{NullUseCase,SupplyChoice},
+    W<:Union{NullUseCase,DERAggregation}
 } <: Options
     # market structure switch
     market_structure::T
@@ -35,185 +34,177 @@ struct HEMOptions{
     der_aggregation_use_case::W
 end
 
-# TODO: Rethink file prefixes to create shorter directory names
-#       If do this, might need to be able to provide mapping function when doing integration testing
 function get_file_prefix(options::HEMOptions)
-return join([# "$(typeof(options.der_use_case))", 
-   # "$(typeof(options.supply_choice_use_case))",
-   "$(typeof(options.der_aggregation_use_case))",
-   "$(typeof(options.market_structure))"],"_")
+    return join([# "$(typeof(options.der_use_case))", 
+            # "$(typeof(options.supply_choice_use_case))",
+            "$(typeof(options.der_aggregation_use_case))",
+            "$(typeof(options.market_structure))"], "_")
 end
 
 
+"""
+    $(TYPEDEF)
+Struct to store the data required for the HEM model.
+$(TYPEDFIELDS)
+"""
 mutable struct HEMData
     # Configuration
-    epsilon::ParamScalar # iteration tolerance
+    "iteration tolerance"
+    epsilon::ParamScalar
 
     # Sets
-    index_y::Dimension # year index
-    index_y_fix::Dimension # year index
-    # TODO: Move to agents that use this.
-    index_s::Dimension # year index (for new resources depreciation schedule)
-    index_d::Dimension # representative day index
-    index_t::Dimension # time index (within each representative day)
-    index_h::Dimension # customer groups
-    # TODO: Move to green developer
-    index_j::Dimension # green tariff technologies
-    index_z::Dimension # zone index
-    index_sector::Dimension # sector index (for rate-making)
-
-    index_h_sector_map::DimensionSet # map from customer group to sector
-    index_z_h_map::DimensionSet      # map from zone to cutomer group
+    "Simulation years in a particular window (gets updated in solve_equilibrium_problem!)"
+    index_y::Dimension
+    """
+    Represents the full simulation horizon (does not change).
+    E.g., when we simulate years 2021-2030, "index_y_fix" will be [2021, ..., 2030]
+    if the planning window is 5-year for utility or IPPs, so the first index_y will be
+    [2021, ..., 2025], after solving the first window, index_y will be updated to [2022, ..., 2026] etc.
+    """
+    index_y_fix::Dimension
+    "Representative day (from ReEDS)"
+    index_d::Dimension
+    "Representative hour index within each representative day"
+    index_t::Dimension
+    "Customer groups"
+    index_h::Dimension
+    "Zones (ReEDS BA modeled)"
+    index_z::Dimension
+    "Customer high level groups"
+    index_sector::Dimension
+    "Map from customer group to sector"
+    index_h_sector_map::DimensionSet
+    "Map from zone to customer group"
+    index_z_h_map::DimensionSet
 
     # Parameters
-    omega::ParamArray # number of hours per timeslice
+    "Number of days per representative day"
+    omega::ParamArray
+    "Year"
     year::ParamArray
+    "Time"
     time::ParamArray
-    # TODO: Define with kwarg to constructor
+    "Simulation start year"
     year_start::ParamScalar
+    "Number of hours per representative hour"
+    delta_t::ParamScalar
+
 end
 
-# TODO: Change input_filename to input_dir
-function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
-    # simulation year index
+"""
+Create a new `HEMData` instance.
+"""
+function HEMData(input_dir::String; year_start::Int=2020, delta_t::Int=4, epsilon::AbstractFloat=1.0E-3)
+
     index_y = read_set(
-        input_filename,
+        input_dir,
         "index_y",
         "index_y",
-        prose_name = "simulation year index y",
-        description = "simulation years",
+        prose_name="simulation year index y",
+        description="simulation years",
     )
-    # TODO: Move information like the below to places where it will get captured in documentation
-    # "index_y_fix" represents the full simulation horizon (does not change)
-    # "index_y" represents the simulation years in a particular window (gets updated in solve_equilibrium_problem!)
-    # e.g., when we simulate years 2021-2030, "index_y_fix" will be [2021, ..., 2030]
-    # if the planning window is 5-year for utility or IPPs, so the first index_y will be
-    # [2021, ..., 2025], after solving the first window, index_y will be updated to [2022, ..., 2026] etc.
+
     index_y_fix = read_set(
-        input_filename,
+        input_dir,
         "index_y",
         "index_y_fix",
-        prose_name = "simulation year index y",
-        description = "simulation years",
+        prose_name="simulation year index y",
+        description="simulation years",
     )
 
-    # new resource depreciation year index
-    index_s = read_set(
-        input_filename,
-        "index_s",
-        "index_s",
-        prose_name = "new resource depreciation year index s",
-        description = "new resource depreciation years",
-    )
-
-    # TODO: Generalize descriptions
-    # representative day and hour (from ReEDS)
     index_d = read_set(
-        input_filename,
+        input_dir,
         "index_d",
         "index_d",
-        prose_name = "representative day index d",
-        description = "ReEDS representative days",
+        prose_name="representative day index d",
+        description="ReEDS representative days",
     )
 
     index_t = read_set(
-        input_filename,
+        input_dir,
         "index_t",
         "index_t",
-        prose_name = "time index t",
-        description = "ReEDS representative hour within each representative day",
+        prose_name="time index t",
+        description="ReEDS representative hour within each representative day",
     )
 
-    # customer group types
     index_h = read_set(
-        input_filename,
+        input_dir,
         "index_h",
         "index_h",
-        prose_name = "customer group index h",
-        description = "customer groups",
-    )
-  
-    # green technology types
-    index_j = read_set(
-        input_filename,
-        "index_j",
-        "index_j",
-        prose_name = "green technologies index j",
-        description = "green tariff technologies",
+        prose_name="customer group index h",
+        description="customer groups",
     )
 
-    # zones
     index_z = read_set(
-        input_filename,
+        input_dir,
         "index_z",
         "index_z",
-        prose_name = "zones index z",
-        description = "ReEDS BA modeled",
+        prose_name="zones index z",
+        description="ReEDS BA modeled",
     )
 
-    # customer group types
     index_sector = read_set(
-        input_filename,
+        input_dir,
         "index_sector",
         "index_sector";
-        prose_name = "customer group index sector",
-        description = "customer high level groups",
+        prose_name="customer group index sector",
+        description="customer high level groups",
     )
 
     index_h_sector_map = read_set(
         "index_h_sector_map",
-        input_filename,
+        input_dir,
         "index_h_sector_mapping",
         [index_h, index_sector];
-        prose_name = "Map from index_h to index_sector",
-        description = "Defines which customer groups (load and DER adoption) are in each sector (for ratemaking)"
+        prose_name="Map from index_h to index_sector",
+        description="Defines which customer groups (load and DER adoption) are in each sector (for ratemaking)"
     )
 
     index_z_h_map = read_set(
         "index_z_h_map",
-        input_filename,
+        input_dir,
         "index_z_h_mapping",
         [index_z, index_h];
-        prose_name = "Map from index_z to index_h",
-        description = "Defines which customer groups (load and DER participation) are present in each zone (bulk power BA)"
+        prose_name="Map from index_z to index_h",
+        description="Defines which customer groups (load and DER participation) are present in each zone (bulk power BA)"
     )
 
     omega = read_param(
         "omega",
-        input_filename,
+        input_dir,
         "Omega",
         index_d,
-        description = "number of days per representative day"
+        description="number of days per representative day"
     )
     year = read_param(
         "year",
-        input_filename,
+        input_dir,
         "Year",
         index_y,
-        description = "Year"
+        description="Year"
     )
     time = read_param(
         "time",
-        input_filename,
+        input_dir,
         "Time",
         index_t,
-        description = "Time"
+        description="Time"
     )
-    # TODO: Remove hard-coding. (This start year is also specified in HEMData.jl)
-    # Perhaps requires loading the HEMData config, which currently isn't stored in
-    # the input directory.
-    year_start = ParamScalar("year_start", 2020, description = "simulation start year")
 
-    # Return HEMData, passing the constructed h_to_sector
+    year_start = ParamScalar("year_start", year_start, description="simulation start year")
+
+    delta_t = ParamScalar("delta_t", delta_t, description="number of hours per representative hour")
+
+    # add other parameters as needed
+
     return HEMData(
-        ParamScalar("epsilon", epsilon, description = "iteration tolerance"),
+        ParamScalar("epsilon", epsilon, description="iteration tolerance"),
         index_y,
         index_y_fix,
-        index_s,
         index_d,
         index_t,
         index_h,
-        index_j,
         index_z,
         index_sector,
         index_h_sector_map,
@@ -221,26 +212,23 @@ function HEMData(input_filename::String; epsilon::AbstractFloat = 1.0E-3)
         omega,
         year,
         time,
-        year_start
+        year_start,
+        delta_t,
     )
 end
 
-# TODO: Maybe convert delta_t to a parameter, since index_t doesn't have to have the
-#       structure implied by this function.
-function get_delta_t(model_data::HEMData)
-    return (
-        parse(Int64, chop(string(model_data.index_t.elements[2]), head = 1, tail = 0)) - 
-        parse(Int64, chop(string(model_data.index_t.elements[1]), head = 1, tail = 0))
-    )
-end
-
-# TODO: Document the functions that follow.
-
+"""
+Returns the current year and its Symbol representation from the model data.
+"""
 function get_reg_year(model_data::HEMData)
     reg_year = model_data.year(first(model_data.index_y))
     return reg_year, Symbol(Int(reg_year))
 end
 
+"""
+Returns the current year and its Symbol representation from the model data,
+taking into account the window iteration.
+"""
 function get_prev_reg_year(model_data::HEMData, w_iter::Integer)
     if w_iter >= 2
         prev_reg_year = model_data.year(first(model_data.index_y)) - 1
@@ -250,6 +238,11 @@ function get_prev_reg_year(model_data::HEMData, w_iter::Integer)
     return prev_reg_year, Symbol(Int(prev_reg_year))
 end
 
+"""
+Returns the year two iterations before the current one and its Symbol representation,
+taking into account the window iteration. If `w_iter` is 2, it returns the previous year.
+If `w_iter` is 1, it returns the current year. 
+"""
 function get_prev_two_reg_year(model_data::HEMData, w_iter::Integer)
     if w_iter >= 3
         prev_reg_year = model_data.year(first(model_data.index_y)) - 2
@@ -264,6 +257,7 @@ end
 # TODO: Check that save_results argument names make sense
 
 """
+    $(TYPEDEF)
 Abstract type for agents.
 
 Required interfaces:
@@ -325,10 +319,14 @@ struct NullAgentOptions <: AgentOptions end
 Struct to store parsed agent options.
 """
 struct AgentOptionsStore
-    data::Dict{DataType, AgentOptions}
+    data::Dict{DataType,AgentOptions}
 end
 
-function get_agent_option(::Type{T}, options::AgentOptionsStore) where T <: AbstractAgent
+"""
+Returns the options for the agent type `T` from the `options` store.
+If no options are found for the agent type, an error is raised.
+"""
+function get_agent_option(::Type{T}, options::AgentOptionsStore) where T<:AbstractAgent
     if haskey(options.data, T)
         return options.data[T]
     else
@@ -336,19 +334,33 @@ function get_agent_option(::Type{T}, options::AgentOptionsStore) where T <: Abst
     end
 end
 
-struct AgentAndOptions{T <: AbstractAgent, U <: AgentOptions}
+"""
+$(TYPEDEF)
+Struct to store an agent and its options.
+$(TYPEDFIELDS)
+"""
+struct AgentAndOptions{T<:AbstractAgent,U<:AgentOptions}
     agent::T
     options::U
 end
 
-AgentOrOptions = Union{AbstractAgent, Options}
+AgentOrOptions = Union{AbstractAgent,Options}
 
+"""
+$(TYPEDEF)
+Struct to store a collection of agents and their options.
+$(TYPEDFIELDS)
+This is passed to the agents to allow them to access other agents and their options.
+"""
 struct AgentStore
-    data::OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}
+    data::OrderedDict{DataType,OrderedDict{String,AgentAndOptions}}
 end
 
+"""
+Create an `AgentStore` from a vector of `AgentAndOptions`.
+"""
 function AgentStore(agents_and_opts::Vector{AgentAndOptions})
-    data = OrderedDict{DataType, OrderedDict{String, AgentAndOptions}}()
+    data = OrderedDict{DataType,OrderedDict{String,AgentAndOptions}}()
     for item in agents_and_opts
         type = typeof(item.agent)
         id = get_id(item.agent)
@@ -357,7 +369,7 @@ function AgentStore(agents_and_opts::Vector{AgentAndOptions})
             haskey(sub_dict, id) && error("$type agent with ID = $id is already stored")
             sub_dict[id] = item
         else
-            data[type] = OrderedDict{String, AgentAndOptions}()
+            data[type] = OrderedDict{String,AgentAndOptions}()
             data[type][id] = item
         end
     end
@@ -370,7 +382,7 @@ Return the agent of the given type and ID from the store.
 
 If there is only one agent of the given type then `id` is optional.
 """
-function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: AbstractAgent}
+function get_agent(::Type{T}, store::AgentStore, id=nothing) where {T<:AbstractAgent}
     !haskey(store.data, T) && error("No agents of type $T are stored.")
     agents_and_opts = store.data[T]
 
@@ -385,7 +397,11 @@ function get_agent(::Type{T}, store::AgentStore, id = nothing) where {T <: Abstr
     return agents_and_opts[id].agent
 end
 
-function get_option(::Type{T}, store::AgentStore, id = nothing) where {T <: AbstractAgent}
+"""
+Return the options for the agent of the given type and ID from the store.
+If there is only one agent of the given type then `id` is optional.
+"""
+function get_option(::Type{T}, store::AgentStore, id=nothing) where {T<:AbstractAgent}
     !haskey(store.data, T) && error("No agents of type $T are stored.")
     agents_and_opts = store.data[T]
 
@@ -400,10 +416,19 @@ function get_option(::Type{T}, store::AgentStore, id = nothing) where {T <: Abst
     return agents_and_opts[id].options
 end
 
+"""
+Iterate over all agents and their options in the store and return a Tuple
+    of the agent and its options.
+"""
 function iter_agents_and_options(store::AgentStore)
     return ((x.agent, x.options) for agents in values(store.data) for x in values(agents))
 end
 
+"""
+Get the corresponding bulk system agent from the store based on the market structure within HEMOptions.
+If the market structure is `VIU`, it returns the `Utility` agent.
+If the market structure is `WM`, it returns the `IPPGroup` agent.
+"""
 function get_bulk_system_agent(store::AgentStore, ::HEMOptions{VIU})
     return get_agent(Utility, store)
 end
@@ -419,7 +444,7 @@ function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndO
     for item in agents_and_opts
         push!(items, item.options, item.agent)
     end
-    
+
     # call get_file_prefix on each item
     file_prefix = Vector{String}()
     for item in items
@@ -428,10 +453,13 @@ function get_file_prefix(hem_opts::HEMOptions, agents_and_opts::Vector{AgentAndO
             push!(file_prefix, val)
         end
     end
-    file_prefix = string("Results_",join(file_prefix, "_"))
+    file_prefix = string("Results_", join(file_prefix, "_"))
     return file_prefix
 end
 
+"""
+This method needs to be implemented by each agent type to save its results.
+"""
 function save_results(
     agent::AbstractAgent,
     agent_opts::AgentOptions,
@@ -442,6 +470,21 @@ function save_results(
     return
 end
 
+"""
+Main function to run the HEM model.
+It loops over the simulation years and calls the `solve_agent_problem!` method and the 
+`save_results` method for each agent.
+Arguments:
+- `input_dir::AbstractString`: Directory containing input data. Outputs will be recorded in
+  a subdirectory.
+- `model_data::HEMData`: Data required for the model.
+- `hem_opts::HEMOptions`: Options for the model.
+- `agents_and_opts::Vector{AgentAndOptions}`: Vector of agents and their options.
+- `export_file_path::AbstractString`: Path to export the results.
+- `max_iter::Int64`: Maximum number of iterations to solve the problem. Set in `run_hem`.
+- `window_length::Int64`: Length of the window for the simulation. Set in `run_hem`.
+- `jump_model::Any`: Jump model to use for the simulation. Iniitialized in `run_hem`.
+"""
 function solve_equilibrium_problem!(
     hem_opts::HEMOptions,
     model_data::HEMData,
@@ -455,9 +498,9 @@ function solve_equilibrium_problem!(
     TimerOutputs.reset_timer!(HEM_TIMER)
 
     TimerOutputs.@timeit HEM_TIMER "solve_equilibrium_problem!" begin
-        for w in 1:(length(model_data.index_y_fix) - window_length + 1) # loop over windows
+        for w in 1:(length(model_data.index_y_fix)-window_length+1) # loop over windows
             model_data.index_y.elements =
-                model_data.index_y_fix.elements[w:(w + window_length - 1)]
+                model_data.index_y_fix.elements[w:(w+window_length-1)]
             i = 0
             diff_iter = []
             for i in 1:max_iter
@@ -485,7 +528,7 @@ function solve_equilibrium_problem!(
                     @info "$(diff_one)"
 
                     if diff_one isa HolisticElectricityModel.ParamArray
-                        push!(diff_vec, maximum(diff_one.values)) 
+                        push!(diff_vec, maximum(diff_one.values))
                     else
                         push!(diff_vec, diff_one)
                     end
@@ -500,7 +543,6 @@ function solve_equilibrium_problem!(
                 end
             end
 
-            # save_welfare(welfare, export_file_path)
             i >= max_iter && error("Reached max iterations $max_iter with no solution")
             @info "Problem solved!"
 
@@ -510,45 +552,8 @@ function solve_equilibrium_problem!(
     end
 
     for (agent, options) in iter_agents_and_options(store)
-        # push!(welfare, welfare_calculation(agent, options, model_data, hem_opts, other_agents))
         save_results(agent, options, hem_opts, export_file_path)
     end
-
-    # TODO: Delete welfare calculations as un-maintained (after tagging)
-
-    # if hem_opts.market_structure isa VIU
-    #     x = store.data[Utility]["default"]
-    #     Welfare_supply =
-    #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
-    #     y = store.data[CustomerGroup]["default"]
-    #     Welfare_demand =
-    #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    # elseif hem_opts.market_structure isa WM
-    #     x = store.data[IPPGroup]["default"]
-    #     Welfare_supply =
-    #         welfare_calculation!(x.agent, x.options, model_data, hem_opts, store)
-    #     y = store.data[CustomerGroup]["default"]
-    #     Welfare_demand =
-    #         welfare_calculation!(y.agent, y.options, model_data, hem_opts, store)
-    # end
-
-    # if hem_opts.supply_choice_use_case isa NullUseCase
-    #     Welfare_green_developer = [
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #         initialize_keyed_array(model_data.index_y_fix),
-    #     ]
-    # else
-    #     z = store.data[GreenDeveloper]["default"]
-    #     Welfare_green_developer =
-    #         welfare_calculation!(z.agent, z.options, model_data, hem_opts, store)
-    # end
-
-    # save_welfare!(Welfare_supply, Welfare_demand, Welfare_green_developer, export_file_path)
 
     @info "\n$(HEM_TIMER)\n"
 end
@@ -560,157 +565,4 @@ function update_cumulative!(
     for item in agents_and_opts
         update_cumulative!(model_data, item.agent)
     end
-end
-
-# TODO: Write the welfare calculation and saving more generally
-function save_welfare!(
-    Supply::Any,
-    Demand::Any,
-    GreenDeveloper::Any,
-    exportfilepath::AbstractString,
-)
-    save_param(
-        Demand[1].values,
-        [:Year, :CustomerType, :DERTech],
-        :PVNetCS_dollar,
-        joinpath(exportfilepath, "PVNetCS.csv"),
-    )
-    save_param(
-        Demand[2].values,
-        [:Year, :CustomerType],
-        :ConGreenPowerNetSurplus_dollar,
-        joinpath(exportfilepath, "GreenPowerNetCS.csv"),
-    )
-    # save_param(
-    #     Demand[2],
-    #     [:Year, :CustomerType, :DERTech],
-    #     :PVEnergySaving_dollar,
-    #     joinpath(exportfilepath, "PVSaving.csv"),
-    # )
-    # save_param(
-    #     Demand[3],
-    #     [:Year, :CustomerType, :DERTech],
-    #     :EnergyCost_dollar,
-    #     joinpath(exportfilepath, "EnergyCost.csv"),
-    # )
-    # save_param(
-    #     Demand[4],
-    #     [:Year, :CustomerType, :DERTech],
-    #     :NetCS_dollar,
-    #     joinpath(exportfilepath, "NetCS.csv"),
-    # )
-    save_param(
-        Demand[3],
-        [:Year],
-        :TotalNetCS_dollar,
-        joinpath(exportfilepath, "TotalNetCS.csv"),
-    )
-    # save_param(
-    #     Demand[6],
-    #     [:Year, :CustomerType, :DERTech],
-    #     :NetCS_dollar,
-    #     joinpath(exportfilepath, "NetCS_per_customer.csv"),
-    # )
-    # save_param(
-    #     Demand[7],
-    #     [:Year, :CustomerType],
-    #     :dollar,
-    #     joinpath(exportfilepath, "annual_bill_per_customer.csv"),
-    # )
-    # save_param(
-    #     Demand[8],
-    #     [:Year, :CustomerType],
-    #     :dollar,
-    #     joinpath(exportfilepath, "average_bill_per_customer.csv"),
-    # )
-    save_param(
-        Supply[1],
-        [:Year],
-        :SupplierRevenue_dollar,
-        joinpath(exportfilepath, "SupplierRevenue.csv"),
-    )
-    save_param(
-        Supply[2],
-        [:Year],
-        :SupplierCost_dollar,
-        joinpath(exportfilepath, "SupplierCost.csv"),
-    )
-    save_param(
-        Supply[3],
-        [:Year],
-        :DebtInterest_dollar,
-        joinpath(exportfilepath, "DebtInterest.csv"),
-    )
-    save_param(
-        Supply[4],
-        [:Year],
-        :IncomeTax_dollar,
-        joinpath(exportfilepath, "IncomeTax.csv"),
-    )
-    save_param(
-        Supply[5],
-        [:Year],
-        :OperationalCost_dollar,
-        joinpath(exportfilepath, "OperationalCost.csv"),
-    )
-    save_param(
-        Supply[6],
-        [:Year],
-        :Depreciation_dollar,
-        joinpath(exportfilepath, "Depreciation.csv"),
-    )
-    save_param(
-        Supply[7],
-        [:Year],
-        :Depreciation_dollar,
-        joinpath(exportfilepath, "Tax_Depreciation.csv"),
-    )
-    save_param(
-        Supply[8],
-        [:Year],
-        :Metric_ton,
-        joinpath(exportfilepath, "Total_Emission.csv"),
-    )
-    save_param(
-        GreenDeveloper[1],
-        [:Year],
-        :GreenDeveloperRevenue_dollar,
-        joinpath(exportfilepath, "GreenDeveloperRevenue.csv"),
-    )
-    save_param(
-        GreenDeveloper[2],
-        [:Year],
-        :GreenDeveloperCost_dollar,
-        joinpath(exportfilepath, "GreenDeveloperCost.csv"),
-    )
-    save_param(
-        GreenDeveloper[3],
-        [:Year],
-        :DebtInterest_dollar,
-        joinpath(exportfilepath, "GreenDeveloperDebtInterest.csv"),
-    )
-    save_param(
-        GreenDeveloper[4],
-        [:Year],
-        :IncomeTax_dollar,
-        joinpath(exportfilepath, "GreenDeveloperIncomeTax.csv"),
-    )
-    save_param(
-        GreenDeveloper[5],
-        [:Year],
-        :OperationalCost_dollar,
-        joinpath(exportfilepath, "GreenDeveloperOperationalCost.csv"),
-    )
-    save_param(
-        GreenDeveloper[6],
-        [:Year],
-        :Depreciation_dollar,
-        joinpath(exportfilepath, "GreenDeveloperDepreciation.csv"),
-    )
-    save_param(
-        GreenDeveloper[7],
-        [:Year],
-        :Depreciation_dollar,
-        joinpath(exportfilepath, "GreenDeveloper_Tax_Depreciation.csv"),
-    )
 end

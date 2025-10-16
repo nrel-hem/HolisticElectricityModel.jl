@@ -147,7 +147,7 @@ Parameters contain numeric data defined over zero, one, or more indices. If the 
 
 #### Bulk Resources (Utility and IPPGroup)
 
- - **DebtRatio.csv**: Debt ratio. Currently this file is only used by the IPPGroup and the debt ratio is defined over index\_p (e.g., one column called `ipp1`). Other supply-side agents (i.e., Utility, GreenDeveloper, DistributionUtility) have a debt ratio defined, but right now these are hard coded in those agents' constructors.
+ - **DebtRatio.csv**: Debt ratio. Currently this file is only used by the IPPGroup and the debt ratio is defined over index\_p (e.g., one column called `ipp1`). Other supply-side agents (i.e., Utility, GreenDeveloper) have a debt ratio defined, but right now these are hard coded in those agents' constructors.
 
  - **COD.csv**: Cost of debt (%). Currently it is only used for IPP (for others they are constants). Column name is the IPP agent names in index\_p (e.g. `ipp1`).
 
