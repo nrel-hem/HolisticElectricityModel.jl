@@ -266,14 +266,14 @@ mutable struct McCormickBounds
     kappa_C_U::ParamArray
 end
 
-function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
-    index_k_existing = read_set(input_filename, "index_k_existing", "index_k_existing")
-    index_k_new = read_set(input_filename, "index_k_new", "index_k_new")
-    index_stor_existing = read_set(input_filename, "index_stor_existing", "index_stor_existing")
-    index_stor_new = read_set(input_filename, "index_stor_new", "index_stor_new")
-    index_p = read_set(input_filename, "index_p", "index_p")
-    index_rps = read_set(input_filename, "index_rps", "index_rps")
-    index_l = read_set(input_filename, "index_l", "index_l")
+function IPPGroup(input_dir::String, model_data::HEMData, id = DEFAULT_ID)
+    index_k_existing = read_set(input_dir, "index_k_existing", "index_k_existing")
+    index_k_new = read_set(input_dir, "index_k_new", "index_k_new")
+    index_stor_existing = read_set(input_dir, "index_stor_existing", "index_stor_existing")
+    index_stor_new = read_set(input_dir, "index_stor_new", "index_stor_new")
+    index_p = read_set(input_dir, "index_p", "index_p")
+    index_rps = read_set(input_dir, "index_rps", "index_rps")
+    index_l = read_set(input_dir, "index_l", "index_l")
 
     min_max = Dimension(
         "min_max",
@@ -282,17 +282,17 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         description = "minimum and maximum capacity of transmission lines",
     )
 
-    FOMNew = read_param("FOM_new", input_filename, "FOMNewIPP", index_k_new, [index_p, model_data.index_z])
+    FOMNew = read_param("FOM_new", input_dir, "FOMNewIPP", index_k_new, [index_p, model_data.index_z])
     CapExNew =
-        read_param("CapEx_new", input_filename, "CapExNewIPP", index_k_new, [index_p, model_data.index_z])
+        read_param("CapEx_new", input_dir, "CapExNewIPP", index_k_new, [index_p, model_data.index_z])
     LifetimeNew =
-        read_param("Lifetime_new", input_filename, "LifetimeNewIPP", index_k_new, [index_p])
+        read_param("Lifetime_new", input_dir, "LifetimeNewIPP", index_k_new, [index_p])
     LifetimeStorNew =
-        read_param("LifetimeStor_new", input_filename, "LifetimeStorNewIPP", index_stor_new, [index_p])
-    debt_ratio = read_param("DebtRatio", input_filename, "DebtRatio", index_p)
-    cost_of_debt = read_param("COD", input_filename, "COD", index_p)
-    cost_of_equity = read_param("COE", input_filename, "COE", index_p)
-    tax_rate = read_param("Tax", input_filename, "Tax", index_p)
+        read_param("LifetimeStor_new", input_dir, "LifetimeStorNewIPP", index_stor_new, [index_p])
+    debt_ratio = read_param("DebtRatio", input_dir, "DebtRatio", index_p)
+    cost_of_debt = read_param("COD", input_dir, "COD", index_p)
+    cost_of_equity = read_param("COE", input_dir, "COE", index_p)
+    tax_rate = read_param("Tax", input_dir, "Tax", index_p)
     atwacc = Dict(
         p =>
             debt_ratio(p) * cost_of_debt(p) * (1 - tax_rate(p)) +
@@ -309,7 +309,7 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         FixedCostNew(p, z, k, :) .= FOMNew(p, z, k) + CapExNew(p, z, k) * CRF[p, k]
     end
 
-    eximport = read_param("eximport", input_filename, "Export", model_data.index_t, [model_data.index_z, model_data.index_d])
+    eximport = read_param("eximport", input_dir, "Export", model_data.index_t, [model_data.index_z, model_data.index_d])
     peak_eximport =
         ParamScalar("Peak_eximport", findmax(eximport)[1], description = "peak export")
 
@@ -326,8 +326,8 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         pvf_onm(y, p, :) .= 1 / (1 + atwacc[p])^(model_data.year(y) - model_data.year_start)
     end
 
-    NetCONE = read_param("NetCONE", input_filename, "NetCONE", model_data.index_y)     # $/MW-yr
-    DC_length = read_param("DC_length", input_filename, "DC_length", model_data.index_y)
+    NetCONE = read_param("NetCONE", input_dir, "NetCONE", model_data.index_y)     # $/MW-yr
+    DC_length = read_param("DC_length", input_dir, "DC_length", model_data.index_y)
 
     return IPPGroup(
         id,
@@ -341,37 +341,37 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         index_l,
         read_param(
             "x_E",
-            input_filename,
+            input_dir,
             "ExistingCapacityIPP",
             index_k_existing,
             [index_p, model_data.index_z],
         ),
-        read_param("f_E", input_filename, "FixedCostOldIPP", index_k_existing, [index_p, model_data.index_z]),
+        read_param("f_E", input_dir, "FixedCostOldIPP", index_k_existing, [index_p, model_data.index_z]),
         ParamArray("f_C", Tuple(push!(copy([index_p, model_data.index_z]), index_k_new)), FixedCostNew),
         read_param(
             "v_E",
-            input_filename,
+            input_dir,
             "VariableCostOldIPP",
             model_data.index_t,
             [index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "v_C",
-            input_filename,
+            input_dir,
             "VariableCostNewIPP",
             model_data.index_t,
             [index_p, index_k_new, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_E",
-            input_filename,
+            input_dir,
             "AvailabilityOldIPP",
             model_data.index_t,
             [index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_C",
-            input_filename,
+            input_dir,
             "AvailabilityNewIPP",
             model_data.index_t,
             [index_p, index_k_new, model_data.index_z, model_data.index_d],
@@ -387,14 +387,14 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         initialize_param("miu", model_data.index_z, model_data.index_d, model_data.index_t),
         read_param(
             "o_E",
-            input_filename,
+            input_dir,
             "VariableCostOldIPP",
             model_data.index_t,
             [index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "o_C",
-            input_filename,
+            input_dir,
             "VariableCostNewIPP",
             model_data.index_t,
             [index_p, index_k_new, model_data.index_z, model_data.index_d],
@@ -402,127 +402,127 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         initialize_param("LMP", model_data.index_z, model_data.index_d, model_data.index_t),
         read_param(
             "x_E_my",
-            input_filename,
+            input_dir,
             "ExistingCapacityIPP",
             index_k_existing,
             [index_p, model_data.index_z],
         ),
         read_param(
             "x_stor_E_my",
-            input_filename,
+            input_dir,
             "ExistingStorCapacityIPP",
             index_stor_existing,
             [index_p, model_data.index_z],
         ),
         read_param(
             "fom_E_my",
-            input_filename,
+            input_dir,
             "FixedCostOldIPPmy",
             index_k_existing,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "fom_C_my",
-            input_filename,
+            input_dir,
             "FOMNewIPPmy",
             index_k_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "fom_stor_E_my",
-            input_filename,
+            input_dir,
             "FixedCostStorOldIPPmy",
             index_stor_existing,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "fom_stor_C_my",
-            input_filename,
+            input_dir,
             "StorFOMNewIPPmy",
             index_stor_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "CapEx_my",
-            input_filename,
+            input_dir,
             "CapExNewIPPmy",
             index_k_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "CapEx_stor_my",
-            input_filename,
+            input_dir,
             "StorCapExNewIPPmy",
             index_stor_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "ITC_new_my",
-            input_filename,
+            input_dir,
             "ITCNewmy",
             index_k_new,
             [model_data.index_y],
         ),
         read_param(
             "ITCStor_new_my",
-            input_filename,
+            input_dir,
             "ITCStorNewmy",
             index_stor_new,
             [model_data.index_y],
         ),
         read_param(
             "rte_stor_E_my",
-            input_filename,
+            input_dir,
             "StorRTEOldIPPmy",
             index_stor_existing,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "rte_stor_C_my",
-            input_filename,
+            input_dir,
             "StorRTENewIPPmy",
             index_stor_new,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "v_E_my",
-            input_filename,
+            input_dir,
             "VariableCostOldIPPmy",
             model_data.index_t,
             [model_data.index_y, index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "v_C_my",
-            input_filename,
+            input_dir,
             "VariableCostNewIPPmy",
             model_data.index_t,
             [model_data.index_y, index_p, index_k_new, model_data.index_z, model_data.index_d],
         ),
-        read_param("PTC_existing_my", input_filename, "PTCOld", index_k_existing),
+        read_param("PTC_existing_my", input_dir, "PTCOld", index_k_existing),
         read_param(
             "PTC_new_my",
-            input_filename,
+            input_dir,
             "PTCNewmy",
             index_k_new,
             [model_data.index_y],
         ),
         read_param(
             "rho_E_my",
-            input_filename,
+            input_dir,
             "AvailabilityOldIPP",
             model_data.index_t,
             [index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "rho_C_my",
-            input_filename,
+            input_dir,
             "AvailabilityNewIPP",
             model_data.index_t,
             [index_p, index_k_new, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "eximport_my",
-            input_filename,
+            input_dir,
             "Exportmy",
             model_data.index_t,
             [model_data.index_y, model_data.index_z, model_data.index_d],
@@ -544,40 +544,40 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         cost_of_equity,
         read_param(
             "initial_energy_existing_my",
-            input_filename,
+            input_dir,
             "ExistingStorInitialEnergyIPP",
             model_data.index_d,
             [model_data.index_y, index_p, index_stor_existing, model_data.index_z],
         ),
         read_param(
             "initial_energy_new_my",
-            input_filename,
+            input_dir,
             "NewStorInitialEnergyIPP",
             model_data.index_d,
             [model_data.index_y, index_p, index_stor_new, model_data.index_z],
         ),
         read_param(
             "stor_duration_existing",
-            input_filename,
+            input_dir,
             "ExistingStorDuration",
             index_stor_existing,
         ),
         read_param(
             "stor_duration_new",
-            input_filename,
+            input_dir,
             "NewStorDuration",
             index_stor_new,
         ),
         read_param(
             "trans_topology",
-            input_filename,
+            input_dir,
             "TransmissionTopology",
             model_data.index_z,
             [index_l],
         ),
         read_param(
             "trans_capacity",
-            input_filename,
+            input_dir,
             "TransmissionCapacity",
             min_max,
             [index_l],
@@ -606,14 +606,14 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         initialize_param("x_stor_C_my", model_data.index_y, index_p, index_stor_new, model_data.index_z),
         read_param(
             "o_E_my",
-            input_filename,
+            input_dir,
             "VariableCostOldIPPmy",
             model_data.index_t,
             [model_data.index_y, index_p, index_k_existing, model_data.index_z, model_data.index_d],
         ),
         read_param(
             "o_C_my",
-            input_filename,
+            input_dir,
             "VariableCostNewIPPmy",
             model_data.index_t,
             [model_data.index_y, index_p, index_k_new, model_data.index_z, model_data.index_d],
@@ -708,28 +708,28 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         DC_length,
         read_param(
             "capacity_credit_E_my",
-            input_filename,
+            input_dir,
             "CapacityCredit_old",
             index_k_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_C_my",
-            input_filename,
+            input_dir,
             "CapacityCredit_new",
             index_k_new,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_E_my",
-            input_filename,
+            input_dir,
             "CapacityCreditStor_old",
             index_stor_existing,
             [model_data.index_y, model_data.index_z],
         ),
         read_param(
             "capacity_credit_stor_C_my",
-            input_filename,
+            input_dir,
             "CapacityCreditStor_new",
             index_stor_new,
             [model_data.index_y, model_data.index_z],
@@ -744,18 +744,18 @@ function IPPGroup(input_filename::String, model_data::HEMData, id = DEFAULT_ID)
         initialize_param("ucap_temp", model_data.index_y, index_p),
         initialize_param("ucap", model_data.index_y, index_p),
         initialize_param("ucap_total", model_data.index_y),
-        read_param("RPS", input_filename, "RPS", model_data.index_y),
+        read_param("RPS", input_dir, "RPS", model_data.index_y),
         ParamScalar("loss_dist", 0.053, description = "distribution system loss factor"),
         read_param(
             "emission_rate_E_my",
-            input_filename,
+            input_dir,
             "EmissionRateOldIPPmy",
             index_k_existing,
             [model_data.index_y, index_p, model_data.index_z],
         ),
         read_param(
             "emission_rate_C_my",
-            input_filename,
+            input_dir,
             "EmissionRateNewIPPmy",
             index_k_new,
             [model_data.index_y, index_p, model_data.index_z],
@@ -968,7 +968,7 @@ function ipp_cap_lower(
             sum(
                 ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in z_to_h_dict[z]
+                for j in green_developer.index_j, h in z_to_h_dict[z]
             )
         end
 
@@ -1492,7 +1492,7 @@ function ipp_cap_lower_dual(
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                         model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                        for j in model_data.index_j, h in z_to_h_dict[z]
+                        for j in green_developer.index_j, h in z_to_h_dict[z]
                     )
                 ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             ) - 
@@ -2550,7 +2550,7 @@ function ipp_cap_upper(
                 sum(
                     ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, (z, h) in model_data.index_z_h_map
+                    for j in green_developer.index_j, (z, h) in model_data.index_z_h_map
                 ) - 
                 # put exogenous export on the supply-side
                 # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -2563,7 +2563,7 @@ function ipp_cap_upper(
             sum(
                 ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, (z, h) in model_data.index_z_h_map
+                for j in green_developer.index_j, (z, h) in model_data.index_z_h_map
             ) - 
             # put exogenous export on the supply-side
             # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -2653,7 +2653,7 @@ function ipp_cap_upper(
                         sum(
                             ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                             model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                            for j in model_data.index_j, h in z_to_h_dict[z]
+                            for j in green_developer.index_j, h in z_to_h_dict[z]
                         )
                     ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
                 ) - ( # the reason I choose to do it this way (remove p_star from all p) is because there may be issue when p_star is the only IPP
@@ -3118,7 +3118,7 @@ function ipp_cap_upper(
             sum(
                 ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in z_to_h_dict[z]
+                for j in green_developer.index_j, h in z_to_h_dict[z]
             )
         end
 
@@ -3878,7 +3878,7 @@ function ipp_cap_upper(
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                         model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                        for j in model_data.index_j, h in z_to_h_dict[z]
+                        for j in green_developer.index_j, h in z_to_h_dict[z]
                     )
                 ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             ) - 
@@ -4764,7 +4764,7 @@ function ipp_cap_upper(
             sum(
                 ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                 model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                for j in model_data.index_j, h in z_to_h_dict[z]
+                for j in green_developer.index_j, h in z_to_h_dict[z]
             ) -
             # flow out of zone z
             sum(ipp.trans_topology(l, z) * flow_cap[y, l] for l in ipp.index_l) -
@@ -4942,7 +4942,7 @@ function ipp_calc_duality_gap(
                     sum(
                         ipp.rho_C_my(Symbol("ipp1"), j, z, d, t) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                         model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                        for j in model_data.index_j, h in z_to_h_dict[z]
+                        for j in green_developer.index_j, h in z_to_h_dict[z]
                     )
                 ) for z in model_data.index_z, d in model_data.index_d, t in model_data.index_t
             ) - 
@@ -5330,7 +5330,7 @@ function ipp_cap_save_results(
                 sum(
                     ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, (z, h) in model_data.index_z_h_map
+                    for j in green_developer.index_j, (z, h) in model_data.index_z_h_map
                 ) - 
                 # put exogenous export on the supply-side
                 # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -5344,7 +5344,7 @@ function ipp_cap_save_results(
                 sum(
                     ipp.capacity_credit_C_my(y, z, j) * sum(green_developer.green_tech_buildout_my(Symbol(Int(y_symbol)), j, z, h) for y_symbol in
                     model_data.year(first(model_data.index_y_fix)):model_data.year(y))
-                    for j in model_data.index_j, (z, h) in model_data.index_z_h_map
+                    for j in green_developer.index_j, (z, h) in model_data.index_z_h_map
                 ) - 
                 # put exogenous export on the supply-side
                 # don't have endogenous export/import because the capacity market clearing here assumes the entire region
@@ -5411,7 +5411,7 @@ function solve_agent_problem_ipp_cap(
 
     x_R_before = ParamArray(ipp.x_R_my)
     x_C_before = ParamArray(ipp.x_C_my)
-    delta_t = get_delta_t(model_data)
+    delta_t = model_data.delta_t.value
 
     iteration_year = model_data.index_y_fix.elements[w_iter]
 
@@ -5705,310 +5705,6 @@ function save_results(
         :MetricTon_CO2, # TODO: Check units
         joinpath(export_file_path, "total_emissions_my.csv"),
     )
-end
-
-function welfare_calculation!(
-    ipp::IPPGroup,
-    ipp_opts::AgentOptions,
-    model_data::HEMData,
-    hem_opts::HEMOptions{WM},
-    agent_store::AgentStore,
-)
-    regulator = get_agent(Regulator, agent_store)
-    utility = get_agent(Utility, agent_store)
-
-    IPP_Revenue_p = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        IPP_Revenue_p(y, p, :) .=
-        # Linearized revenue term 
-            sum(
-                ipp.miu_my(y, t) * (
-                    sum(ipp.y_E_my(y, p, k, t) for k in ipp.index_k_existing) +
-                    sum(ipp.y_C_my(y, p, k, t) for k in ipp.index_k_new)
-                ) for t in model_data.index_t
-            ) +
-            ipp.ucap(y, p) * (
-                ipp.Capacity_intercept_my(y) +
-                ipp.Capacity_slope_my(y) * sum(ipp.ucap(y, p) for p in ipp.index_p)
-            ) +
-            # REC revenue
-            sum(
-                regulator.REC *
-                model_data.omega(t) *
-                (
-                    sum(ipp.y_E_my(y, p, rps, t) for rps in ipp.index_rps) +
-                    sum(ipp.y_C_my(y, p, rps, t) for rps in ipp.index_rps)
-                ) for t in model_data.index_t
-            )
-    end
-
-    IPP_Revenue_total = KeyedArray(
-        [
-            sum(IPP_Revenue_p(y, p) for p in ipp.index_p) + regulator.othercost(y) for
-            y in model_data.index_y_fix
-        ];
-        [get_pair(model_data.index_y_fix)]...
-    )
-
-    energy_cost = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        energy_cost(y, p, :) .=
-            sum(
-                model_data.omega(t) * ((ipp.v_E_my(y, p, k, t) - ipp.PTC_existing(k)) * ipp.y_E_my(y, p, k, t)) for
-                t in model_data.index_t, k in ipp.index_k_existing
-            ) + sum(
-                model_data.omega(t) * ((ipp.v_C_my(y, p, k, t) - ipp.PTC_new_my(y, k)) * ipp.y_C_my(y, p, k, t)) for
-                t in model_data.index_t, k in ipp.index_k_new
-            )
-    end
-    fixed_om = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        fixed_om(y, p, :) .=
-            sum(
-                ipp.fom_E_my(y, p, k) * (
-                    ipp.x_E_my(p, k) - sum(
-                        ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                    )
-                ) for k in ipp.index_k_existing
-            ) + sum(
-                ipp.fom_C_my(Symbol(Int(y_symbol)), p, k) *
-                ipp.x_C_my(Symbol(Int(y_symbol)), p, k) for k in ipp.index_k_new,
-                y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-            )
-    end
-    operational_cost = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        operational_cost(y, p, :) .= energy_cost(y, p) + fixed_om(y, p)
-    end
-    working_capital = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        working_capital(y, p, :) .= utility.DaysofWC / 365 * operational_cost(y, p)
-    end
-
-    # assume the ipps' new depreciation schedule is the same as utility's
-    ADITNew = make_keyed_array(model_data.index_y_fix, ipp.index_p, ipp.index_k_new)
-    for y in model_data.index_y_fix, p in ipp.index_p, k in ipp.index_k_new
-        ADITNew(y, p, k) = sum(
-            ipp.CapEx_my(Symbol(Int(y_symbol)), p, k) *
-            ipp.x_C_my(Symbol(Int(y_symbol)), p, k) *
-            (
-                utility.CumuTaxDepre_new_my(
-                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
-                    k,
-                 ) - utility.CumuAccoutDepre_new_my(
-                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
-                    k,
-                 )
-            ) *
-            ipp.Tax(p) +
-            utility.ITC_new_my(Symbol(Int(y_symbol)), k) *
-            ipp.CapEx_my(Symbol(Int(y_symbol)), p, k) *
-            ipp.x_C_my(Symbol(Int(y_symbol)), p, k) *
-            (
-                1 - utility.CumuITCAmort_new_my(
-                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
-                    k,
-                )
-            ) for y_symbol in
-            model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-        )
-    end
-    RateBaseNoWC_new = make_keyed_array(model_data.index_y_fix, ipp.index_p, ipp.index_k_new)
-    for y in model_data.index_y_fix, p in ipp.index_p, k in ipp.index_k_new
-        RateBaseNoWC_new(y, p, k) =
-            sum(
-                ipp.CapEx_my(Symbol(Int(y_symbol)), p, k) *
-                ipp.x_C_my(Symbol(Int(y_symbol)), p, k) *
-                (
-                    1 - utility.CumuAccoutDepre_new_my(
-                        Symbol(Int(model_data.year(y) - y_symbol + 1)),
-                        k,
-                    )
-                ) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-            ) - ADITNew(y, p, k)
-    end
-
-    rate_base = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        rate_base(y, p, :) .=
-            sum(
-                utility.RateBaseNoWC_existing_my(y, k) * (
-                    ipp.x_E_my(p, k) - sum(
-                        ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                    )
-                ) for k in ipp.index_k_existing
-            ) +
-            sum(RateBaseNoWC_new(y, p, k) for k in ipp.index_k_new) +
-            working_capital(y, p)
-    end
-    debt_interest = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        debt_interest(y, p, :) .= rate_base(y, p) * ipp.DebtRatio(p) * ipp.COD(p)
-    end
-
-    depreciation = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        depreciation(y, p, :) .=
-            sum(
-                utility.CapEx_existing_my(k) *
-                (
-                    ipp.x_E_my(p, k) - sum(
-                        ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                    )
-                ) *
-                utility.AnnualAccoutDepre_existing_my(y, k) +
-                utility.CapEx_existing_my(k) *
-                ipp.x_R_my(y, p, k) *
-                (
-                    utility.AnnualAccoutDepre_existing_my(y, k) + 1 -
-                    utility.CumuAccoutDepre_existing_my(y, k)
-                ) for k in ipp.index_k_existing
-            ) + sum(
-                ipp.CapEx_my(Symbol(Int(y_symbol)), p, k) *
-                ipp.x_C_my(Symbol(Int(y_symbol)), p, k) *
-                utility.AnnualAccoutDepre_new_my(
-                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
-                    k,
-                 ) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y),
-                k in ipp.index_k_new
-            )
-    end
-
-    depreciation_tax = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        depreciation_tax(y, p, :) .=
-            sum(
-                utility.CapEx_existing_my(k) *
-                (
-                    ipp.x_E_my(p, k) - sum(
-                        ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                    )
-                ) *
-                utility.AnnualTaxDepre_existing_my(y, k) +
-                utility.CapEx_existing_my(k) *
-                ipp.x_R_my(y, p, k) *
-                (
-                    utility.AnnualTaxDepre_existing_my(y, k) + 1 -
-                    utility.CumuTaxDepre_existing_my(y, k)
-                ) for k in ipp.index_k_existing
-            ) + sum(
-                ipp.CapEx_my(Symbol(Int(y_symbol)), p, k) *
-                ipp.x_C_my(Symbol(Int(y_symbol)), p, k) *
-                utility.AnnualTaxDepre_new_my(
-                    Symbol(Int(model_data.year(y) - y_symbol + 1)),
-                    k,
-                 ) for y_symbol in
-                model_data.year(first(model_data.index_y_fix)):model_data.year(y),
-                k in ipp.index_k_new
-            )
-    end
-
-    income_tax = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        income_tax(y, p, :) .=
-            (
-                IPP_Revenue_p(y, p) - debt_interest(y, p) - operational_cost(y, p) -
-                depreciation_tax(y, p)
-            ) * ipp.Tax(p) - 
-            sum(
-                utility.ITC_existing_my(k) *
-                utility.CapEx_existing_my(k) *
-                (
-                    ipp.x_E_my(p, k) - sum(
-                        ipp.x_R_my(Symbol(Int(y_symbol)), p, k) for y_symbol in
-                        model_data.year(first(model_data.index_y_fix)):model_data.year(y)
-                    )
-                ) *
-                utility.AnnualITCAmort_existing_my(y, k) +
-                # existing units that are retired this year will incur their regular annual depreciation, as well as the remaining un-depreciated asset
-                utility.ITC_existing_my(k) *
-                utility.CapEx_existing_my(k) *
-                ipp.x_R_my(y, p, k) *
-                (
-                    utility.AnnualITCAmort_existing_my(y, k) + 1 -
-                    utility.CumuITCAmort_existing_my(y, k)
-                ) for k in ipp.index_k_existing
-            ) -
-            sum(
-                utility.ITC_new_my(Symbol(Int(y_symbol)), k) *
-                ipp.CapEx_my(Symbol(Int(y_symbol)), p, k) *
-                ipp.x_C_my(Symbol(Int(y_symbol)), p, k) *
-                utility.AnnualITCAmort_new_my(Symbol(Int(model_data.year(y) - y_symbol + 1)), k) for
-                y_symbol in model_data.year(first(model_data.index_y_fix)):model_data.year(y), k in ipp.index_k_new
-            )
-    end
-
-    IPP_Cost_p = make_keyed_array(model_data.index_y_fix, ipp.index_p)
-    for y in model_data.index_y_fix, p in ipp.index_p
-        IPP_Cost_p(y, p, :) .=
-            debt_interest(y, p) +
-            income_tax(y, p) +
-            operational_cost(y, p) +
-            depreciation(y, p)
-    end
-
-    IPP_Cost_total = KeyedArray(
-        [
-            sum(IPP_Cost_p(y, p) for p in ipp.index_p) + regulator.othercost(y) for
-            y in model_data.index_y_fix
-        ];
-        [get_pair(model_data.index_y_fix)]...
-    )
-
-    IPP_debt_interest_my = KeyedArray(
-        [sum(debt_interest(y, p) for p in ipp.index_p) for y in model_data.index_y_fix];
-        [get_pair(model_data.index_y_fix)]...
-    )
-    IPP_income_tax_my = KeyedArray(
-        [sum(income_tax(y, p) for p in ipp.index_p) for y in model_data.index_y_fix];
-        [get_pair(model_data.index_y_fix)]...
-    )
-    IPP_operational_cost_my = KeyedArray(
-        [sum(operational_cost(y, p) for p in ipp.index_p) for y in model_data.index_y_fix];
-        [get_pair(model_data.index_y_fix)]...
-    )
-    IPP_depreciation_my = KeyedArray(
-        [sum(depreciation(y, p) for p in ipp.index_p) for y in model_data.index_y_fix];
-        [get_pair(model_data.index_y_fix)]...
-    )
-    IPP_depreciation_tax_my = KeyedArray(
-        [sum(depreciation_tax(y, p) for p in ipp.index_p) for y in model_data.index_y_fix];
-        [get_pair(model_data.index_y_fix)]...
-    )
-    IPP_total_emission_my = KeyedArray(
-        [
-            sum(
-                model_data.omega(t) * (
-                    sum(
-                        ipp.y_E_my(y, p, k, t) * ipp.emission_rate_E_my(y, p, k) for
-                        k in utility.index_k_existing, p in ipp.index_p
-                    ) + sum(
-                        ipp.y_C_my(y, p, k, t) * ipp.emission_rate_C_my(y, p, k) for
-                        k in utility.index_k_new, p in ipp.index_p
-                    )
-                ) for t in model_data.index_t
-            ) * 0.000453592 for y in model_data.index_y_fix
-        ];
-        [get_pair(model_data.index_y_fix)]...
-    )
-
-    return IPP_Revenue_total,
-    IPP_Cost_total,
-    IPP_debt_interest_my,
-    IPP_income_tax_my,
-    IPP_operational_cost_my,
-    IPP_depreciation_my,
-    IPP_depreciation_tax_my,
-    IPP_total_emission_my,
-    IPP_Revenue_p,
-    IPP_Cost_p
 end
 
 """
