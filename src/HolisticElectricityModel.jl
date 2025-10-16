@@ -86,6 +86,7 @@ export initialize_param
 export make_keyed_array
 export read_set
 export read_param
+export read_saved_result
 
 # Solvers
 export import_solver_package
