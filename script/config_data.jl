@@ -65,10 +65,9 @@ validators = Dict(
             value -> check_integer(value; min=1, max=24),
             4
         ),
-        FieldValidatorHasDefault(
+        FieldValidatorBasic(
             "stage_1_results_path",
-            value -> check_path(value),
-            nothing
+            value -> check_path(value)
         ),
     ],
     "RunOptions" => [

@@ -1,14 +1,16 @@
 struct LocalDistributionCustomerOptions <: AbstractCustomerOptions
     solvers::HEMSolver
+    stage_1_results_dir::String
     adoption_rate_file_index::Int
     # Add other options as needed
 end
 
 function LocalDistributionCustomerOptions(
     attributes::MOI.OptimizerWithAttributes,
+    stage_1_results_dir::String,
     adoption_rate_file_index::Int = 1,
 )
-    return LocalDistributionCustomerOptions(AnySolver(attributes), adoption_rate_file_index)
+    return LocalDistributionCustomerOptions(AnySolver(attributes), stage_1_results_dir, adoption_rate_file_index)
 end
 
 mutable struct LocalDistributionCustomer <: AbstractCustomerGroup
@@ -27,7 +29,7 @@ mutable struct LocalDistributionCustomer <: AbstractCustomerGroup
     # other fields as needed
 end
 
-function LocalDistributionCustomer(input_dir::AbstractString, stage_1_results_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function LocalDistributionCustomer(input_dir::AbstractString, model_data::HEMData, customer_options::LocalDistributionCustomerOptions; id = DEFAULT_ID)
     # change this to read from input files
     index_m = Dimension("m_local", [:BTMPV, :EV, :HeatPump])
     gamma = ParamArray("gamma_local", (model_data.index_z, model_data.index_h), zeros((length(model_data.index_z), length(model_data.index_h))) )

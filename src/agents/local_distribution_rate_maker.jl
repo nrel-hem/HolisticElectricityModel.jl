@@ -1,4 +1,5 @@
 struct LocalDistributionRateMakerOptions{T <: RateDesign, U <: NetMeteringPolicy} <: AbstractRegulatorOptions
+    stage_1_results_dir::String
     rate_design::T
     net_metering_policy::U
     tou_suffix::AbstractString
@@ -10,13 +11,14 @@ struct LocalDistributionRateMakerOptions{T <: RateDesign, U <: NetMeteringPolicy
 end
 
 function LocalDistributionRateMakerOptions(
+    stage_1_results_dir::String,
     rate_design::RateDesign, 
     net_metering_policy::NetMeteringPolicy;
     tou_suffix::AbstractString = "NE2025",
     planning_reserve_margin::AbstractFloat = 0.12, 
     allowed_return_on_investment::AbstractFloat = 0.112
 )
-    return LocalDistributionRateMakerOptions(rate_design, net_metering_policy, tou_suffix, planning_reserve_margin, allowed_return_on_investment)
+    return LocalDistributionRateMakerOptions(stage_1_results_dir, rate_design, net_metering_policy, tou_suffix, planning_reserve_margin, allowed_return_on_investment)
 end
 
 
@@ -42,7 +44,7 @@ mutable struct LocalDistributionRateMaker <: AbstractRegulator
     # other fields as needed
 end
 
-function LocalDistributionRateMaker(input_dir::AbstractString, stage_1_results_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function LocalDistributionRateMaker(input_dir::AbstractString, model_data::HEMData, rate_maker_options::LocalDistributionRateMakerOptions; id = DEFAULT_ID)
     # change this to read from input files
     index_rate_tou = Dimension("index_rate_tou", [:peak, :non_peak]; prose_name="index_rate_tou", description="index for time-of-use rates")
 

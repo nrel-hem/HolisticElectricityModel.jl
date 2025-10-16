@@ -21,11 +21,7 @@ include(joinpath(base_dir, "script", "config.jl"))
 include(joinpath(base_dir, "script", "config_data.jl"))
 include(joinpath(base_dir, "script", "parse_options.jl"))
 
-input_dir, year_start, delta_t, stage_1_results_dir = parse(config, "DataSelection", validators)
-
-if !(isnothing(stage_1_results_dir))
-    @info "Using stage 1 results from path: $stage_1_results_dir"
-end
+input_dir, year_start, delta_t = parse(config, "DataSelection", validators, "input_path", "year_start", "delta_t")
 
 
 # configure solver
@@ -60,7 +56,6 @@ jump_model = []
 # Run HEM
 resolved_output_dir = run_hem(
     input_dir,
-    stage_1_results_dir,
     hem_opts;
     agent_options,
     force=true,

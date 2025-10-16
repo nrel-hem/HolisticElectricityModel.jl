@@ -2,12 +2,13 @@ abstract type AbstractDistributionUtilityOptions <: AgentOptions end
 
 struct DistributionUtilityOptions <: AbstractDistributionUtilityOptions
     solvers::HEMSolver
+    stage_1_results_dir::String
     
     # Add other options as needed
 end
 
-function DistributionUtilityOptions(attributes::MOI.OptimizerWithAttributes)
-    return DistributionUtilityOptions(AnySolver(attributes))
+function DistributionUtilityOptions(attributes::MOI.OptimizerWithAttributes, stage_1_results_dir::String)
+    return DistributionUtilityOptions(AnySolver(attributes), stage_1_results_dir)
 end
 
 abstract type AbstractDistributionUtility <: AbstractAgent end
@@ -19,7 +20,7 @@ mutable struct DistributionUtility <: AbstractDistributionUtility
     # other fields as needed
 end
 
-function DistributionUtility(input_dir::AbstractString, stage_1_results_dir::AbstractString, model_data::HEMData; id = DEFAULT_ID)
+function DistributionUtility(input_dir::AbstractString, model_data::HEMData, distribution_utility_options::DistributionUtilityOptions; id = DEFAULT_ID)
     return DistributionUtility(id, first(model_data.index_y))
 end
 
