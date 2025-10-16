@@ -21,7 +21,14 @@ include(joinpath(base_dir, "script", "config.jl"))
 include(joinpath(base_dir, "script", "config_data.jl"))
 include(joinpath(base_dir, "script", "parse_options.jl"))
 
-input_dir, year_start, delta_t = parse(config, "DataSelection", validators, "input_path", "year_start", "delta_t")
+input_dir, year_start, delta_t = parse(
+    config,
+    "DataSelection",
+    validators,
+    "input_path",
+    "year_start",
+    "delta_t"
+)
 
 
 # configure solver
