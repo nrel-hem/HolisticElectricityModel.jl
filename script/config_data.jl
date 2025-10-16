@@ -6,7 +6,8 @@ null_use_case_identifier = "NullUseCase"
 
 market_structure_map = Dict(
     "WM" => WM(),
-    "VIU" => VIU()
+    "VIU" => VIU(),
+    "LocalDistributionAndDER" => LocalDistributionAndDER(),
 )
 
 der_use_case_map = Dict(
@@ -63,6 +64,10 @@ validators = Dict(
             "delta_t",
             value -> check_integer(value; min=1, max=24),
             4
+        ),
+        FieldValidatorBasic(
+            "stage_1_results_path",
+            value -> check_path(value)
         ),
     ],
     "RunOptions" => [
@@ -147,5 +152,30 @@ validators = Dict(
             value -> check_float(value; min=0.0, max=1.0),
             0.5
         ),
+    ],
+    "LocalDistributionRateMaker" => [
+        FieldValidatorBasic(
+            "rate_design",
+            value -> check_and_return_from_map(value, rate_design_map)
+        ),
+        FieldValidatorBasic(
+            "net_metering_policy",
+            value -> check_and_return_from_map(value, net_metering_policy_map)
+        ),
+        FieldValidatorHasDefault(
+            "tou_suffix",
+            value -> check_in_collection(value, ("NE2025", "NE2035")),
+            "NE2025"
+        ),
+        FieldValidatorHasDefault(
+            "planning_reserve_margin",
+            value -> check_float(value; min=0.0, max=0.5),
+            0.129
+        ),
+        FieldValidatorHasDefault(
+            "allowed_return_on_investment",
+            value -> check_float(value; min=0.0, max=0.5),
+            0.112
+        )
     ],
 )

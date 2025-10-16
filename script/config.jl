@@ -93,18 +93,58 @@ function parse(config::Dict{Any,Any}, section::String, validators::Dict{String,V
         error("Invalid config section: $section.")
     end
 
-    fields = config[section]
+    fields::Dict{String,Any} = config[section]
     field_validators = validators[section]
+    order = Vector{String}()
+
+    for validator in field_validators
+        push!(order, validator.name)
+        fields[validator.name] = get(fields, validator.name, nothing)
+    end
+
+    return _parse_and_validate_fields(section, fields, field_validators, order)
+end
+
+function parse(config::Dict{Any,Any}, section::String, validators::Dict{String,Vector}, options...)
+    
+    if !(section in keys(config))
+        error("Invalid config section: $section.")
+    end
+
+    fields = Dict{String,Any}()
+    field_validators = validators[section]
+    order = Vector{String}()
+
+    if length(options) == 0
+        fields = config[section]
+    else
+        for field in options
+            push!(order, field)
+            field in keys(config[section]) ? (fields[field] = config[section][field]) : fields[field] = nothing
+        end
+    end
+
+    return _parse_and_validate_fields(section, fields, field_validators, order)
+
+end
+
+function _parse_and_validate_fields(section::String, fields::Dict{String,Any}, field_validators::Vector{<:FieldValidator}, order::Vector{String})
 
     result = []
-    for validator in field_validators
-        if !(validator.name in keys(fields))
-            if validator isa FieldValidatorBasic
-                error("Did not find field $validator.name in $section")
-            end
-            push!(result, validator.default)
+    for field in order
+        value = get(fields, field, nothing)
+        validator = filter(v -> v.name == field, field_validators)
+        if length(validator) == 0
+            error("No validator found for field $field in section $section")
         else
-            push!(result, validate(section, validator, fields[validator.name]))
+            if isnothing(value)
+                if validator[1] isa FieldValidatorBasic
+                    error("Did not find field $field in $section")
+                end
+                push!(result, validator[1].default)
+            else
+                push!(result, validate(section, validator[1], value))
+            end
         end
     end
     return result

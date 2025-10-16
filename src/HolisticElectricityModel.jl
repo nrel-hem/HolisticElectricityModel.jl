@@ -17,6 +17,10 @@ export HEMData
 export Options
 export HEMOptions
 export AbstractAgent
+export AbstractCustomerGroup
+export AbstractCustomerOptions
+export AbstractRegulator
+export AbstractRegulatorOptions
 export AgentGroup
 export Agent
 export AgentOptions, NullAgentOptions
@@ -35,6 +39,9 @@ export CustomerGroup
 export IPPGroup
 export GreenDeveloper
 export DERAggregator
+export LocalDistributionRateMaker
+export LocalDistributionCustomer
+export DistributionUtility
 
 # Agent Options
 export AgentOptionsStore
@@ -44,11 +51,14 @@ export GreenDeveloperOptions
 export IPPOptions
 export UtilityOptions
 export DERAggregatorOptions
+export LocalDistributionRateMakerOptions
+export LocalDistributionCustomerOptions
+export DistributionUtilityOptions
 
 # Policies
 export FlatRate, TOU                                    # tariff structures
 export ExcessRetailRate, ExcessMarginalCost, ExcessZero # exported DG treatment
-export VIU, WM     # regulatory structures
+export VIU, WM, LocalDistributionAndDER                 # regulatory structures
 
 # Modeling Options
 export NullUseCase
@@ -76,6 +86,7 @@ export initialize_param
 export make_keyed_array
 export read_set
 export read_param
+export read_saved_result
 
 # Solvers
 export import_solver_package
@@ -133,6 +144,9 @@ include("agents/customer_group.jl")
 include("agents/ipp_group.jl")
 include("agents/green_developer.jl")
 include("agents/der_aggregator.jl")
+include("agents/local_distribution_rate_maker.jl")
+include("agents/local_distribution_customer.jl")
+include("agents/distribution_utility.jl")
 include("run_hem.jl")
 
 end # module

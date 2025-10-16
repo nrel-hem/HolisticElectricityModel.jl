@@ -51,6 +51,14 @@ mutable struct Regulator <: AbstractRegulator
 
     index_rate_tou::Dimension
     tou_rate_structure::DataFrame
+    "index for different types of cost"
+    index_cost_type::Dimension
+    "index for different types of cost on the grid side"
+    index_othercost::Dimension
+    "index for different types of other costs"
+    index_demand_type::Dimension
+    "index for green technology option in demand"
+    index_green_tech_option::Dimension
     # Parameters
     "planning reserve (fraction)"
     r::ParamArray
@@ -97,6 +105,16 @@ mutable struct Regulator <: AbstractRegulator
     depreciation_my::ParamArray
     "tax depreciation by year"
     depreciation_tax_my::ParamArray
+    
+    # revenue requirements and net demand used for stage 2
+    "costs for each cost type allocated by year, zone and customer type"
+    cost_allocation_my::ParamArray
+    "energy cost allocation for time-of-use rates by year, zone, customer type and tou rate"
+    energy_cost_allocation_tou_my::ParamArray
+    "net demand (peak and actual) without green technology by year, zone and customer type"
+    net_demand_peak_my::ParamArray
+    "net demand by year, zone, customer type and time-of-use rate"
+    net_demand_tou_my::ParamArray
 
     p_regression::ParamArray
     p_my_regression::ParamArray
@@ -114,6 +132,34 @@ function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOption
     )
 
     tou_rate_structure = CSV.read(joinpath(input_dir, "tou_rate_structure_$(opts.tou_suffix).csv"), DataFrame)
+
+    index_cost_type = Dimension(
+        "index_cost_type",
+        [:Energy, :Capacity, :Distribution, :Administration, :Transmission, :Interconnection, :System, :DERA];
+        prose_name = "index for different types of cost",
+        description = "index for different types of cost",
+    )
+
+    index_othercost = Dimension(
+        "index_othercost",
+        [:Distribution, :Administration, :Transmission, :Interconnection, :System, :DERA, :Total];
+        prose_name = "index for other types of cost on the grid side",
+        description = "index for other types of cost on the grid side",
+    )
+
+    index_demand_type = Dimension(
+        "index_demand_type",
+        [:Peak, :Actual];
+        prose_name = "index for different types of demand",
+        description = "index for different types of demand",
+    )
+
+    index_green_tech_option = Dimension(
+        "index_green_tech_option",
+        [:WithGreenTech, :WithoutGreenTech];
+        prose_name = "index for green technology status in demand",
+        description = "index for green technology status in demand",
+    )
 
     distribution_cost = read_param(
         "distribution_cost",
@@ -165,6 +211,10 @@ function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOption
         first(model_data.index_y),
         index_rate_tou,
         tou_rate_structure,
+        index_cost_type,
+        index_othercost,
+        index_demand_type,
+        index_green_tech_option,
         initialize_param(
             "r",
             model_data.index_z,
@@ -187,7 +237,8 @@ function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOption
         initialize_param(
             "othercost",
             model_data.index_z,
-            model_data.index_y;
+            model_data.index_y,
+            index_othercost;
             description = "other cost not related to the optimization problem",
         ),
         initialize_param(
@@ -305,6 +356,40 @@ function Regulator(input_dir::String, model_data::HEMData, opts::RegulatorOption
             description = "tax depreciation by year",
         ),
         initialize_param(
+            "cost_allocation_my",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            index_cost_type;
+            description = "costs for each cost type allocated by year, zone and customer type",
+        ),
+        initialize_param(
+            "energy_cost_allocation_tou_my",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            index_rate_tou;
+            description = "energy cost allocation for time-of-use rates by year, zone, customer type and tou rate",
+        ),
+        initialize_param(
+            "net_demand_peak_my",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            index_demand_type,
+            index_green_tech_option;
+            description = "net demand by year, zone and customer type",
+        ),
+        initialize_param(
+            "net_demand_tou_my",
+            model_data.index_y,
+            model_data.index_z,
+            model_data.index_h,
+            index_rate_tou,
+            index_green_tech_option;
+            description = "net demand by year, zone, customer type and time-of-use rate",
+        ),
+        initialize_param(
             "p_regression",
             model_data.index_h;
             value = 10.0,
@@ -345,8 +430,21 @@ end
 # Vector{Customer} is not subtype of Vector{Agent}
 # But if a vector of customers c1, c2, c3 is defined 
 # using the syntax Agent[c1, c2, c3], calling 
-# this function will work. Can also:
-# Vector{Agent}([c1, c2, c3])
+# this function will work. Can also
+
+function calculate_demand_cost_allocation(cost, net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+    return cost * net_peak_load_wo_green_tech_h(z, h) / (
+        sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
+        )
+end
+
+function get_grid_side_cost_types(::VIU)
+    return [:Distribution, :Administration, :Transmission, :Interconnection, :System, :DERA]
+end
+
+function get_grid_side_cost_types(::WM)
+    return [:Distribution, :Administration, :Transmission, :Interconnection, :System]
+end
 
 function solve_agent_problem!(
     regulator::Regulator,
@@ -390,7 +488,13 @@ function solve_agent_problem!(
     reg_year_dera, reg_year_index_dera = get_prev_reg_year(model_data, w_iter)
 
     for z in model_data.index_z
-        regulator.othercost(z, reg_year_index, :) .= regulator.distribution_cost(z, reg_year_index) + regulator.administration_cost(z, reg_year_index) + regulator.transmission_cost(z, reg_year_index) + regulator.interconnection_cost(z, reg_year_index) + regulator.system_cost(z, reg_year_index) + der_aggregator.revenue(reg_year_index_dera, z)
+        regulator.othercost(z, reg_year_index, :Distribution, :) .= regulator.distribution_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :Administration, :) .= regulator.administration_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :Transmission, :) .= regulator.transmission_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :Interconnection, :) .= regulator.interconnection_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :System, :) .= regulator.system_cost(z, reg_year_index)
+        regulator.othercost(z, reg_year_index, :DERA, :) .= der_aggregator.revenue(reg_year_index_dera, z)
+        regulator.othercost(z, reg_year_index, :Total, :) .= sum(regulator.othercost(z, reg_year_index, ct, :) for ct in get_grid_side_cost_types(hem_opts.market_structure))
     end
 
     total_der_stor_capacity = make_keyed_array(model_data.index_z, model_data.index_h)
@@ -1500,7 +1604,7 @@ function solve_agent_problem!(
             (revenue_requirement(z) - energy_cost(z) + net_eximport_cost(z)) * net_peak_load_h(z, h) / (
                 sum(net_peak_load_h(z, h) for h in z_to_h_dict[z])
             ) + 
-            regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
+            sum(regulator.othercost(z, reg_year_index, :)) * net_peak_load_wo_green_tech_h(z, h) / (
                 sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
             )
     end
@@ -1515,12 +1619,12 @@ function solve_agent_problem!(
     end
     replace!(demand_cost_allocation_capacity_h, NaN => 0.0)
 
-    demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h)
+    demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_othercost)
     for (z,h) in model_data.index_z_h_map
-        demand_cost_allocation_othercost_h(z, h, :) .=
-            regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
-                sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
-            )
+        for cost_type in get_grid_side_cost_types(hem_opts.market_structure)
+            demand_cost_allocation_othercost_h(z, h, cost_type, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, cost_type), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        end
+        demand_cost_allocation_othercost_h(z, h, :Total, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Total), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
     end
     replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
 
@@ -1539,102 +1643,47 @@ function solve_agent_problem!(
         p_before(z, h, d, t, :) .= regulator.p_my(reg_year_index, z, h, d, t)
     end
 
-    # TODO: Call a function instead of using if-then
-    if regulator_opts.rate_design isa FlatRate
-        fill!(regulator.p, NaN)
-        sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
-    
-        # Calculate sector-level rates for each combination of z, sector, d, t
-        h_to_sector = Dict(model_data.index_h_sector_map)
-        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            # Collect all customer types in this sector
-            customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
-    
-            # Aggregate numerator and denominator over customer types
-            numerator_energy_demand = sum(
-                energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)
-                for h in customer_types
-            )
-            denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
-            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
-            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+    set_rate_making_components!(
+        regulator,
+        reg_year_index,
+        hem_opts,
+        energy_cost_allocation_h,
+        energy_cost_allocation_h_t,
+        demand_cost_allocation_capacity_h,
+        demand_cost_allocation_othercost_h,
+        net_peak_load_wo_green_tech_h,
+        net_peak_load_h,
+        net_demand_wo_green_tech_h_wo_loss,
+        nothing,
+        net_demand_h_wo_loss,
+        net_demand_h_t_wo_loss
+    )
 
-            sector_rates[(z, sector, d, t)] = (numerator_energy_demand / denominator_net_demand) + 
-                                              (numerator_other_cost / denominator_net_demand_wo_green)
-        end       
-        
-        # Assign rates to customers
-        h_to_sector = Dict(model_data.index_h_sector_map)
-        for (z, h) in model_data.index_z_h_map
-            for d in model_data.index_d, t in model_data.index_t
-                regulator.p(z, h, d, t, :) .= sector_rates[(
-                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
-                )]
-            end
-        end      
+    calculate_and_assign_rates!(
+        regulator,
+        regulator_opts,
+        hem_opts,
+        model_data,
+        z_to_h_dict,
+        energy_cost_allocation_h,
+        energy_cost_allocation_h_t,
+        demand_cost_allocation_capacity_h,
+        demand_cost_allocation_othercost_h,
+        net_demand_wo_green_tech_h_wo_loss,
+        nothing,
+        net_demand_h_wo_loss,
+        net_demand_h_t_wo_loss
+    )
 
-        # throw error if any NaN values are found
-        any(isnan.(regulator.p(z, h, d, t, :)) for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t) && 
-            error("NaN values found in regulator retail price")
-    
-    elseif regulator_opts.rate_design isa TOU
-        fill!(regulator.p, NaN)
-        sector_tou_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
-    
-        h_to_sector = Dict(model_data.index_h_sector_map)
-        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            
-            customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
-                            
-            tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
-    
-            # Aggregate over customer types
-            numerator_energy = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
-            denominator_net_demand_t = sum(net_demand_h_t_wo_loss(z, h, tou) for h in customer_types)
-            numerator_demand_capacity = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
-            denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
-            numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
-            denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
-    
 
-            sector_tou_rates[(z, sector, d, t)] = (numerator_energy / denominator_net_demand_t) +
-                                                  (numerator_demand_capacity / denominator_net_demand) +
-                                                  (numerator_other_cost / denominator_net_demand_wo_green)
-
-        end
-        
-        # Assign rates to customers
-        h_to_sector = Dict(model_data.index_h_sector_map)
-        for (z, h) in model_data.index_z_h_map
-            for d in model_data.index_d, t in model_data.index_t  
-                regulator.p(z, h, d, t, :) .= sector_tou_rates[(
-                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
-                )]
-            end
-        end      
-
-        # throw error if any NaN values are found
-        any(isnan.(regulator.p(z, h, d, t, :)) for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t) && 
-            error("NaN values found in regulator retail price")      
-    end
-
-    # TODO: Call a function instead of using if-then
-    if regulator_opts.net_metering_policy isa ExcessRetailRate
-        regulator.p_ex = ParamArray(regulator.p)
-    elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-        fill!(regulator.p_ex, NaN)
-        for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
-            regulator.p_ex(z, h, d, t, :) .=
-                utility.p_energy_cem_my(reg_year_index, z, d, t)
-        end
-    elseif regulator_opts.net_metering_policy isa ExcessZero
-        fill!(regulator.p_ex, 0.0)
-    end
-
-    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
-        regulator.p_my(reg_year_index, z, h, d, t, :) .= regulator.p(z, h, d, t)
-        regulator.p_ex_my(reg_year_index, z, h, d, t, :) .= regulator.p_ex(z, h, d, t)
-    end
+    update_retail_rates!(
+        regulator,
+        regulator_opts,
+        model_data,
+        utility,
+        reg_year_index,
+        hem_opts
+    )
 
     # @info "Original retail price" p_before
     # @info "Original DER excess rate" p_ex_before
@@ -1667,7 +1716,12 @@ function solve_agent_problem!(
 
     for y in model_data.index_y_fix
         for z in model_data.index_z
-            regulator.othercost(z, y, :) .= regulator.distribution_cost(z, y) + regulator.administration_cost(z, y) + regulator.transmission_cost(z, y) + regulator.interconnection_cost(z, y) + regulator.system_cost(z, y)
+            regulator.othercost(z, y, :Distribution, :) .= regulator.distribution_cost(z, y)
+            regulator.othercost(z, y, :Administration, :) .= regulator.administration_cost(z, y)
+            regulator.othercost(z, y, :Transmission, :) .= regulator.transmission_cost(z, y)
+            regulator.othercost(z, y, :Interconnection, :) .= regulator.interconnection_cost(z, y)
+            regulator.othercost(z, y, :System, :) .= regulator.system_cost(z, y)
+            regulator.othercost(z, y, :Total, :) .= sum(regulator.othercost(z, y, cost_type) for cost_type in get_grid_side_cost_types(hem_opts.market_structure))
         end
     end
 
@@ -2644,6 +2698,16 @@ function solve_agent_problem!(
 
     capacity_purchase_cost = ipp.capacity_price(reg_year_index) * ipp.ucap_total(reg_year_index)
 
+    # calculate revenue requirement
+    revenue_requirement = make_keyed_array(model_data.index_z)
+    for z in model_data.index_z
+        revenue_requirement(z, :) .= 
+            sum(energy_purchase_cost(z, h) for h in z_to_h_dict[z]) + capacity_purchase_cost
+    end
+
+    regulator.revenue_req_my(reg_year_index, :) .= revenue_requirement
+            
+
     # rate-making and settltment related to consumer contracted green technologies:
     # consumers enter contracts with green developers, consumers pay for contract price (which we assume to be a rate-of-return model)
     # green-tech's contribution to energy and capacity markets will be settled at market prices (since they're modeled on the supply-side)
@@ -2682,7 +2746,7 @@ function solve_agent_problem!(
     for (z,h) in model_data.index_z_h_map
         demand_cost_allocation_h(z, h, :) .= 
         capacity_purchase_cost * net_peak_load_wo_green_tech_h(z, h) / sum(net_peak_load_wo_green_tech_h(z, h) for z in model_data.index_z, h in z_to_h_dict[z]) + 
-        regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
+        sum(regulator.othercost(z, reg_year_index, :)) * net_peak_load_wo_green_tech_h(z, h) / (
             sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
         )
     end
@@ -2695,15 +2759,14 @@ function solve_agent_problem!(
     end
     replace!(demand_cost_allocation_capacity_h, NaN => 0.0)
 
-    demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h)
+    demand_cost_allocation_othercost_h = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_othercost)
     for (z,h) in model_data.index_z_h_map
-        demand_cost_allocation_othercost_h(z, h, :) .=
-            regulator.othercost(z, reg_year_index) * net_peak_load_wo_green_tech_h(z, h) / (
-                sum(net_peak_load_wo_green_tech_h(z, h) for h in z_to_h_dict[z])
-            )
+        for cost_type in get_grid_side_cost_types(hem_opts.market_structure)
+            demand_cost_allocation_othercost_h(z, h, cost_type, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, cost_type), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
+        end
+        demand_cost_allocation_othercost_h(z, h, :Total, :) .= calculate_demand_cost_allocation(regulator.othercost(z, reg_year_index, :Total), net_peak_load_wo_green_tech_h, z, h, z_to_h_dict)
     end
     replace!(demand_cost_allocation_othercost_h, NaN => 0.0)
-
 
     energy_cost_allocation_h_t = make_keyed_array(model_data.index_z, model_data.index_h, regulator.index_rate_tou)
     for (z,h) in model_data.index_z_h_map, tou in regulator.index_rate_tou
@@ -2728,96 +2791,48 @@ function solve_agent_problem!(
             sum(model_data.omega(d) * delta_t * customers.d(h, z, d, t) for d in model_data.index_d, t in model_data.index_t)
     end
 
-    # TODO: Call a function instead of using if-then
+    set_rate_making_components!(
+        regulator,
+        reg_year_index,
+        hem_opts,
+        energy_cost_allocation_h,
+        energy_cost_allocation_h_t,
+        demand_cost_allocation_capacity_h,
+        demand_cost_allocation_othercost_h,
+        net_peak_load_wo_green_tech_h,
+        net_peak_load_h,
+        net_demand_wo_green_tech_h_wo_loss,
+        net_demand_wo_green_tech_h_t_wo_loss,
+        net_demand_h_wo_loss,
+        net_demand_h_t_wo_loss
+    )
+
     # TODO: the demonimator need to be further thought through (in the case without green-tech, it's the same)
-    if regulator_opts.rate_design isa FlatRate
-        fill!(regulator.p, NaN)
-        sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
-            
-        h_to_sector = Dict(model_data.index_h_sector_map)
-        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
 
-            customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
-            
-            energy_cost = sum(energy_cost_allocation_h(z, h) for h in customer_types)
-            demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
-            net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
-            other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
+    calculate_and_assign_rates!(
+        regulator,
+        regulator_opts,
+        hem_opts,
+        model_data,
+        z_to_h_dict,
+        energy_cost_allocation_h,
+        energy_cost_allocation_h_t,
+        demand_cost_allocation_capacity_h,
+        demand_cost_allocation_othercost_h,
+        net_demand_wo_green_tech_h_wo_loss,
+        net_demand_wo_green_tech_h_t_wo_loss,
+        net_demand_h_wo_loss,
+        net_demand_h_t_wo_loss
+    )
 
-            sector_rates[(z, sector, d, t)] = (energy_cost + demand_capacity_cost + other_cost) / net_demand
-
-        end
-            
-        # Assign rates to customers
-        h_to_sector = Dict(model_data.index_h_sector_map)
-        for (z, h) in model_data.index_z_h_map
-            for d in model_data.index_d, t in model_data.index_t
-                regulator.p(z, h, d, t, :) .= sector_rates[(
-                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
-                )]
-            end
-        end      
-
-        # throw error if any NaN values are found
-        any(isnan.(regulator.p(z, h, d, t, :)) for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t) && 
-            error("NaN values found in regulator retail price")
-        
-    elseif regulator_opts.rate_design isa TOU
-        fill!(regulator.p, NaN)
-        sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
-
-        h_to_sector = Dict(model_data.index_h_sector_map)
-        for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
-            customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
-                            
-            tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
-
-            energy_cost = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
-            net_demand_tou = sum(net_demand_wo_green_tech_h_t_wo_loss(z, h, tou) for h in customer_types)
-            demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
-            net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
-            other_cost = sum(demand_cost_allocation_othercost_h(z, h) for h in customer_types)
-        
-            sector_rates[(z, sector, d, t)] = energy_cost / net_demand_tou + demand_capacity_cost / net_demand + other_cost / net_demand
-
-        end
-            
-        # Assign rates to customers
-        h_to_sector = Dict(model_data.index_h_sector_map)
-        for (z, h) in model_data.index_z_h_map
-            for d in model_data.index_d, t in model_data.index_t
-                regulator.p(z, h, d, t, :) .= sector_rates[(
-                    Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
-                )]
-            end
-        end      
-
-        # throw error if any NaN values are found
-        any(isnan.(regulator.p(z, h, d, t, :)) for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t) && 
-            error("NaN values found in regulator retail price")
-    end
-
-    # TODO: Call a function instead of using if-then
-    if regulator_opts.net_metering_policy isa ExcessRetailRate
-        regulator.p_ex = ParamArray(regulator.p)
-    elseif regulator_opts.net_metering_policy isa ExcessMarginalCost
-        fill!(regulator.p_ex, NaN)
-        for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
-            regulator.p_ex(z, h, d, t, :) .= ipp.LMP_my(reg_year_index, z, d, t)
-        end
-    elseif regulator_opts.net_metering_policy isa ExcessZero
-        fill!(regulator.p_ex, 0.0)
-    end
-
-    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
-        regulator.p_my(reg_year_index, z, h, d, t, :) .= regulator.p(z, h, d, t)
-        regulator.p_ex_my(reg_year_index, z, h, d, t, :) .= regulator.p_ex(z, h, d, t)
-    end
-
-    # for h in model_data.index_h
-    #     regulator.p_my_regression(reg_year_index, h, :) .= regulator.p_regression(h)
-    #     regulator.p_my_td(reg_year_index, h, :) .= regulator.p_td(h)
-    # end
+    update_retail_rates!(
+        regulator,
+        regulator_opts,
+        model_data,
+        ipp,
+        reg_year_index,
+        hem_opts,
+    )
 
     p_after_wavg = ParamArray(regulator.p_td, "p_after_wavg")
     fill!(p_after_wavg, NaN)  # TODO DT: debug only
@@ -2842,6 +2857,310 @@ function solve_agent_problem!(
     ])
 end
 
+function calculate_and_assign_rates!(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions,
+    hem_opts::HEMOptions,
+    model_data::HEMData,
+    z_to_h_dict::Dict,
+    energy_cost_allocation_h::KeyedArray,
+    energy_cost_allocation_h_t::KeyedArray,
+    demand_cost_allocation_capacity_h::KeyedArray,
+    demand_cost_allocation_othercost_h::KeyedArray,
+    net_demand_wo_green_tech_h_wo_loss::KeyedArray,
+    net_demand_wo_green_tech_h_t_wo_loss::Union{KeyedArray, Nothing},
+    net_demand_h_wo_loss::KeyedArray,
+    net_demand_h_t_wo_loss::KeyedArray
+)
+
+    fill!(regulator.p, NaN)
+    h_to_sector = Dict(model_data.index_h_sector_map)
+    sector_rates = calculate_sector_rates(
+        regulator,
+        regulator_opts,
+        hem_opts,
+        model_data,
+        z_to_h_dict,
+        h_to_sector,
+        energy_cost_allocation_h,
+        energy_cost_allocation_h_t,
+        demand_cost_allocation_capacity_h,
+        demand_cost_allocation_othercost_h,
+        net_demand_wo_green_tech_h_wo_loss,
+        net_demand_wo_green_tech_h_t_wo_loss,
+        net_demand_h_wo_loss,
+        net_demand_h_t_wo_loss
+    )
+
+    # Assign rates to customers
+    for (z, h) in model_data.index_z_h_map
+        for d in model_data.index_d, t in model_data.index_t
+            regulator.p(z, h, d, t, :) .= sector_rates[(
+                Symbol(z), h_to_sector[h], Symbol(d), Symbol(t)
+            )]
+        end
+    end      
+
+    # throw error if any NaN values are found
+    any(isnan.(regulator.p(z, h, d, t, :)) for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t) && 
+        error("NaN values found in regulator retail price")
+
+end
+
+function calculate_sector_rates(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions{FlatRate},
+    hem_opts::HEMOptions{VIU},
+    model_data::HEMData,
+    z_to_h_dict::Dict,
+    h_to_sector::Dict{Symbol, Symbol},
+    energy_cost_allocation_h::KeyedArray,
+    energy_cost_allocation_h_t::KeyedArray,
+    demand_cost_allocation_capacity_h::KeyedArray,
+    demand_cost_allocation_othercost_h::KeyedArray,
+    net_demand_wo_green_tech_h_wo_loss::KeyedArray,
+    net_demand_wo_green_tech_h_t_wo_loss::Nothing,
+    net_demand_h_wo_loss::KeyedArray,
+    net_demand_h_t_wo_loss::KeyedArray
+)
+    
+    sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+
+    for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
+        # Collect all customer types in this sector
+        customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
+
+        # Aggregate numerator and denominator over customer types
+        numerator_energy_demand = sum(
+            energy_cost_allocation_h(z, h) + demand_cost_allocation_capacity_h(z, h)
+            for h in customer_types
+        )
+        denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
+        numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h, :Total) for h in customer_types)
+        denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+
+        sector_rates[(z, sector, d, t)] = (numerator_energy_demand / denominator_net_demand) + 
+                                            (numerator_other_cost / denominator_net_demand_wo_green)
+    end
+
+    return sector_rates
+end
+
+function calculate_sector_rates(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions{TOU},
+    hem_opts::HEMOptions{VIU},
+    model_data::HEMData,
+    z_to_h_dict::Dict,
+    h_to_sector::Dict{Symbol, Symbol},
+    energy_cost_allocation_h::KeyedArray,
+    energy_cost_allocation_h_t::KeyedArray,
+    demand_cost_allocation_capacity_h::KeyedArray,
+    demand_cost_allocation_othercost_h::KeyedArray,
+    net_demand_wo_green_tech_h_wo_loss::KeyedArray,
+    net_demand_wo_green_tech_h_t_wo_loss::Nothing,
+    net_demand_h_wo_loss::KeyedArray,
+    net_demand_h_t_wo_loss::KeyedArray
+)
+
+    sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+
+    for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
+        
+        customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
+                        
+        tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
+
+        # Aggregate over customer types
+        numerator_energy = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
+        denominator_net_demand_t = sum(net_demand_h_t_wo_loss(z, h, tou) for h in customer_types)
+        numerator_demand_capacity = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+        denominator_net_demand = sum(net_demand_h_wo_loss(z, h) for h in customer_types)
+        numerator_other_cost = sum(demand_cost_allocation_othercost_h(z, h, :Total) for h in customer_types)
+        denominator_net_demand_wo_green = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+
+
+        sector_rates[(z, sector, d, t)] = (numerator_energy / denominator_net_demand_t) +
+                                                (numerator_demand_capacity / denominator_net_demand) +
+                                                (numerator_other_cost / denominator_net_demand_wo_green)
+
+    end
+
+    return sector_rates
+         
+end
+
+function calculate_sector_rates(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions{FlatRate},
+    hem_opts::HEMOptions{WM},
+    model_data::HEMData,
+    z_to_h_dict::Dict,
+    h_to_sector::Dict{Symbol, Symbol},
+    energy_cost_allocation_h::KeyedArray,
+    energy_cost_allocation_h_t::KeyedArray,
+    demand_cost_allocation_capacity_h::KeyedArray,
+    demand_cost_allocation_othercost_h::KeyedArray,
+    net_demand_wo_green_tech_h_wo_loss::KeyedArray,
+    net_demand_wo_green_tech_h_t_wo_loss::KeyedArray,
+    net_demand_h_wo_loss::KeyedArray,
+    net_demand_h_t_wo_loss::KeyedArray
+    
+)
+
+    sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+        
+    for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
+
+        customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
+        
+        energy_cost = sum(energy_cost_allocation_h(z, h) for h in customer_types)
+        demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+        net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+        other_cost = sum(demand_cost_allocation_othercost_h(z, h, :Total) for h in customer_types)
+
+        sector_rates[(z, sector, d, t)] = (energy_cost + demand_capacity_cost + other_cost) / net_demand
+
+    end
+
+    return sector_rates
+end
+
+function calculate_sector_rates(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions{TOU},
+    hem_opts::HEMOptions{WM},
+    model_data::HEMData,
+    z_to_h_dict::Dict,
+    h_to_sector::Dict{Symbol, Symbol},
+    energy_cost_allocation_h::KeyedArray,
+    energy_cost_allocation_h_t::KeyedArray,
+    demand_cost_allocation_capacity_h::KeyedArray,
+    demand_cost_allocation_othercost_h::KeyedArray,
+    net_demand_wo_green_tech_h_wo_loss::KeyedArray,
+    net_demand_wo_green_tech_h_t_wo_loss::KeyedArray,
+    net_demand_h_wo_loss::KeyedArray,
+    net_demand_h_t_wo_loss::KeyedArray
+)
+    sector_rates = Dict{Tuple{Symbol, Symbol, Symbol, Symbol}, Float64}()
+
+    for z in model_data.index_z, sector in model_data.index_sector, d in model_data.index_d, t in model_data.index_t
+        customer_types = [h for h in z_to_h_dict[z] if h_to_sector[h] == sector]
+                        
+        tou = Symbol(regulator.tou_rate_structure[(regulator.tou_rate_structure.index_d .== String(d)) .& (regulator.tou_rate_structure.index_t .== String(t)), :index_rate_tou][1])
+
+        energy_cost = sum(energy_cost_allocation_h_t(z, h, tou) for h in customer_types)
+        net_demand_tou = sum(net_demand_wo_green_tech_h_t_wo_loss(z, h, tou) for h in customer_types)
+        demand_capacity_cost = sum(demand_cost_allocation_capacity_h(z, h) for h in customer_types)
+        net_demand = sum(net_demand_wo_green_tech_h_wo_loss(z, h) for h in customer_types)
+        other_cost = sum(demand_cost_allocation_othercost_h(z, h, :Total) for h in customer_types)
+    
+        sector_rates[(z, sector, d, t)] = energy_cost / net_demand_tou + demand_capacity_cost / net_demand + other_cost / net_demand
+
+    end
+        
+    return sector_rates
+end
+
+
+function update_retail_rates!(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions,
+    model_data::HEMData,
+    utility_or_ipp::T,
+    reg_year_index::Symbol,
+    hem_opts::HEMOptions,
+) where T <:AbstractAgent
+    
+    update_der_excess_rates!(regulator, regulator_opts, model_data, hem_opts, utility_or_ipp, reg_year_index)
+
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
+        regulator.p_my(reg_year_index, z, h, d, t, :) .= regulator.p(z, h, d, t)
+        regulator.p_ex_my(reg_year_index, z, h, d, t, :) .= regulator.p_ex(z, h, d, t)
+    end
+end
+
+function update_der_excess_rates!(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions{<:RateDesign, ExcessRetailRate},
+    model_data::HEMData,
+    hem_opts::HEMOptions,
+    utility_or_ipp::T,
+    reg_year_index::Symbol,
+) where T <:AbstractAgent
+    regulator.p_ex = ParamArray(regulator.p)
+end
+
+function update_der_excess_rates!(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions{<:RateDesign, ExcessMarginalCost},
+    model_data::HEMData,
+    hem_opts::HEMOptions{VIU},
+    utility::T,
+    reg_year_index::Symbol,
+) where T <:Agent
+    fill!(regulator.p_ex, NaN)
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
+        regulator.p_ex(z, h, d, t, :) .= utility.p_energy_cem_my(reg_year_index, z, d, t)
+    end
+end
+
+function update_der_excess_rates!(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions{<:RateDesign, ExcessMarginalCost},
+    model_data::HEMData,
+    hem_opts::HEMOptions{WM},
+    ipp::T,
+    reg_year_index::Symbol,
+) where T <:AbstractAgent
+    fill!(regulator.p_ex, NaN)
+    for (z,h) in model_data.index_z_h_map, d in model_data.index_d, t in model_data.index_t
+        regulator.p_ex(z, h, d, t, :) .= ipp.LMP_my(reg_year_index, z, d, t)
+    end
+end
+
+function update_der_excess_rates!(
+    regulator::Regulator,
+    regulator_opts::RegulatorOptions{<:RateDesign, ExcessZero},
+    model_data::HEMData,
+    hem_opts::HEMOptions,
+    utility_or_ipp::T,
+    reg_year_index::Symbol,
+) where T <:AbstractAgent
+    fill!(regulator.p_ex, 0.0)
+end
+
+function set_rate_making_components!(
+    regulator::Regulator,
+    reg_year_index::Symbol,
+    hem_opts::HEMOptions,
+    energy_cost_allocation_h::KeyedArray,
+    energy_cost_allocation_h_t::KeyedArray,
+    demand_cost_allocation_capacity_h::KeyedArray,
+    demand_cost_allocation_othercost_h::KeyedArray,
+    net_peak_load_wo_green_tech_h::KeyedArray,
+    net_peak_load_h::KeyedArray,
+    net_demand_wo_green_tech_h_wo_loss::KeyedArray,
+    net_demand_wo_green_tech_h_t_wo_loss::Union{KeyedArray, Nothing},
+    net_demand_h_wo_loss::KeyedArray,
+    net_demand_h_t_wo_loss::KeyedArray
+)
+    regulator.cost_allocation_my(reg_year_index, :, :, :Energy) .= energy_cost_allocation_h
+    regulator.cost_allocation_my(reg_year_index, :, :, :Capacity) .= demand_cost_allocation_capacity_h
+    for cost_type in get_grid_side_cost_types(hem_opts.market_structure)
+        regulator.cost_allocation_my(reg_year_index, :, :, cost_type) .= demand_cost_allocation_othercost_h(:, :, cost_type)
+    end
+    regulator.energy_cost_allocation_tou_my(reg_year_index, :, :, :) .= energy_cost_allocation_h_t
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithoutGreenTech) .= net_peak_load_wo_green_tech_h
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Peak, :WithGreenTech) .= net_peak_load_h
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Actual, :WithoutGreenTech) .= net_demand_wo_green_tech_h_wo_loss
+    regulator.net_demand_peak_my(reg_year_index, :, :, :Actual, :WithGreenTech) .= net_demand_h_wo_loss
+    if !(isnothing(net_demand_wo_green_tech_h_t_wo_loss))
+        regulator.net_demand_tou_my(reg_year_index, :, :, :, :WithoutGreenTech) .= net_demand_wo_green_tech_h_t_wo_loss
+    end
+    regulator.net_demand_tou_my(reg_year_index, :, :, :, :WithGreenTech) .= net_demand_h_t_wo_loss
+end
+
 function save_results(
     regulator::Regulator,
     regulator_opts::RegulatorOptions,
@@ -2861,4 +3180,50 @@ function save_results(
         :Price,
         joinpath(export_file_path, "p_ex.csv"),
     )
+    save_param(
+        regulator.revenue_req_my.values,
+        [:Year, :Zone],
+        :RevenueRequirement,
+        joinpath(export_file_path, "revenue_req.csv"),
+    )
+    save_param(
+        regulator.cost_allocation_my.values,
+        [:Year, :Zone, :CustomerType, :CostType],
+        :Cost,
+        joinpath(export_file_path, "cost_allocation.csv"),
+    )
+    save_param(
+        regulator.energy_cost_allocation_tou_my.values,
+        [:Year, :Zone, :CustomerType, :index_rate_tou],
+        :Cost,
+        joinpath(export_file_path, "energy_cost_allocation_tou.csv"),
+    )
+    save_param(
+        regulator.net_demand_peak_my.values,
+        [:Year, :Zone, :CustomerType, :DemandType, :GreenTechOption],
+        :NetDemand,
+        joinpath(export_file_path, "net_demand_peak.csv"),
+    )
+    save_param(
+        regulator.net_demand_tou_my.values,
+        [:Year, :Zone, :CustomerType, :index_rate_tou, :GreenTechOption],
+        :NetDemand,
+        joinpath(export_file_path, "net_demand_tou.csv"),
+    )
+
+    save_dimension(
+        regulator.index_cost_type,
+        joinpath(export_file_path, "index_cost_type.csv"),
+    )
+
+    save_dimension(
+        regulator.index_demand_type,
+        joinpath(export_file_path, "index_demand_type.csv"),
+    )
+
+    save_dimension(
+        regulator.index_green_tech_option,
+        joinpath(export_file_path, "index_green_tech_option.csv"),
+    )
+
 end

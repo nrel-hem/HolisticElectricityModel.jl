@@ -88,6 +88,7 @@ mutable struct HEMData
     year_start::ParamScalar
     "Number of hours per representative hour"
     delta_t::ParamScalar
+
 end
 
 """
@@ -195,6 +196,8 @@ function HEMData(input_dir::String; year_start::Int=2020, delta_t::Int=4, epsilo
 
     delta_t = ParamScalar("delta_t", delta_t, description="number of hours per representative hour")
 
+    # add other parameters as needed
+
     return HEMData(
         ParamScalar("epsilon", epsilon, description="iteration tolerance"),
         index_y,
@@ -210,7 +213,7 @@ function HEMData(input_dir::String; year_start::Int=2020, delta_t::Int=4, epsilo
         year,
         time,
         year_start,
-        delta_t
+        delta_t,
     )
 end
 
